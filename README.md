@@ -15,6 +15,8 @@ AIを活用した副業講座の販売・アフィリエイト管理システム
 - 💳 **Stripe決済** - Checkout Sessionで安全な決済処理
 - 🔒 **不正チェック** - 自動不正検知とフラグ管理
 - 📈 **段階価格設定** - 販売数に応じた自動価格切り替え（¥29,800 / ¥49,800 / ¥99,800）
+- 🏢 **パートナー管理** - product_ownerロール専用ダッシュボード（RBAC・申請ワークフロー）
+- 🔗 **GAS→Netlify→Supabase同期** - 既存GAS Webhookを維持しながらSupabaseへサイドカー同期
 
 ---
 
@@ -173,6 +175,10 @@ VITE_LINE_LIFF_ID=liff.1234567890-xxxxxxxx          # 無料セミナーLINE用L
 VITE_LINE_BUYER_LIFF_ID=liff.0987654321-yyyyyyyy    # 購入者LINE用LIFFアプリID
 VITE_LINE_BUYER_ADD_URL=https://line.me/R/ti/p/@xxxxx  # 購入者LINE友達追加URL
 
+# ===== GAS→Netlify→Supabase 同期 =====
+LINE_SYNC_SECRET=your-secure-random-secret-here
+# GASのスクリプトプロパティ LINE_SYNC_SECRET にも同じ値を設定すること
+
 # 管理者設定
 VITE_ADMIN_EMAILS=admin@example.com
 VITE_ADMIN_PASSWORD=your-admin-password
@@ -314,6 +320,9 @@ products              → 商品情報
 price_tiers           → 段階価格設定（販売数別の価格ルール）★新規
 price_change_history  → 価格変更履歴（自動/手動/予約）★新規
 affiliate_campaigns   → アフィリエイト案件
+                         ├─ access_type               ← 紹介権限タイプ (public/approved_only/specific_affiliates/tag_based) ★新規
+                         ├─ required_affiliate_tags   ← tag_based時の必要タグ配列 ★新規
+                         └─ allow_application         ← 紹介申請を受け付けるか ★新規
 affiliates            → 紹介者
 leads                 → 顧客（LINE登録者）
                          ├─ seminar_line_user_id/display_name   ← 無料セミナーLINE★新規
@@ -323,10 +332,18 @@ leads                 → 顧客（LINE登録者）
                          └─ course_received_at                  ← 講座受取日時★新規
 buyer_line_verifications → 購入者LINE紐づけ記録★新規
 line_keyword_responses   → LINEキーワード自動応答設定（DB管理）★新規
+app_users             → 全ロール共通ユーザーテーブル (super_admin/admin/product_owner/affiliate/customer) ★新規
+product_owners        → 商品提供者と商品の多対多 (user_id, product_id, permission_level, status) ★新規
+product_owner_permissions → 細粒度権限 (can_view_sales, can_view_customers, can_export_csv ...) ★新規
+partner_requests      → 商品提供者の申請管理 7種類 (pending/approved/rejected/cancelled) ★新規
+affiliate_campaign_access → 紹介者ごとの案件アクセス権 (approved/pending/rejected/revoked) ★新規
+affiliate_campaign_applications → 紹介者の案件紹介申請 ★新規
 clicks                → クリック計測
 attribution_events    → 流入履歴（報酬判定の根拠）
 seminar_views         → セミナー視聴記録
 purchases             → 購入履歴（1購入=1行）
+                         ├─ access_verified    ← 紹介権限チェック結果 ★新規
+                         └─ no_access_reason   ← 権限なし理由 ★新規
 product_accesses      → 視聴権限
 commissions           → 報酬記録
 payouts               → 支払履歴
@@ -344,6 +361,57 @@ affiliate_daily_stats → 日次統計
 - **購入者確認優先順位**: stripe_session_id > lead_id > buyer_email の順で照合
 - **段階価格**: status='completed'の有効累計販売数ベースで自動切り替え（Stripe Webhook起動）
 - **キーワードキャッシュ**: 10分TTLでDB負荷軽減
+- **ロール分離**: super_admin/admin/product_owner/affiliate/customerの5段階、パートナー画面は /partner/* で完全分離
+- **紹介権限制御**: access_type (public/approved_only/specific_affiliates/tag_based) でキャンペーンごとに制御
+- **権限なし購入**: 紹介権限なし経由の購入は access_verified=false・commission_amount=0 で保存（購入自体は有効）
+- **申請制ワークフロー**: 商品提供者の価格変更・キャンペーン操作等はpartner_requestsを通じて承認後のみ反映
+- **多対多モデル**: product_ownersで1人→複数商品、1商品→複数提供者に対応
+- **RBAC**: 5ロール（super_admin / admin / product_owner / affiliate / customer）
+- **申請制ワークフロー**: product_ownerは価格・報酬・キャンペーンを直接変更不可。partner_requests経由でadmin承認後のみ反映
+- **access_verifiedフラグ**: 紹介権限なし経由の購入も保存するが報酬は0円＋フラグ記録
+- **GAS同期サイドカー**: GASのLINE Webhook処理（スプシ保存・メール収集）は維持。同期は追加のサイドカー呼び出し
+
+---
+
+## 🔄 GAS→Netlify→Supabase 同期アーキテクチャ
+
+```
+LINE公式アカウント
+  ↓ Webhook
+GAS（既存運用を維持）
+  ├─ スプレッドシートに保存（メイン処理）
+  ├─ メールアドレス収集ボタン表示
+  ├─ ユーザーがメールを送信 → スプシに保存
+  └─ POST /.netlify/functions/line-sync  ← サイドカー同期
+       Headers: x-line-sync-secret: <LINE_SYNC_SECRET>
+       Body: { line_account_type, line_user_id, email, ... }
+         ↓
+Netlify Function (line-sync.js)
+  ├─ 認証チェック（x-line-sync-secret ↔ LINE_SYNC_SECRET）
+  ├─ leads テーブルに upsert（seminar_line_user_id / buyer_line_user_id）
+  ├─ attribution_events 記録（新規登録時のみ）
+  └─ line_sync_logs に実行ログ保存
+```
+
+### GAS セットアップ手順
+
+1. `gas/line-sync-sample.gs` の内容を既存GASプロジェクトに追加
+2. GASエディタ → プロジェクトの設定 → スクリプトプロパティ に以下を設定:
+   ```
+   NETLIFY_URL        = https://your-site.netlify.app
+   LINE_SYNC_SECRET   = （Netlify 環境変数 LINE_SYNC_SECRET と同じ値）
+   LINE_ACCOUNT_TYPE  = free_seminar  （または purchaser）
+   LINE_CHANNEL_ACCESS_TOKEN = （LINEチャネルアクセストークン）
+   ```
+3. 既存の `doPost` 関数に `syncToNetlify(payload)` 呼び出しを追加
+4. GASエディタで `testLineSyncIntegration` 関数を実行して接続確認
+
+### 2アカウント構成
+
+| GASプロジェクト | LINE_ACCOUNT_TYPE | 同期先フィールド |
+|---|---|---|
+| 無料セミナーLINE用GAS | `free_seminar` | `leads.seminar_line_user_id` |
+| 購入者LINE用GAS | `purchaser` | `leads.buyer_line_user_id` |
 
 ---
 
@@ -416,8 +484,28 @@ build: {
 | `/purchase-complete` | 購入完了ページ |
 | `/affiliate/login` | 紹介者ログイン |
 | `/affiliate/dashboard` | 紹介者ダッシュボード |
+| `/partner/login` | パートナーログイン |
+| `/partner/dashboard` | パートナーダッシュボード（KPI 9項目） |
+| `/partner/purchases` | 購入者一覧（product_owner権限内のみ） |
+| `/partner/affiliates` | 紹介者別/キャンペーン別成果 |
+| `/partner/requests` | 申請管理（価格変更・キャンペーン開始等） |
+| `/partner/csv` | CSV出力（5種） |
+| `/partner/notices` | お知らせ履歴 |
 | `/admin/login` | 管理者ログイン |
 | `/admin/dashboard` | 管理者ダッシュボード |
+| `/admin/roles` | パートナーアカウント管理・商品紐づけ |
+| `/admin/approvals` | 申請審査（パートナー申請・紹介申請） |
+| `/admin/campaign-access` | キャンペーン紹介権限管理 |
+| `/admin/roles` | パートナーアカウント管理 ★新規 |
+| `/admin/approvals` | パートナー申請審査 ★新規 |
+| `/admin/campaign-access` | キャンペーン紹介権限管理 ★新規 |
+| `/partner/login` | パートナー（商品提供者）ログイン ★新規 |
+| `/partner/dashboard` | パートナーダッシュボード（KPI9種） ★新規 |
+| `/partner/purchases` | 購入者一覧（自商品のみ） ★新規 |
+| `/partner/affiliates` | 紹介者別・キャンペーン別成果 ★新規 |
+| `/partner/requests` | 申請管理（7種類） ★新規 |
+| `/partner/csv` | CSV出力（5種類） ★新規 |
+| `/partner/notices` | 購入者向けお知らせ履歴 ★新規 |
 
 ### API エンドポイント
 
@@ -432,8 +520,10 @@ build: {
 | `POST /api/line-webhook?account=seminar` | 無料セミナーLINE Webhook（キーワード応答6種） |
 | `POST /api/line-webhook?account=buyer` | 購入者LINE Webhook（キーワード応答9種・購入者確認） |
 | `GET /api/get-product-price?product_id=xxx` | 段階価格情報取得（現在価格・次tier・残り部数） |
-| `GET/POST /api/admin-api/*` | 管理者API（顧客2LINE分離表示・price_tiers CRUD含む） |
+| `GET/POST /api/admin-api/*` | 管理者API（顧客2LINE分離表示・price_tiers CRUD・パートナー管理含む） |
 | `GET/POST /api/affiliate-api/*` | 紹介者API |
+| `GET/POST /api/partner-api/*` | パートナーAPI（product_ownerロール専用：ログイン・統計・申請） |
+| `POST /api/line-sync` | GAS→Supabase同期（x-line-sync-secretヘッダー認証） |
 
 ---
 
@@ -480,6 +570,15 @@ supabase/migrations/003_price_tiers.sql
 
 # 4. 2LINE対応（leadsテーブル拡張・buyer_line_verifications・line_keyword_responses）
 supabase/migrations/004_dual_line_accounts.sql
+
+# 5. ロール・権限管理 ★新規
+#    app_users / product_owners / product_owner_permissions / partner_requests
+#    affiliate_campaign_access / affiliate_campaign_applications / purchases拡張
+supabase/migrations/005_roles_and_permissions.sql
+
+# 6. GAS同期ログ ★新規（line-sync.js が参照）
+#    line_sync_logs テーブル（GAS→Netlify→Supabase 同期履歴）
+supabase/migrations/006_line_sync.sql
 ```
 
 ---
