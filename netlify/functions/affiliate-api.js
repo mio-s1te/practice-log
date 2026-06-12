@@ -54,6 +54,141 @@ exports.handler = async (event) => {
       return await extendSession(sessionToken, headers);
     }
 
+    // ======================================================
+    // アフィリエイター登録フロー（認証不要）
+    // ======================================================
+
+    // スタート講座購入確認
+    if (path === '/register/verify-purchase' && method === 'POST') {
+      const { email } = JSON.parse(event.body || '{}');
+      if (!email) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'メールアドレスは必須です' }) };
+      }
+
+      // すでに申請済みチェック
+      const { data: existingReg } = await supabase
+        .from('affiliate_registrations')
+        .select('id, status')
+        .eq('email', email)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (existingReg) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            already_registered: true,
+            registration_status: existingReg.status,
+          }),
+        };
+      }
+
+      // すでにアフィリエイター登録済みチェック
+      const { data: existingAffiliate } = await supabase
+        .from('affiliates')
+        .select('id, status')
+        .eq('email', email)
+        .single();
+
+      if (existingAffiliate) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            already_registered: true,
+            registration_status: existingAffiliate.status === 'active' ? 'approved' : existingAffiliate.status,
+          }),
+        };
+      }
+
+      // スタート講座購入チェック（購入者メールで照合）
+      const START_COURSE_PRODUCT_ID = 'a0000000-0000-0000-0000-000000000001';
+      const { data: purchase } = await supabase
+        .from('purchases')
+        .select('id, buyer_email, buyer_line_display_name, status')
+        .eq('buyer_email', email)
+        .eq('product_id', START_COURSE_PRODUCT_ID)
+        .eq('status', 'completed')
+        .order('purchased_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!purchase) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ verified: false }),
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          verified: true,
+          purchase_id: purchase.id,
+          buyer_name: purchase.buyer_line_display_name || '',
+        }),
+      };
+    }
+
+    // 登録申請送信
+    if (path === '/register/submit' && method === 'POST') {
+      const {
+        email, name, sns_url, promotion_channel, motivation,
+        agreed_to_rules, start_course_purchase_id,
+      } = JSON.parse(event.body || '{}');
+
+      if (!email || !name || !promotion_channel || !motivation || !agreed_to_rules) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: '必須項目が不足しています' }) };
+      }
+
+      // 再度購入確認
+      const START_COURSE_PRODUCT_ID = 'a0000000-0000-0000-0000-000000000001';
+      const { data: purchase } = await supabase
+        .from('purchases')
+        .select('id')
+        .eq('id', start_course_purchase_id)
+        .eq('buyer_email', email)
+        .eq('product_id', START_COURSE_PRODUCT_ID)
+        .eq('status', 'completed')
+        .single();
+
+      const { data: reg, error: regErr } = await supabase
+        .from('affiliate_registrations')
+        .insert({
+          name,
+          email,
+          sns_url: sns_url || null,
+          promotion_channel,
+          motivation,
+          agreed_to_rules: true,
+          start_course_purchase_id: purchase?.id || null,
+          start_course_verified: !!purchase,
+          status: 'pending',
+        })
+        .select()
+        .single();
+
+      if (regErr) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: regErr.message }) };
+      }
+
+      return { statusCode: 201, headers, body: JSON.stringify({ success: true, id: reg.id }) };
+    }
+
+    // 新ダッシュボードv2（商品ごとの紹介権限付き）
+    if (path === '/dashboard/v2' && method === 'GET') {
+      const sessionToken = getSessionToken(event);
+      const affiliate = await getAffiliateFromSession(sessionToken);
+      if (!affiliate) {
+        return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
+      }
+      return await getDashboardV2(affiliate, headers);
+    }
+
     // 認証が必要なエンドポイント
     const sessionToken = getSessionToken(event);
     const affiliate = await getAffiliateFromSession(sessionToken);
@@ -782,4 +917,142 @@ async function cancelCampaignApplication(affiliate, applicationId, headers) {
     .eq('id', applicationId);
 
   return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+}
+
+
+// ======================================================
+// getDashboardV2: 新要件対応ダッシュボード
+// 商品ごとの紹介権限チェック付き
+// ======================================================
+async function getDashboardV2(affiliate, headers) {
+  const affiliateId = affiliate.id;
+
+  // 統計情報取得
+  const now = new Date();
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  const [
+    clicksRes,
+    thisMonthClicksRes,
+    commissionsRes,
+    thisMonthCommissionsRes,
+    unpaidRes,
+    paidRes,
+    recentConversionsRes,
+    productsRes,
+  ] = await Promise.all([
+    supabase.from('clicks').select('id', { count: 'exact' }).eq('affiliate_id', affiliateId),
+    supabase.from('clicks').select('id', { count: 'exact' }).eq('affiliate_id', affiliateId).gte('created_at', firstDayOfMonth),
+    supabase.from('commissions').select('amount, status').eq('affiliate_id', affiliateId),
+    supabase.from('commissions').select('amount').eq('affiliate_id', affiliateId).gte('created_at', firstDayOfMonth).in('status', ['pending', 'approved', 'payable', 'paid']),
+    supabase.from('commissions').select('amount').eq('affiliate_id', affiliateId).in('status', ['approved', 'payable']),
+    supabase.from('commissions').select('amount').eq('affiliate_id', affiliateId).eq('status', 'paid'),
+    supabase
+      .from('purchases')
+      .select('id, product_name, amount_total, commission_amount, commission_status, purchased_at')
+      .eq('affiliate_id', affiliateId)
+      .order('purchased_at', { ascending: false })
+      .limit(20),
+    supabase.from('products').select('id, name, product_type, lp_url, price, status').eq('status', 'active'),
+  ]);
+
+  const totalClicks = clicksRes.count || 0;
+  const thisMonthClicks = thisMonthClicksRes.count || 0;
+
+  const allCommissions = commissionsRes.data || [];
+  const totalConversions = allCommissions.filter(c => ['approved', 'payable', 'paid'].includes(c.status)).length;
+  const totalCommission = allCommissions.reduce((sum, c) => sum + (c.amount || 0), 0);
+
+  const thisMonthConversions = thisMonthCommissionsRes.data?.length || 0;
+  const thisMonthCommission = (thisMonthCommissionsRes.data || []).reduce((sum, c) => sum + (c.amount || 0), 0);
+
+  const unpaidCommission = (unpaidRes.data || []).reduce((sum, c) => sum + (c.amount || 0), 0);
+  const paidCommission = (paidRes.data || []).reduce((sum, c) => sum + (c.amount || 0), 0);
+
+  // 商品ごとの紹介権限チェック
+  const products = productsRes.data || [];
+  const productPermissions = [];
+
+  for (const product of products) {
+    // デフォルト権限取得
+    const { data: defaultPerm } = await supabase
+      .from('product_affiliate_permissions')
+      .select('access_level, required_product_id')
+      .eq('product_id', product.id)
+      .is('affiliate_id', null)
+      .single();
+
+    // 個別権限取得
+    const { data: individualPerm } = await supabase
+      .from('product_affiliate_permissions')
+      .select('is_explicitly_granted, revoked_at')
+      .eq('product_id', product.id)
+      .eq('affiliate_id', affiliateId)
+      .single();
+
+    let canRefer = false;
+    const accessLevel = defaultPerm?.access_level || 'none';
+
+    // 個別権限が明示的に設定されている場合
+    if (individualPerm && individualPerm.is_explicitly_granted !== null && !individualPerm.revoked_at) {
+      canRefer = individualPerm.is_explicitly_granted;
+    } else {
+      // デフォルト権限で判定
+      if (accessLevel === 'open') {
+        canRefer = affiliate.status === 'active';
+      } else if (accessLevel === 'approved_only') {
+        canRefer = affiliate.status === 'active' && affiliate.start_course_purchased && !!affiliate.approved_at;
+      } else if (accessLevel === 'requires_purchase') {
+        // 必要な商品を購入済みか確認
+        const reqProductId = defaultPerm?.required_product_id || product.id;
+        const { data: purchase } = await supabase
+          .from('purchases')
+          .select('id')
+          .eq('buyer_email', affiliate.email)
+          .eq('product_id', reqProductId)
+          .eq('status', 'completed')
+          .limit(1)
+          .single();
+        canRefer = !!purchase;
+      }
+    }
+
+    productPermissions.push({
+      product_id: product.id,
+      product_name: product.name,
+      product_type: product.product_type,
+      lp_url: product.lp_url || `/${product.product_type?.replace('_', '-') || 'product'}`,
+      can_refer: canRefer,
+      access_level: accessLevel,
+    });
+  }
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      affiliate: {
+        id: affiliate.id,
+        name: affiliate.name,
+        email: affiliate.email,
+        affiliate_code: affiliate.affiliate_code,
+        status: affiliate.status,
+        start_course_purchased: affiliate.start_course_purchased,
+        approved_at: affiliate.approved_at,
+      },
+      stats: {
+        total_clicks: totalClicks,
+        this_month_clicks: thisMonthClicks,
+        total_conversions: totalConversions,
+        this_month_conversions: thisMonthConversions,
+        total_commission: totalCommission,
+        this_month_commission: thisMonthCommission,
+        unpaid_commission: unpaidCommission,
+        paid_commission: paidCommission,
+        conversion_rate: totalClicks > 0 ? totalConversions / totalClicks : 0,
+      },
+      product_permissions: productPermissions,
+      recent_conversions: recentConversionsRes.data || [],
+    }),
+  };
 }

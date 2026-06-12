@@ -311,6 +311,211 @@ exports.handler = async (event) => {
     }
 
     // ======================================================
+    // アフィリエイター登録申請管理 (affiliate_registrations)
+    // ======================================================
+
+    // 登録申請一覧
+    if (path === '/affiliate-registrations' && method === 'GET') {
+      let query = supabase
+        .from('affiliate_registrations')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (params.status && params.status !== 'all') {
+        query = query.eq('status', params.status);
+      }
+      const { data, error } = await query.limit(100);
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify({ registrations: data || [] }) };
+    }
+
+    // 登録申請承認
+    if (path === '/affiliate-registrations/approve' && method === 'POST') {
+      const { registration_id } = JSON.parse(event.body || '{}');
+      if (!registration_id) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'registration_id is required' }) };
+      }
+
+      // 申請情報取得
+      const { data: reg, error: regErr } = await supabase
+        .from('affiliate_registrations')
+        .select('*')
+        .eq('id', registration_id)
+        .eq('status', 'pending')
+        .single();
+      if (regErr || !reg) {
+        return { statusCode: 404, headers, body: JSON.stringify({ error: '申請が見つかりません' }) };
+      }
+
+      // アフィリエイターコード生成
+      const affiliateCode = generateAffiliateCode(reg.name);
+
+      // affiliatesテーブルに登録
+      const { data: aff, error: affErr } = await supabase
+        .from('affiliates')
+        .insert({
+          name: reg.name,
+          email: reg.email,
+          affiliate_code: affiliateCode,
+          status: 'active',
+          start_course_purchased: reg.start_course_verified,
+          start_course_purchased_at: reg.start_course_verified ? new Date().toISOString() : null,
+          approved_at: new Date().toISOString(),
+          approved_by: 'admin',
+          registration_purchase_id: reg.start_course_purchase_id,
+        })
+        .select()
+        .single();
+      if (affErr) {
+        // 既にaffiliate存在する場合
+        if (affErr.code === '23505') {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'このメールアドレスはすでに登録済みです' }) };
+        }
+        throw affErr;
+      }
+
+      // affiliate_registrationsを更新
+      await supabase
+        .from('affiliate_registrations')
+        .update({
+          status: 'approved',
+          reviewed_by: 'admin',
+          reviewed_at: new Date().toISOString(),
+          affiliate_id: aff.id,
+        })
+        .eq('id', registration_id);
+
+      // TODO: 承認メール送信（Netlify環境変数でSendGrid等と連携）
+
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true, affiliate: aff }) };
+    }
+
+    // 登録申請却下
+    if (path === '/affiliate-registrations/reject' && method === 'POST') {
+      const { registration_id, rejection_reason } = JSON.parse(event.body || '{}');
+      if (!registration_id || !rejection_reason) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'registration_id と rejection_reason は必須です' }) };
+      }
+
+      const { error } = await supabase
+        .from('affiliate_registrations')
+        .update({
+          status: 'rejected',
+          rejection_reason,
+          reviewed_by: 'admin',
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', registration_id)
+        .eq('status', 'pending');
+
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+    }
+
+    // ======================================================
+    // 紹介権限管理 (product_affiliate_permissions)
+    // ======================================================
+
+    // デフォルト権限 + 個別権限 一覧
+    if (path === '/permissions' && method === 'GET') {
+      const [defaultRes, individualRes] = await Promise.all([
+        supabase
+          .from('product_affiliate_permissions')
+          .select(`
+            *,
+            product:products(id, name, product_type),
+            required_product:products!product_affiliate_permissions_required_product_id_fkey(id, name)
+          `)
+          .is('affiliate_id', null)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('product_affiliate_permissions')
+          .select(`
+            *,
+            product:products(id, name),
+            affiliate:affiliates(id, name, affiliate_code)
+          `)
+          .not('affiliate_id', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(100),
+      ]);
+
+      const defaultPerms = (defaultRes.data || []).map(p => ({
+        product_id: p.product_id,
+        product_name: p.product?.name,
+        product_type: p.product?.product_type,
+        access_level: p.access_level,
+        required_product_id: p.required_product_id,
+        required_product_name: p.required_product?.name,
+      }));
+
+      const individualPerms = (individualRes.data || []).map(p => ({
+        id: p.id,
+        affiliate_id: p.affiliate_id,
+        affiliate_name: p.affiliate?.name,
+        affiliate_code: p.affiliate?.affiliate_code,
+        product_id: p.product_id,
+        product_name: p.product?.name,
+        is_explicitly_granted: p.is_explicitly_granted,
+        granted_by: p.granted_by,
+        granted_at: p.granted_at,
+        revoked_at: p.revoked_at,
+      }));
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ default_permissions: defaultPerms, individual_permissions: individualPerms }),
+      };
+    }
+
+    // デフォルト権限更新
+    if (path === '/permissions/default' && method === 'PUT') {
+      const { product_id, access_level, required_product_id } = JSON.parse(event.body || '{}');
+      if (!product_id || !access_level) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'product_id と access_level は必須です' }) };
+      }
+
+      const { data, error } = await supabase
+        .from('product_affiliate_permissions')
+        .upsert({
+          product_id,
+          affiliate_id: null,
+          access_level,
+          required_product_id: required_product_id || null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'product_id,affiliate_id' })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // 個別権限取り消し
+    if (path.match(/^\/permissions\/individual\/[^/]+\/revoke$/) && method === 'POST') {
+      const permId = path.split('/')[3];
+      const { error } = await supabase
+        .from('product_affiliate_permissions')
+        .update({
+          is_explicitly_granted: null,
+          revoked_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', permId);
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+    }
+
+    // 商品一覧（status フィルタ対応）
+    if (path === '/products' && method === 'GET') {
+      let query = supabase.from('products').select('*').order('display_order', { ascending: true });
+      if (params.status) query = query.eq('status', params.status);
+      const { data, error } = await query;
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify({ products: data || [] }) };
+    }
+
+    // ======================================================
     // 段階価格設定 (price_tiers) CRUD
     // ======================================================
 

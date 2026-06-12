@@ -4,20 +4,22 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 
 const menuItems = [
   { path: '/admin/dashboard', icon: '📊', label: 'ダッシュボード' },
-  { path: '/admin/products', icon: '📦', label: '商品管理' },
-  { path: '/admin/campaigns', icon: '🎯', label: '案件管理' },
+  // ---- アフィリエイター管理 ----
+  { path: '/admin/affiliate-registrations', icon: '📝', label: '登録申請審査', divider: true, sectionLabel: 'アフィリエイター管理' },
   { path: '/admin/affiliates', icon: '👥', label: '紹介者管理' },
-  { path: '/admin/leads', icon: '👤', label: '顧客管理' },
-  { path: '/admin/purchases', icon: '🛒', label: '購入管理' },
+  { path: '/admin/permissions', icon: '🔐', label: '紹介権限管理' },
   { path: '/admin/commissions', icon: '💰', label: '報酬管理' },
-  { path: '/admin/suspicious', icon: '⚠️', label: '不正チェック' },
-  { path: '/admin/announcements', icon: '📢', label: 'お知らせ管理' },
-  { path: '/admin/ranking', icon: '🏆', label: 'ランキング' },
-  { path: '/admin/csv', icon: '📥', label: 'CSV出力' },
+  // ---- 商品・売上管理 ----
+  { path: '/admin/products', icon: '📦', label: '商品管理', divider: true, sectionLabel: '商品・売上管理' },
+  { path: '/admin/purchases', icon: '🛒', label: '購入管理' },
+  { path: '/admin/clicks', icon: '📈', label: 'クリック管理' },
   // ---- パートナー管理 ----
-  { path: '/admin/roles', icon: '🤝', label: 'パートナー管理', divider: true },
+  { path: '/admin/roles', icon: '🤝', label: 'パートナー登録', divider: true, sectionLabel: 'パートナー管理' },
   { path: '/admin/approvals', icon: '✅', label: '申請審査' },
-  { path: '/admin/campaign-access', icon: '🔐', label: '紹介権限管理' },
+  // ---- その他 ----
+  { path: '/admin/campaigns', icon: '🎯', label: 'キャンペーン', divider: true, sectionLabel: 'その他' },
+  { path: '/admin/announcements', icon: '📢', label: 'お知らせ管理' },
+  { path: '/admin/csv', icon: '📥', label: 'CSV出力' },
 ];
 
 export function AdminLayout() {
@@ -65,7 +67,7 @@ export function AdminLayout() {
                 <li key={item.path}>
                   {item.divider && (
                     <div className="my-2 border-t border-gray-100 pt-2">
-                      <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">パートナー管理</p>
+                      <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{(item as any).sectionLabel || ''}</p>
                     </div>
                   )}
                   <Link
