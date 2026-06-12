@@ -172,6 +172,26 @@ function diffLabel(curr: number, prev: number | undefined, isRate = false): { te
   return { text: `${diff >= 0 ? '+' : ''}${pct}%`, positive: diff >= 0 };
 }
 
+// 期間・チャートビューに応じた前期比ラベルを返す
+function getPrevPeriodLabel(period: Period, chartView: 'daily' | 'weekly' | 'monthly'): string {
+  if (chartView === 'daily') {
+    if (period === 'today') return '前日比';
+    if (period === 'yesterday') return '前日比';
+    return '前期比（日別）';
+  }
+  if (chartView === 'weekly') {
+    if (period === 'this_week') return '前週比';
+    if (period === 'last_week') return '前々週比';
+    return '前期比（週別）';
+  }
+  if (chartView === 'monthly') {
+    if (period === 'month') return '前月比';
+    if (period === 'last_month') return '前々月比';
+    return '前期比（月別）';
+  }
+  return '前期比';
+}
+
 function fmtMoney(n: number) { return `¥${Math.floor(n).toLocaleString()}`; }
 function fmtPct(n: number) { return `${n.toFixed(2)}%`; }
 function fmtScore(n: number) { return n.toFixed(2); }
@@ -650,7 +670,7 @@ export function AffiliateDashboardNew() {
               <KpiCard label="クリック数" value={kpi.clicks.toLocaleString()} diff={diffLabel(kpi.clicks, kpiPrev?.clicks)} color="blue" />
               <KpiCard label="成約数" value={kpi.conversions.toLocaleString()} diff={diffLabel(kpi.conversions, kpiPrev?.conversions)} color="green" />
               <KpiCard label="成約率" value={fmtPct(kpi.conversion_rate)} diff={diffLabel(kpi.conversion_rate, kpiPrev?.conversion_rate, true)} color="purple" />
-              <KpiCard label="売上金額" value={fmtMoney(kpi.revenue)} color="orange" />
+              <KpiCard label="売上金額" value={fmtMoney(kpi.revenue)} diff={diffLabel(kpi.revenue, kpiPrev?.revenue)} color="orange" />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <KpiCard label="発生報酬" value={fmtMoney(kpi.commission)} diff={diffLabel(kpi.commission, kpiPrev?.commission)} color="green" />
@@ -728,7 +748,7 @@ export function AffiliateDashboardNew() {
 
             {/* 前期比サマリー */}
             {kpi && kpiPrev && (
-              <SectionCard title="前期比較" icon="📊">
+              <SectionCard title={`前期比較（${getPrevPeriodLabel(period, chartView)}）`} icon="📊">
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { label: 'クリック数', curr: kpi.clicks, prev: kpiPrev.clicks },

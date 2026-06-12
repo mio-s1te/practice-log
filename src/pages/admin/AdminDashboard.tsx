@@ -194,6 +194,64 @@ function SectionCard({ title, icon, children, className = '' }: { title: string;
   );
 }
 
+// カラー名 → 静的Tailwindクラスマップ（動的クラスのTailwind purge回避）
+const COLOR_BG: Record<string, string> = {
+  blue: 'bg-blue-50', green: 'bg-green-50', orange: 'bg-orange-50',
+  purple: 'bg-purple-50', teal: 'bg-teal-50', red: 'bg-red-50',
+  gray: 'bg-gray-50', indigo: 'bg-indigo-50', amber: 'bg-amber-50',
+};
+const COLOR_TEXT: Record<string, string> = {
+  blue: 'text-blue-700', green: 'text-green-700', orange: 'text-orange-700',
+  purple: 'text-purple-700', teal: 'text-teal-700', red: 'text-red-600',
+  gray: 'text-gray-700', indigo: 'text-indigo-700', amber: 'text-amber-700',
+};
+const COLOR_BG_SOFT: Record<string, string> = {
+  blue: 'bg-blue-100', green: 'bg-green-100', orange: 'bg-orange-100',
+  purple: 'bg-purple-100', teal: 'bg-teal-100', red: 'bg-red-100',
+  gray: 'bg-gray-100', indigo: 'bg-indigo-100', amber: 'bg-amber-100',
+};
+
+// 統計セル（固定クラス使用）
+function StatCell({ label, value, color = 'blue', size = 'md' }: { label: string; value: string; color?: string; size?: 'sm' | 'md' }) {
+  const bg = COLOR_BG[color] || 'bg-gray-50';
+  const txt = COLOR_TEXT[color] || 'text-gray-700';
+  const padding = size === 'sm' ? 'p-2' : 'p-2.5';
+  return (
+    <div className={`${bg} rounded-xl ${padding} text-center`}>
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className={`font-bold text-sm ${txt}`}>{value}</p>
+    </div>
+  );
+}
+
+// 導線ステップノード
+function FunnelStepNode({ step, name, isManual, count, prevCount, colorKey }: {
+  step: number; name: string; isManual?: boolean;
+  count: number | null | undefined; prevCount: number | null | undefined;
+  colorKey: string;
+}) {
+  const bg = COLOR_BG_SOFT[colorKey] || 'bg-blue-100';
+  const txt = COLOR_TEXT[colorKey] || 'text-blue-700';
+  const rate = (prevCount && count) ? (count / prevCount * 100).toFixed(1) : null;
+  return (
+    <div className="flex items-center gap-3">
+      <div className={`w-7 h-7 rounded-full ${bg} ${txt} text-xs font-bold flex items-center justify-center flex-shrink-0`}>{step}</div>
+      <div className="flex-1 bg-gray-50 rounded-xl p-2.5 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-800">{name}</p>
+          {isManual && <p className="text-xs text-orange-500">手動入力</p>}
+        </div>
+        <div className="text-right">
+          <p className={`font-bold ${count !== null && count !== undefined ? txt : 'text-gray-400'}`}>
+            {count !== null && count !== undefined ? count.toLocaleString() : '—'}
+          </p>
+          {rate && <p className="text-xs text-gray-400">前ステップ比 {rate}%</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16'];
 const DIAGNOSIS_LABELS: Record<string, string> = {
   click_shortage: 'クリック不足', low_conversion: '成約改善', weak_main_product: '本命商品弱め',
@@ -664,21 +722,14 @@ export function AdminDashboard() {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                  {[
-                    { label: 'アクセス数', value: lp.clicks.toLocaleString(), color: 'blue' },
-                    { label: 'ユニーク', value: lp.unique_clicks.toLocaleString(), color: 'blue' },
-                    { label: 'ボタンクリック', value: lp.button_clicks.toLocaleString(), color: 'purple' },
-                    { label: '購入数', value: `${lp.purchases}件`, color: 'green' },
-                    { label: '成約率', value: fmtPct(lp.conversion_rate), color: 'teal' },
-                    { label: 'CTA率', value: fmtPct(lp.click_through_rate), color: 'purple' },
-                    { label: '離脱率', value: fmtPct(lp.bounce_rate), color: 'red' },
-                    { label: '平均滞在', value: fmtTime(lp.avg_time_on_page), color: 'gray' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className={`bg-${color}-50 rounded-xl p-2.5 text-center`}>
-                      <p className="text-xs text-gray-500">{label}</p>
-                      <p className={`font-bold text-sm text-${color}-700`}>{value}</p>
-                    </div>
-                  ))}
+                  <StatCell label="アクセス数" value={lp.clicks.toLocaleString()} color="blue" />
+                  <StatCell label="ユニーク" value={lp.unique_clicks.toLocaleString()} color="blue" />
+                  <StatCell label="ボタンクリック" value={lp.button_clicks.toLocaleString()} color="purple" />
+                  <StatCell label="購入数" value={`${lp.purchases}件`} color="green" />
+                  <StatCell label="成約率" value={fmtPct(lp.conversion_rate)} color="teal" />
+                  <StatCell label="CTA率" value={fmtPct(lp.click_through_rate)} color="purple" />
+                  <StatCell label="離脱率" value={fmtPct(lp.bounce_rate)} color="red" />
+                  <StatCell label="平均滞在" value={fmtTime(lp.avg_time_on_page)} color="gray" />
                 </div>
 
                 {/* LPスコア */}
@@ -787,21 +838,14 @@ export function AdminDashboard() {
                         const prevCount = idx > 0 ? funnel.steps[idx - 1].count : null;
                         const rate = (prevCount && step.count) ? (step.count / prevCount * 100).toFixed(1) : null;
                         return (
-                          <div key={step.step} className="flex items-center gap-3">
-                            <div className={`w-7 h-7 rounded-full bg-${funnel.color}-100 text-${funnel.color}-700 text-xs font-bold flex items-center justify-center flex-shrink-0`}>{step.step}</div>
-                            <div className="flex-1 bg-gray-50 rounded-xl p-2.5 flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-gray-800">{step.name}</p>
-                                {(step as any).manual && <p className="text-xs text-orange-500">手動入力</p>}
-                              </div>
-                              <div className="text-right">
-                                <p className={`font-bold ${step.count ? `text-${funnel.color}-700` : 'text-gray-400'}`}>
-                                  {step.count !== null && step.count !== undefined ? step.count.toLocaleString() : '—'}
-                                </p>
-                                {rate && <p className="text-xs text-gray-400">前ステップ比 {rate}%</p>}
-                              </div>
-                            </div>
-                            {idx < funnel.steps.length - 1 && <div className="text-gray-300 text-lg ml-1">↓</div>}
+                          <div key={step.step}>
+                            <FunnelStepNode
+                              step={step.step} name={step.name}
+                              isManual={(step as any).manual}
+                              count={step.count} prevCount={prevCount}
+                              colorKey={funnel.color}
+                            />
+                            {idx < funnel.steps.length - 1 && <div className="text-gray-300 text-lg ml-3 pl-3">↓</div>}
                           </div>
                         );
                       })}
@@ -865,21 +909,14 @@ export function AdminDashboard() {
 
                 {/* 主要指標 */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                  {[
-                    { label: '売上', value: fmtMoney(p.revenue), color: 'blue' },
-                    { label: '手元残り見込み', value: fmtMoney(p.net_remaining), color: 'teal' },
-                    { label: '有効販売数', value: `${p.valid_sales}件`, color: 'green' },
-                    { label: '成約率', value: fmtPct(p.conversion_rate), color: 'purple' },
-                    { label: 'アフィリ経由売上', value: fmtMoney(p.affiliate_revenue), color: 'orange' },
-                    { label: '直接売上', value: fmtMoney(p.direct_revenue), color: 'gray' },
-                    { label: '報酬予定', value: fmtMoney(p.commission_amount), color: 'orange' },
-                    { label: '返金数', value: `${p.refunds}件`, color: 'red' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className={`bg-${color}-50 rounded-xl p-2 text-center`}>
-                      <p className="text-xs text-gray-500">{label}</p>
-                      <p className={`font-bold text-sm text-${color}-700`}>{value}</p>
-                    </div>
-                  ))}
+                  <StatCell label="売上" value={fmtMoney(p.revenue)} color="blue" size="sm" />
+                  <StatCell label="手元残り見込み" value={fmtMoney(p.net_remaining)} color="teal" size="sm" />
+                  <StatCell label="有効販売数" value={`${p.valid_sales}件`} color="green" size="sm" />
+                  <StatCell label="成約率" value={fmtPct(p.conversion_rate)} color="purple" size="sm" />
+                  <StatCell label="アフィリ経由売上" value={fmtMoney(p.affiliate_revenue)} color="orange" size="sm" />
+                  <StatCell label="直接売上" value={fmtMoney(p.direct_revenue)} color="gray" size="sm" />
+                  <StatCell label="報酬予定" value={fmtMoney(p.commission_amount)} color="orange" size="sm" />
+                  <StatCell label="返金数" value={`${p.refunds}件`} color="red" size="sm" />
                 </div>
 
                 {/* 紹介者数 */}
@@ -948,20 +985,13 @@ export function AdminDashboard() {
                 </div>
 
                 <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                  {[
-                    { label: 'クリック', value: a.clicks.toLocaleString(), color: 'blue' },
-                    { label: '成約数', value: `${a.conversions}件`, color: 'green' },
-                    { label: '成約率', value: fmtPct(a.conversion_rate), color: 'purple' },
-                    { label: '売上', value: fmtMoney(a.revenue), color: 'orange' },
-                    { label: '報酬', value: fmtMoney(a.commission), color: 'green' },
-                    { label: '返金', value: `${a.refunds}件`, color: 'red' },
-                    { label: 'キャンセル', value: `${a.cancels}件`, color: 'red' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className={`bg-${color}-50 rounded-xl p-2 text-center`}>
-                      <p className="text-xs text-gray-500">{label}</p>
-                      <p className={`font-bold text-sm text-${color}-700`}>{value}</p>
-                    </div>
-                  ))}
+                  <StatCell label="クリック" value={a.clicks.toLocaleString()} color="blue" size="sm" />
+                  <StatCell label="成約数" value={`${a.conversions}件`} color="green" size="sm" />
+                  <StatCell label="成約率" value={fmtPct(a.conversion_rate)} color="purple" size="sm" />
+                  <StatCell label="売上" value={fmtMoney(a.revenue)} color="orange" size="sm" />
+                  <StatCell label="報酬" value={fmtMoney(a.commission)} color="green" size="sm" />
+                  <StatCell label="返金" value={`${a.refunds}件`} color="red" size="sm" />
+                  <StatCell label="キャンセル" value={`${a.cancels}件`} color="red" size="sm" />
                 </div>
               </div>
             ))}
