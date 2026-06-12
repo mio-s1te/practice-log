@@ -8,8 +8,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID;
-const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
+// 無料セミナーLINE用チャンネル設定
+// LINE_CHANNEL_ID / LINE_CHANNEL_SECRET は後方互換のため残す
+// 新設定: LINE_SEMINAR_CHANNEL_ID / LINE_SEMINAR_CHANNEL_ID
+const LINE_SEMINAR_CHANNEL_ID =
+  process.env.LINE_SEMINAR_CHANNEL_ID || process.env.LINE_CHANNEL_ID;
+const LINE_SEMINAR_CHANNEL_SECRET =
+  process.env.LINE_SEMINAR_CHANNEL_SECRET || process.env.LINE_CHANNEL_SECRET;
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -38,7 +43,12 @@ exports.handler = async (event) => {
       product_id,
       click_id,
       source,
+      line_type, // 'seminar'(デフォルト) or 'buyer'
     } = body;
+
+    // verify-line-token は無料セミナーLINE専用
+    // 購入者LINEは verify-buyer-line.js を使用
+    const effectiveChannelId = LINE_SEMINAR_CHANNEL_ID;
 
     if (!id_token && !access_token) {
       return {
@@ -58,7 +68,7 @@ exports.handler = async (event) => {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
             id_token,
-            client_id: LINE_CHANNEL_ID,
+            client_id: effectiveChannelId,
           }),
         });
 
@@ -129,10 +139,12 @@ exports.handler = async (event) => {
     const now = new Date().toISOString();
 
     if (existingLead) {
-      // 更新（current_display_nameとlatest情報のみ更新）
+      // 更新: seminar_line_user_id + current_display_name + latest情報
       const { data: updatedLead } = await supabase
         .from('leads')
         .update({
+          seminar_line_user_id: lineUserId,
+          seminar_line_display_name: displayName,
           current_display_name: displayName,
           latest_source: source || 'liff',
           latest_campaign_id: campaign_id || null,
@@ -144,11 +156,13 @@ exports.handler = async (event) => {
         .single();
       leadId = updatedLead?.id || existingLead.id;
     } else {
-      // 新規作成
+      // 新規作成: seminar_line_user_id に保存
       const { data: newLead } = await supabase
         .from('leads')
         .insert({
           line_user_id: lineUserId,
+          seminar_line_user_id: lineUserId,
+          seminar_line_display_name: displayName,
           display_name: displayName,
           current_display_name: displayName,
           first_source: source || 'liff',

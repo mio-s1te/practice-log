@@ -247,15 +247,44 @@ exports.handler = async (event) => {
       return { statusCode: 201, headers, body: JSON.stringify(data) };
     }
 
-    // 顧客一覧
+    // 顧客一覧（2LINE対応フィールド含む）
     if (path === '/leads' && method === 'GET') {
-      const { data, error } = await supabase
+      const query = supabase
         .from('leads')
-        .select('*')
+        .select(`
+          id, line_user_id, seminar_line_user_id, seminar_line_display_name,
+          buyer_line_user_id, buyer_line_display_name, buyer_line_registered_at,
+          display_name, current_display_name, email,
+          purchase_count, total_purchase_amount, purchased_at,
+          course_delivery_status, course_received_at,
+          registered_at, seminar_viewed_at, first_source,
+          suspicious_flag, created_at, updated_at
+        `)
         .order('created_at', { ascending: false })
-        .limit(params.limit || 100);
+        .limit(parseInt(params.limit) || 100);
+
+      // LINEフィルタ
+      if (params.line_filter === 'buyer_only') {
+        query.not('buyer_line_user_id', 'is', null);
+      } else if (params.line_filter === 'seminar_only') {
+        query.not('seminar_line_user_id', 'is', null).is('buyer_line_user_id', null);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // 顧客の購入履歴取得
+    if (path.match(/^\/leads\/[^/]+\/purchases$/) && method === 'GET') {
+      const leadId = path.split('/')[2];
+      const { data, error } = await supabase
+        .from('purchases')
+        .select('id, product_name, amount_total, status, purchased_at, stripe_session_id, commission_status')
+        .eq('lead_id', leadId)
+        .order('purchased_at', { ascending: false });
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data || []) };
     }
 
     // 不正疑い一覧

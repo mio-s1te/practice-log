@@ -11,9 +11,10 @@ AIを活用した副業講座の販売・アフィリエイト管理システム
 - 👥 **紹介者管理** - 紹介者の登録・スコア・タグ管理
 - 📊 **分析ダッシュボード** - 管理者・紹介者それぞれの詳細分析
 - 💰 **報酬自動計算** - 購入ごとに報酬を自動計算・管理
-- 📱 **LINE LIFF連携** - LINE登録→セミナー視聴→購入の自動追跡
+- 📱 **LINE 2アカウント連携** - 無料セミナーLINE（見込み客）と購入者LINE（購入者）の完全分離
 - 💳 **Stripe決済** - Checkout Sessionで安全な決済処理
 - 🔒 **不正チェック** - 自動不正検知とフラグ管理
+- 📈 **段階価格設定** - 販売数に応じた自動価格切り替え（¥29,800 / ¥49,800 / ¥99,800）
 
 ---
 
@@ -80,18 +81,43 @@ AIを活用した副業講座の販売・アフィリエイト管理システム
 
 ---
 
-### 4. LINE LIFF セットアップ
+### 4. LINE LIFF セットアップ（2アカウント構成）
 
-#### 4-1. LINE Loginチャネル作成
+本システムは **無料セミナーLINE**（見込み客用）と **購入者LINE**（購入者専用）の2アカウント構成です。
+
+#### 4-1. 無料セミナーLINE（Messaging API + LIFF）
+
+**Messaging APIチャネル作成：**
 1. LINE Developers → Create a provider
-2. Create a channel → LINE Login
-3. Channel ID, Channel Secret をメモ
+2. Create a channel → **Messaging API**
+3. Channel Secret, Channel Access Token をメモ
+4. Webhook URL: `https://your-site.netlify.app/api/line-webhook?account=seminar`
 
-#### 4-2. LIFF アプリ作成
-1. LINE Login チャネル → LIFF → Add
-2. LIFF URL: `https://your-site.netlify.app/seminar`
-3. Scope: `openid`, `profile`
-4. LIFF ID (`liff.1234567890-xxxxxxxx`) をメモ
+**LIFFアプリ作成（LINE Loginチャネル）：**
+1. Create a channel → LINE Login
+2. LINE Login チャネル → LIFF → Add
+3. LIFF URL: `https://your-site.netlify.app/seminar`
+4. Scope: `openid`, `profile`
+5. Channel ID, LIFF ID をメモ
+
+**対応キーワード：** セミナー / ロードマップ / アフィリエイト / スタート講座 / 価格 / 質問
+
+#### 4-2. 購入者LINE（Messaging API + LIFF）
+
+**Messaging APIチャネル作成：**
+1. Create a channel → **Messaging API**（2つ目）
+2. Channel Secret, Channel Access Token をメモ
+3. Webhook URL: `https://your-site.netlify.app/api/line-webhook?account=buyer`
+
+**LIFFアプリ作成（LINE Loginチャネル）：**
+1. Create a channel → LINE Login（2つ目）
+2. LINE Login チャネル → LIFF → Add
+3. LIFF URL: `https://your-site.netlify.app/purchase-complete`
+4. Scope: `openid`, `profile`
+5. Channel ID, LIFF ID をメモ
+6. 「友達追加」ボタン用の Add Friend URL をメモ（`https://line.me/R/ti/p/@xxxxx`）
+
+**対応キーワード（購入者確認後）：** 講座 / 第0章 / 第1章 / ワーク / ToDo / 特典 / 紹介 / アフィリエイト参加 / 紹介者画面
 
 ---
 
@@ -113,24 +139,51 @@ netlify init
 Netlify Dashboard → Site Settings → Environment Variables に以下を追加：
 
 ```
+# Supabase
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# Stripe
 STRIPE_SECRET_KEY=sk_live_xxx... (本番) or sk_test_xxx... (テスト)
 STRIPE_WEBHOOK_SECRET=whsec_xxx...
+
+# サイト設定
 SITE_URL=https://your-site.netlify.app
 ADMIN_EMAILS=admin@example.com
 ADMIN_SECRET_TOKEN=your-secure-token-here
-LINE_CHANNEL_ID=1234567890
-LINE_CHANNEL_SECRET=xxxxxxxx
-VITE_LINE_LIFF_ID=liff.1234567890-xxxxxxxx
+
+# ===== LINE 無料セミナーLINE（見込み客用）=====
+LINE_SEMINAR_CHANNEL_ID=1234567890
+LINE_SEMINAR_CHANNEL_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+LINE_SEMINAR_CHANNEL_ACCESS_TOKEN=xxxxxxxx...
+# （後方互換フォールバック：旧環境変数名も引き続き使用可）
+# LINE_CHANNEL_ID=1234567890
+# LINE_CHANNEL_SECRET=xxxxxxxx
+# LINE_CHANNEL_ACCESS_TOKEN=xxxxxxxx
+
+# ===== LINE 購入者LINE（購入者専用）=====
+LINE_BUYER_CHANNEL_ID=0987654321
+LINE_BUYER_CHANNEL_SECRET=yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+LINE_BUYER_CHANNEL_ACCESS_TOKEN=yyyyyyyy...
+
+# フロントエンド（VITE_プレフィックス必須）
+VITE_LINE_LIFF_ID=liff.1234567890-xxxxxxxx          # 無料セミナーLINE用LIFFアプリID
+VITE_LINE_BUYER_LIFF_ID=liff.0987654321-yyyyyyyy    # 購入者LINE用LIFFアプリID
+VITE_LINE_BUYER_ADD_URL=https://line.me/R/ti/p/@xxxxx  # 購入者LINE友達追加URL
+
+# 管理者設定
 VITE_ADMIN_EMAILS=admin@example.com
 VITE_ADMIN_PASSWORD=your-admin-password
 VITE_SITE_URL=https://your-site.netlify.app
 ```
 
-⚠️ **重要**: `SUPABASE_SERVICE_ROLE_KEY` は絶対に `VITE_` プレフィックスをつけないこと
+⚠️ **重要**:
+- `SUPABASE_SERVICE_ROLE_KEY` は絶対に `VITE_` プレフィックスをつけないこと
+- `LINE_BUYER_CHANNEL_SECRET` / `LINE_SEMINAR_CHANNEL_SECRET` は絶対に `VITE_` プレフィックスをつけないこと
+- `LINE_SEMINAR_CHANNEL_ID` は **LINE Loginチャネル**のChannel IDを使用（Messaging APIではない）
+- `LINE_BUYER_CHANNEL_ID` も同様に **LINE Loginチャネル**のChannel IDを使用
 
 #### 5-3. デプロイ
 ```bash
@@ -150,7 +203,9 @@ npm install
 cat > .env.local << 'EOF'
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
-VITE_LINE_LIFF_ID=liff.xxxxx
+VITE_LINE_LIFF_ID=liff.xxxxx              # 無料セミナーLINE用LIFF ID
+VITE_LINE_BUYER_LIFF_ID=liff.yyyyy        # 購入者LINE用LIFF ID
+VITE_LINE_BUYER_ADD_URL=https://line.me/R/ti/p/@xxxxx  # 購入者LINE友達追加URL
 VITE_ADMIN_EMAILS=admin@example.com
 VITE_ADMIN_PASSWORD=admin123
 VITE_SITE_URL=http://localhost:8888
@@ -255,20 +310,29 @@ netlify dev
 ### 主要テーブル構成
 
 ```
-products          → 商品情報
-affiliate_campaigns → アフィリエイト案件
-affiliates        → 紹介者
-leads             → 顧客（LINE登録者）
-clicks            → クリック計測
-attribution_events → 流入履歴（報酬判定の根拠）
-seminar_views     → セミナー視聴記録
-purchases         → 購入履歴（1購入=1行）
-product_accesses  → 視聴権限
-commissions       → 報酬記録
-payouts           → 支払履歴
-notifications     → 通知
-suspicious_events → 不正疑い
-affiliate_scores  → スコア
+products              → 商品情報
+price_tiers           → 段階価格設定（販売数別の価格ルール）★新規
+price_change_history  → 価格変更履歴（自動/手動/予約）★新規
+affiliate_campaigns   → アフィリエイト案件
+affiliates            → 紹介者
+leads                 → 顧客（LINE登録者）
+                         ├─ seminar_line_user_id/display_name   ← 無料セミナーLINE★新規
+                         ├─ buyer_line_user_id/display_name     ← 購入者LINE★新規
+                         ├─ buyer_line_registered_at            ← 購入者LINE登録日時★新規
+                         ├─ course_delivery_status              ← 講座受取状況★新規
+                         └─ course_received_at                  ← 講座受取日時★新規
+buyer_line_verifications → 購入者LINE紐づけ記録★新規
+line_keyword_responses   → LINEキーワード自動応答設定（DB管理）★新規
+clicks                → クリック計測
+attribution_events    → 流入履歴（報酬判定の根拠）
+seminar_views         → セミナー視聴記録
+purchases             → 購入履歴（1購入=1行）
+product_accesses      → 視聴権限
+commissions           → 報酬記録
+payouts               → 支払履歴
+notifications         → 通知
+suspicious_events     → 不正疑い
+affiliate_scores      → スコア
 affiliate_daily_stats → 日次統計
 ```
 
@@ -276,6 +340,10 @@ affiliate_daily_stats → 日次統計
 - **購入ごとに報酬判定**: LINE userIdと紹介者を固定で紐づけない
 - **アトリビューション有効期限**: デフォルト30日
 - **カスケード禁止**: 同じLINEユーザーが別商品を直接購入しても過去紹介者に報酬は発生しない
+- **2LINE分離**: 無料セミナーLINEは見込み客管理、購入者LINEは購入者専用コンテンツ配信
+- **購入者確認優先順位**: stripe_session_id > lead_id > buyer_email の順で照合
+- **段階価格**: status='completed'の有効累計販売数ベースで自動切り替え（Stripe Webhook起動）
+- **キーワードキャッシュ**: 10分TTLでDB負荷軽減
 
 ---
 
@@ -287,11 +355,25 @@ Webhook Error: No signatures found matching the expected signature for payload
 ```
 → Netlify環境変数の `STRIPE_WEBHOOK_SECRET` が正しく設定されているか確認
 
-### LINE IDトークン検証エラー
+### LINE IDトークン検証エラー（無料セミナーLINE）
 ```
 LINE ID token verification failed
 ```
-→ `LINE_CHANNEL_ID` と実際のLINE Loginチャネルのチャネルシークレットが一致しているか確認
+→ `LINE_SEMINAR_CHANNEL_ID` と実際のLINE Loginチャネルのチャネルシークレットが一致しているか確認
+→ 旧設定の場合は `LINE_CHANNEL_ID` も確認（後方互換フォールバックあり）
+
+### LINE IDトークン検証エラー（購入者LINE）
+```
+LINE ID token verification failed (buyer)
+```
+→ `LINE_BUYER_CHANNEL_ID` と購入者LINE用LINE LoginチャネルのChannel IDが一致しているか確認
+
+### 購入者LINE Webhook署名検証エラー
+```
+Invalid signature (buyer LINE)
+```
+→ `LINE_BUYER_CHANNEL_SECRET` が購入者LINE Messaging APIチャネルのChannel Secretと一致しているか確認
+→ Webhookの設定URLが `?account=buyer` になっているか確認
 
 ### Supabase RLSエラー
 ```
@@ -342,11 +424,15 @@ build: {
 | URL | 説明 |
 |-----|------|
 | `POST /api/record-click` | クリック計測 |
-| `POST /api/verify-line-token` | LINE IDトークン検証 |
+| `POST /api/verify-line-token` | 無料セミナーLINE IDトークン検証・seminar_line_*フィールド保存 |
+| `POST /api/verify-buyer-line` | 購入者LINE IDトークン検証・購入確認・紐づけ（購入完了ページ用） |
 | `POST /api/record-seminar-view` | セミナー視聴記録 |
-| `POST /api/create-checkout-session` | Stripe Checkout Session作成 |
-| `POST /api/stripe-webhook` | Stripe Webhook処理 |
-| `GET/POST /api/admin-api/*` | 管理者API |
+| `POST /api/create-checkout-session` | Stripe Checkout Session作成（段階価格tier自動選択） |
+| `POST /api/stripe-webhook` | Stripe Webhook処理（購入後の自動価格切り替え） |
+| `POST /api/line-webhook?account=seminar` | 無料セミナーLINE Webhook（キーワード応答6種） |
+| `POST /api/line-webhook?account=buyer` | 購入者LINE Webhook（キーワード応答9種・購入者確認） |
+| `GET /api/get-product-price?product_id=xxx` | 段階価格情報取得（現在価格・次tier・残り部数） |
+| `GET/POST /api/admin-api/*` | 管理者API（顧客2LINE分離表示・price_tiers CRUD含む） |
 | `GET/POST /api/affiliate-api/*` | 紹介者API |
 
 ---
@@ -379,10 +465,30 @@ https://your-site.netlify.app/start-course?campaign=b0000000-0000-0000-0000-0000
 
 ---
 
+## 🗄️ Supabase マイグレーション適用順序
+
+```bash
+# Supabase SQL Editor で以下の順に実行：
+# 1. 基本スキーマ（テーブル・インデックス・初期データ）
+supabase/migrations/001_initial_schema.sql
+
+# 2. RLS（Row Level Security）ポリシー
+supabase/migrations/002_rls_policies.sql
+
+# 3. 段階価格設定（price_tiers・price_change_history）
+supabase/migrations/003_price_tiers.sql
+
+# 4. 2LINE対応（leadsテーブル拡張・buyer_line_verifications・line_keyword_responses）
+supabase/migrations/004_dual_line_accounts.sql
+```
+
+---
+
 ## 📝 デプロイ状態
 
 - **Platform**: Netlify
 - **Database**: Supabase
 - **Payment**: Stripe
+- **LINE**: 2アカウント構成（無料セミナーLINE + 購入者LINE）
 - **Status**: ⚠️ セットアップ必要
-- **Last Updated**: 2024-06
+- **Last Updated**: 2025-06

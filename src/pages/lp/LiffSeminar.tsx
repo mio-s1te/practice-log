@@ -237,38 +237,143 @@ export function LiffSeminar() {
   );
 }
 
+// ============================================================
 // src/pages/lp/PurchaseComplete.tsx
+// 購入完了ページ
+// 購入者専用LINEへの登録案内を表示
+// ============================================================
 export function PurchaseComplete() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id');
 
+  // 購入者LINE LIFF ID（環境変数から取得）
+  const buyerLiffId = (import.meta as any).env?.VITE_LINE_BUYER_LIFF_ID || '';
+  const buyerLineAddUrl = (import.meta as any).env?.VITE_LINE_BUYER_ADD_URL || '#';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center p-4">
-      <div className="max-w-lg w-full text-center">
-        <div className="bg-white rounded-3xl shadow-xl p-8">
+      <div className="max-w-lg w-full">
+        <div className="bg-white rounded-3xl shadow-xl p-8 text-center">
+          {/* 完了アイコン */}
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-2xl font-extrabold text-gray-900 mb-3">ご購入ありがとうございます！</h1>
-          <p className="text-gray-600 mb-6">
-            購入が完了しました。LINEにコース情報をお送りします。
-            しばらくお待ちください。
-          </p>
-          {sessionId && (
-            <p className="text-xs text-gray-400 mb-6">セッションID: {sessionId.substring(0, 20)}...</p>
-          )}
-          <div className="bg-blue-50 rounded-2xl p-4 mb-6 text-left">
-            <h3 className="font-bold text-blue-900 mb-2">次のステップ</h3>
-            <ol className="text-sm text-blue-700 space-y-1">
-              <li>1. LINEにコース情報が届きます</li>
-              <li>2. マイページにログインしてコンテンツを確認</li>
-              <li>3. コミュニティに参加してサポートを受ける</li>
-              <li>4. アフィリエイト参加申請（任意）</li>
+
+          <h1 className="text-2xl font-extrabold text-gray-900 mb-3">
+            ご購入ありがとうございます！
+          </h1>
+
+          {/* ======================================================
+              購入者LINE登録の案内（最重要）
+              ====================================================== */}
+          <div className="bg-gradient-to-br from-green-600 to-emerald-700 text-white rounded-2xl p-6 mb-6 text-left">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-2xl">
+                💬
+              </div>
+              <div>
+                <p className="font-extrabold text-lg">講座の受け取り方法</p>
+                <p className="text-green-200 text-sm">購入者専用LINEからお受け取りください</p>
+              </div>
+            </div>
+
+            <div className="bg-white/10 rounded-xl p-4 mb-4">
+              <p className="text-sm leading-relaxed">
+                講座の受け取りは<strong>購入者専用LINE</strong>からお願いします。
+                登録後、<strong>「講座」</strong>と送ってください。
+              </p>
+            </div>
+
+            {/* 購入者LINE登録ボタン */}
+            <a
+              href={buyerLineAddUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full bg-white text-green-700 font-extrabold py-4 rounded-xl text-center text-lg hover:bg-green-50 transition-colors shadow-lg"
+            >
+              <span className="flex items-center justify-center gap-2">
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.03 2 11c0 2.78 1.3 5.27 3.36 6.99L4.5 22l4.26-1.36C9.73 21.51 10.85 21.75 12 21.75 17.52 21.75 22 17.72 22 11s-4.48-9-10-9z"/>
+                </svg>
+                購入者専用LINEに登録する
+              </span>
+            </a>
+
+            <p className="text-xs text-green-200 text-center mt-3">
+              ※ 登録後「講座」と送ると講座URLをお届けします
+            </p>
+          </div>
+
+          {/* ステップ案内 */}
+          <div className="bg-blue-50 rounded-2xl p-5 mb-6 text-left">
+            <h3 className="font-bold text-blue-900 mb-3">📋 次のステップ</h3>
+            <ol className="space-y-3">
+              {[
+                {
+                  step: 1,
+                  title: '購入者専用LINEに登録',
+                  desc: '上のボタンから登録してください',
+                  done: false,
+                  highlight: true,
+                },
+                {
+                  step: 2,
+                  title: '「講座」と送信',
+                  desc: '登録後、LINEで「講座」と送ると講座URLが届きます',
+                  done: false,
+                  highlight: true,
+                },
+                {
+                  step: 3,
+                  title: '講座を受講',
+                  desc: 'AI副業1時間化スタート講座を受講しましょう',
+                  done: false,
+                  highlight: false,
+                },
+                {
+                  step: 4,
+                  title: 'アフィリエイト参加（任意）',
+                  desc: '紹介制度に参加して副収入を得ましょう',
+                  done: false,
+                  highlight: false,
+                },
+              ].map((item) => (
+                <li key={item.step} className="flex items-start gap-3">
+                  <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                    item.highlight ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {item.step}
+                  </span>
+                  <div>
+                    <p className={`text-sm font-semibold ${item.highlight ? 'text-blue-800' : 'text-gray-700'}`}>
+                      {item.title}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
+                  </div>
+                </li>
+              ))}
             </ol>
           </div>
-          <a href="/" className="btn-primary inline-block">
+
+          {/* 注意事項 */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 text-left">
+            <p className="text-sm font-semibold text-yellow-800 mb-1">⚠ ご注意</p>
+            <ul className="text-xs text-yellow-700 space-y-1">
+              <li>• 無料セミナーLINEと購入者専用LINEは<strong>別のLINEアカウント</strong>です</li>
+              <li>• 講座URLは購入者専用LINEからのみ受け取れます</li>
+              <li>• ご購入時のメールアドレスで購入確認を行います</li>
+            </ul>
+          </div>
+
+          {sessionId && (
+            <p className="text-xs text-gray-400 mb-4">
+              決済ID: {sessionId.substring(0, 24)}...
+            </p>
+          )}
+
+          <a href="/" className="btn-secondary inline-block text-sm">
             トップページへ戻る
           </a>
         </div>
