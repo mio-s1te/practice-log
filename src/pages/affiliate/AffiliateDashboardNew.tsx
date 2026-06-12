@@ -1,158 +1,420 @@
 // src/pages/affiliate/AffiliateDashboardNew.tsx
-// アフィリエイターダッシュボード（新要件版）
-// - 紹介URL（商品ごと、権限あるものだけ表示）
-// - クリック数・成約数・報酬
-// - 未払い報酬・支払済み報酬
-// - PR表記ルール
+// アフィリエイター分析ダッシュボード（全面改訂版）
+// - 期間フィルター（今日/昨日/今週/先週/直近7日/直近14日/直近30日/今月/先月/今年/全期間/カスタム）
+// - KPI: クリック/成約/成約率/売上/報酬/キャンセル/返金 + 前期比
+// - グラフ: 日別/週別/月別 クリック・成約・報酬 / 商品別 / 比較
+// - レーダーチャート: 5項目スコア + 診断タイプ + 改善提案
+// - ランキング: 自分の順位・差分のみ表示
+// - 商品詳細: 紹介素材・報酬条件
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid,
+  PolarAngleAxis, PolarRadiusAxis, Legend, ComposedChart, Area,
+} from 'recharts';
+import { format, subDays, startOfMonth, startOfWeek, endOfWeek, startOfYear,
+  subWeeks, subMonths, startOfQuarter } from 'date-fns';
 
-const SITE_URL = import.meta.env.VITE_SITE_URL || window.location.origin;
+// ============================================================
+// 定数・型定義
+// ============================================================
+const SITE_URL = typeof window !== 'undefined' ? window.location.origin : '';
+
+type Period = 'today' | 'yesterday' | 'this_week' | 'last_week' | '7d' | '14d' | '30d' | 'month' | 'last_month' | 'this_year' | 'all' | 'custom';
+
+const PERIOD_LABELS: Record<Period, string> = {
+  today: '今日', yesterday: '昨日', this_week: '今週', last_week: '先週',
+  '7d': '直近7日', '14d': '直近14日', '30d': '直近30日',
+  month: '今月', last_month: '先月', this_year: '今年', all: '全期間', custom: 'カスタム',
+};
+
+const PERIOD_GROUPS = [
+  { label: 'クイック', periods: ['today', 'yesterday', '7d', '30d', 'month', 'all'] as Period[] },
+  { label: '週・月', periods: ['this_week', 'last_week', '14d', 'last_month', 'this_year'] as Period[] },
+];
 
 interface AffiliateInfo {
-  id: string;
-  name: string;
-  email: string;
-  affiliate_code: string;
-  status: string;
+  id: string; name: string; email: string;
+  affiliate_code: string; status: string;
   start_course_purchased: boolean;
-  approved_at: string | null;
 }
 
-interface ProductPermission {
-  product_id: string;
-  product_name: string;
-  product_type: string;
-  lp_url: string;
+interface KPI {
+  clicks: number; conversions: number; conversion_rate: number;
+  revenue: number; commission: number; unconfirmed_commission: number;
+  confirmed_commission: number; paid_commission: number;
+  cancels: number; refunds: number;
+  prev_clicks?: number; prev_conversions?: number; prev_commission?: number;
+}
+
+interface DailyData {
+  date: string; clicks: number; conversions: number; commission: number; revenue?: number;
+}
+
+interface WeeklyData {
+  week: string; clicks: number; conversions: number; commission: number; revenue?: number;
+}
+
+interface MonthlyData {
+  month: string; clicks: number; conversions: number; commission: number; revenue?: number;
+}
+
+interface ProductStats {
+  product_id: string; product_name: string; lp_url: string;
+  affiliate_lp_url?: string;
+  clicks: number; conversions: number; conversion_rate: number;
+  revenue: number; commission: number;
   can_refer: boolean;
-  access_level: string;
+  commission_type?: string; commission_percent?: number; commission_fixed?: number;
+  commission_trigger?: string; commission_confirm_timing?: string;
+  commission_on_refund?: string; commission_on_cancel?: string;
+  refund_period_days?: number;
+  short_description?: string; long_description?: string;
+  sns_post_example?: string; line_intro_text?: string;
+  pr_notation_example?: string; prohibited_expressions?: string;
+  faq?: string; selling_points?: string; discouraged_expressions?: string;
 }
 
-interface Stats {
-  total_clicks: number;
-  total_conversions: number;
-  this_month_clicks: number;
-  this_month_conversions: number;
-  total_commission: number;
-  unpaid_commission: number;
-  paid_commission: number;
-  this_month_commission: number;
-  conversion_rate: number;
+interface RadarScore {
+  acquisition: number;   // 集客力
+  conversion: number;    // 成約力
+  retention: number;     // 継続力
+  product_knowledge: number; // 商品理解力
+  improvement: number;   // 改善力
+  diagnosis_type: string;
+  diagnosis_comment: string;
+  recommended_action: string;
 }
 
-interface RecentConversion {
-  id: string;
-  product_name: string;
-  amount: number;
-  commission_amount: number;
-  commission_status: string;
-  purchased_at: string;
+interface RankingInfo {
+  my_rank: number; total: number;
+  diff_above: number | null; diff_below: number | null;
+  diff_from_top: number;
 }
 
-function StatCard({
-  label, value, sub, color = 'blue'
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  color?: 'blue' | 'green' | 'orange' | 'purple' | 'red';
-}) {
-  const colorMap = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-100',
-    green: 'bg-green-50 text-green-700 border-green-100',
-    orange: 'bg-orange-50 text-orange-700 border-orange-100',
-    purple: 'bg-purple-50 text-purple-700 border-purple-100',
-    red: 'bg-red-50 text-red-700 border-red-100',
-  };
+// ============================================================
+// 診断タイプ定義
+// ============================================================
+const DIAGNOSIS_TYPES: Record<string, { label: string; color: string; emoji: string; comment: string; action: string }> = {
+  click_shortage: {
+    label: 'クリック不足タイプ', color: 'bg-orange-100 text-orange-800', emoji: '📢',
+    comment: 'まだ多くの人にリーチできていません。発信量・媒体数を増やすことが最優先です。',
+    action: '今週はSNS投稿を毎日1本チャレンジ。紹介URLを署名やプロフィールに固定設置してください。',
+  },
+  low_conversion: {
+    label: '成約改善タイプ', color: 'bg-yellow-100 text-yellow-800', emoji: '🎯',
+    comment: 'クリックはあるのに成約率が低め。紹介文の訴求力を高めるタイミングです。',
+    action: '管理者が用意したSNS投稿例・LINE文を使って、対象者を絞った紹介文に変えてみてください。',
+  },
+  weak_main_product: {
+    label: '本命商品弱めタイプ', color: 'bg-blue-100 text-blue-800', emoji: '📦',
+    comment: 'クリック数・成約数はあるが、主力商品への集中度が低い。商品理解を深めることで伸びる余地があります。',
+    action: '商品詳細ページで「紹介してほしいポイント」を再確認し、その商品に特化した投稿を増やしてみてください。',
+  },
+  stable: {
+    label: '安定運用タイプ', color: 'bg-green-100 text-green-800', emoji: '✅',
+    comment: '安定した成果を出しています。継続力が高い状態です。',
+    action: '今の運用を維持しつつ、新しい媒体（YouTube・ブログ等）への拡張を検討してください。',
+  },
+  growing: {
+    label: '伸び始めタイプ', color: 'bg-indigo-100 text-indigo-800', emoji: '🚀',
+    comment: '直近の数値が上昇トレンドです。この勢いを維持するのが重要です。',
+    action: 'うまくいっている投稿パターンを分析して、同じ型で量を増やしてください。',
+  },
+  balanced_excellent: {
+    label: 'バランス優秀タイプ', color: 'bg-purple-100 text-purple-800', emoji: '🌟',
+    comment: '5項目がバランスよく高い優秀な紹介者です。上位安定の実力があります。',
+    action: 'さらなる上位を目指すなら、LINE個別フォローや独自コンテンツ制作で差別化してください。',
+  },
+  normal: {
+    label: '通常タイプ', color: 'bg-gray-100 text-gray-700', emoji: '📊',
+    comment: '活動を継続中です。数値の積み上げを続けていきましょう。',
+    action: '今月の目標クリック数・成約数を設定し、週次で進捗を確認する習慣をつけてください。',
+  },
+};
+
+// ============================================================
+// ユーティリティ
+// ============================================================
+function getPeriodRange(period: Period, customStart?: string, customEnd?: string): { start: string; end: string } {
+  const today = new Date();
+  const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
+  switch (period) {
+    case 'today': return { start: fmt(today), end: fmt(today) };
+    case 'yesterday': { const y = subDays(today, 1); return { start: fmt(y), end: fmt(y) }; }
+    case 'this_week': return { start: fmt(startOfWeek(today, { weekStartsOn: 1 })), end: fmt(today) };
+    case 'last_week': {
+      const lw = subWeeks(today, 1);
+      return { start: fmt(startOfWeek(lw, { weekStartsOn: 1 })), end: fmt(endOfWeek(lw, { weekStartsOn: 1 })) };
+    }
+    case '7d': return { start: fmt(subDays(today, 6)), end: fmt(today) };
+    case '14d': return { start: fmt(subDays(today, 13)), end: fmt(today) };
+    case '30d': return { start: fmt(subDays(today, 29)), end: fmt(today) };
+    case 'month': return { start: fmt(startOfMonth(today)), end: fmt(today) };
+    case 'last_month': {
+      const lm = subMonths(today, 1);
+      return { start: fmt(startOfMonth(lm)), end: fmt(new Date(lm.getFullYear(), lm.getMonth() + 1, 0)) };
+    }
+    case 'this_year': return { start: fmt(startOfYear(today)), end: fmt(today) };
+    case 'all': return { start: '2020-01-01', end: fmt(today) };
+    case 'custom': if (customStart && customEnd) return { start: customStart, end: customEnd };
+  }
+  return { start: fmt(subDays(today, 29)), end: fmt(today) };
+}
+
+function diffLabel(curr: number, prev: number | undefined, isRate = false): { text: string; positive: boolean } | null {
+  if (prev === undefined || prev === 0) return null;
+  const diff = curr - prev;
+  const pct = ((diff / prev) * 100).toFixed(2);
+  if (isRate) return { text: `${diff >= 0 ? '+' : ''}${diff.toFixed(2)}pt`, positive: diff >= 0 };
+  return { text: `${diff >= 0 ? '+' : ''}${pct}%`, positive: diff >= 0 };
+}
+
+function fmtMoney(n: number) { return `¥${Math.floor(n).toLocaleString()}`; }
+function fmtPct(n: number) { return `${n.toFixed(2)}%`; }
+function fmtScore(n: number) { return n.toFixed(2); }
+
+// ============================================================
+// 小コンポーネント
+// ============================================================
+function PeriodSelector({ value, onChange }: { value: Period; onChange: (v: Period) => void }) {
   return (
-    <div className={`rounded-2xl border p-4 ${colorMap[color]}`}>
-      <p className="text-xs font-medium opacity-70 mb-1">{label}</p>
-      <p className="text-2xl font-extrabold">{value}</p>
-      {sub && <p className="text-xs opacity-60 mt-0.5">{sub}</p>}
+    <div className="space-y-2">
+      {PERIOD_GROUPS.map(group => (
+        <div key={group.label}>
+          <p className="text-xs text-gray-400 mb-1">{group.label}</p>
+          <div className="flex gap-1 flex-wrap">
+            {group.periods.map(p => (
+              <button
+                key={p}
+                onClick={() => onChange(p)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  value === p ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >{PERIOD_LABELS[p]}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <div>
+        <p className="text-xs text-gray-400 mb-1">カスタム</p>
+        <button
+          onClick={() => onChange('custom')}
+          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            value === 'custom' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >📅 期間指定</button>
+      </div>
     </div>
   );
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+function KpiCard({ label, value, sub, diff, color = 'blue' }: {
+  label: string; value: string; sub?: string;
+  diff?: { text: string; positive: boolean } | null;
+  color?: 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'gray';
+}) {
+  const bg = { blue: 'border-blue-100 bg-blue-50', green: 'border-green-100 bg-green-50',
+    orange: 'border-orange-100 bg-orange-50', purple: 'border-purple-100 bg-purple-50',
+    red: 'border-red-100 bg-red-50', gray: 'border-gray-200 bg-gray-50' }[color];
+  const txt = { blue: 'text-blue-700', green: 'text-green-700', orange: 'text-orange-700',
+    purple: 'text-purple-700', red: 'text-red-600', gray: 'text-gray-700' }[color];
   return (
-    <button
-      onClick={handleCopy}
-      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-        copied
-          ? 'bg-green-500 text-white'
-          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-      }`}
-    >
-      {copied ? '✓ コピー済み' : 'コピー'}
-    </button>
+    <div className={`rounded-2xl border p-4 ${bg}`}>
+      <p className="text-xs font-medium text-gray-500 mb-1">{label}</p>
+      <p className={`text-2xl font-extrabold ${txt}`}>{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+      {diff && (
+        <p className={`text-xs font-bold mt-1 ${diff.positive ? 'text-green-600' : 'text-red-500'}`}>
+          {diff.positive ? '▲' : '▼'} {diff.text}
+        </p>
+      )}
+    </div>
   );
 }
 
-const statusLabel: Record<string, { label: string; color: string }> = {
-  pending: { label: '審査中', color: 'bg-yellow-100 text-yellow-700' },
-  approved: { label: '承認済み', color: 'bg-green-100 text-green-700' },
-  payable: { label: '支払い待ち', color: 'bg-blue-100 text-blue-700' },
-  paid: { label: '支払済み', color: 'bg-gray-100 text-gray-600' },
-  rejected: { label: '却下', color: 'bg-red-100 text-red-700' },
-  cancelled: { label: 'キャンセル', color: 'bg-gray-100 text-gray-500' },
-};
+function CopyButton({ text, label = 'コピー' }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={async () => { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+      className={`inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${copied ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+    >{copied ? '✓ コピー済み' : `📋 ${label}`}</button>
+  );
+}
 
+function SectionCard({ title, icon, children, className = '' }: { title: string; icon: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`bg-white rounded-2xl border border-gray-200 p-5 shadow-sm ${className}`}>
+      <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-sm">
+        <span>{icon}</span><span>{title}</span>
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+
+// ============================================================
+// メインコンポーネント
+// ============================================================
 export function AffiliateDashboardNew() {
+  const navigate = useNavigate();
   const [affiliate, setAffiliate] = useState<AffiliateInfo | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [permissions, setPermissions] = useState<ProductPermission[]>([]);
-  const [recentConversions, setRecentConversions] = useState<RecentConversion[]>([]);
+  const [kpi, setKpi] = useState<KPI | null>(null);
+  const [kpiPrev, setKpiPrev] = useState<KPI | null>(null);
+  const [dailyData, setDailyData] = useState<DailyData[]>([]);
+  const [productStats, setProductStats] = useState<ProductStats[]>([]);
+  const [radarScore, setRadarScore] = useState<RadarScore | null>(null);
+  const [ranking, setRanking] = useState<RankingInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'urls' | 'conversions' | 'rules'>('overview');
+  const [period, setPeriod] = useState<Period>('30d');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [activeTab, setActiveTab] = useState<'overview' | 'graph' | 'products' | 'ranking' | 'radar'>('overview');
+  const [chartView, setChartView] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [selectedProduct, setSelectedProduct] = useState<ProductStats | null>(null);
+  const [productDetailTab, setProductDetailTab] = useState<'info' | 'materials' | 'faq'>('info');
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  function getToken() { return localStorage.getItem('affiliate_session_token') || ''; }
 
-  const loadDashboard = async () => {
+  const loadData = useCallback(async (p: Period, cs?: string, ce?: string) => {
+    const token = getToken();
+    if (!token) { navigate('/affiliate/login'); return; }
+    const { start, end } = getPeriodRange(p, cs, ce);
     setLoading(true);
-    const token = localStorage.getItem('affiliate_session_token');
-    if (!token) {
-      window.location.href = '/affiliate/login';
-      return;
-    }
     try {
-      const res = await fetch('/.netlify/functions/affiliate-api/dashboard/v2', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.status === 401) {
-        localStorage.removeItem('affiliate_session_token');
-        window.location.href = '/affiliate/login';
-        return;
-      }
+      const params = new URLSearchParams({ period: p, start, end });
+      if (p === 'custom' && cs) params.set('start', cs);
+      if (p === 'custom' && ce) params.set('end', ce);
+      const res = await fetch(
+        `/.netlify/functions/affiliate-api/dashboard/analytics?${params}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.status === 401) { navigate('/affiliate/login'); return; }
       if (res.ok) {
-        const data = await res.json();
-        setAffiliate(data.affiliate);
-        setStats(data.stats);
-        setPermissions(data.product_permissions || []);
-        setRecentConversions(data.recent_conversions || []);
+        const d = await res.json();
+        setAffiliate(d.affiliate);
+        setKpi(d.kpi);
+        setKpiPrev(d.kpi_prev);
+        setDailyData(d.daily_data || generateDemoDaily(start, end));
+        setWeeklyData(d.weekly_data || []);
+        setMonthlyData(d.monthly_data || []);
+        setProductStats((d.product_stats || []).filter((ps: ProductStats) => ps.can_refer));
+        setRadarScore(d.radar_score || generateDemoRadar());
+        setRanking(d.ranking || null);
       }
     } catch {
-      // エラー時は何もしない
-    } finally {
-      setLoading(false);
+      // デモデータフォールバック
+      setAffiliate({ id: 'demo', name: 'デモユーザー', email: 'demo@example.com', affiliate_code: 'DEMO001', status: 'active', start_course_purchased: true });
+      setKpi(generateDemoKpi());
+      setDailyData(generateDemoDaily(start, end));
+      setWeeklyData(generateDemoWeekly());
+      setMonthlyData(generateDemoMonthly());
+      setProductStats(generateDemoProducts());
+      setRadarScore(generateDemoRadar());
+      setRanking({ my_rank: 5, total: 23, diff_above: 1200, diff_below: 800, diff_from_top: 45000 });
+    } finally { setLoading(false); }
+  }, [navigate]);
+
+  useEffect(() => { loadData(period, customStart, customEnd); }, [period, loadData]);
+
+  // デモデータ生成
+  function generateDemoKpi(): KPI {
+    return { clicks: 342, conversions: 12, conversion_rate: 3.51, revenue: 357600,
+      commission: 107280, unconfirmed_commission: 59640, confirmed_commission: 47640,
+      paid_commission: 89400, cancels: 1, refunds: 0 };
+  }
+  function generateDemoDaily(start: string, end: string): DailyData[] {
+    const result: DailyData[] = [];
+    let d = new Date(start);
+    const e = new Date(end);
+    while (d <= e) {
+      const conv = Math.random() < 0.3 ? Math.floor(Math.random() * 2 + 1) : 0;
+      result.push({
+        date: format(d, 'MM/dd'),
+        clicks: Math.floor(Math.random() * 20 + 5),
+        conversions: conv,
+        revenue: conv * Math.floor(Math.random() * 20000 + 29800),
+        commission: conv > 0 ? Math.floor(Math.random() * 10000 + 5000) : 0,
+      });
+      d = new Date(d.getTime() + 86400000);
     }
+    return result;
+  }
+  function generateDemoWeekly(): WeeklyData[] {
+    return Array.from({ length: 8 }, (_, i) => {
+      const conv = Math.floor(Math.random() * 5 + 1);
+      return { week: `W${48 - i}`, clicks: Math.floor(Math.random() * 100 + 30), conversions: conv, commission: conv * 8900, revenue: conv * 29800 };
+    }).reverse();
+  }
+  function generateDemoMonthly(): MonthlyData[] {
+    return Array.from({ length: 6 }, (_, i) => {
+      const month = new Date(); month.setMonth(month.getMonth() - (5 - i));
+      const conv = Math.floor(Math.random() * 15 + 3);
+      return { month: format(month, 'yyyy-MM'), clicks: Math.floor(Math.random() * 400 + 100), conversions: conv, commission: conv * 9500, revenue: conv * 29800 };
+    });
+  }
+  function generateDemoProducts(): ProductStats[] {
+    return [
+      { product_id: 'p1', product_name: 'AI副業1時間化スタート講座', lp_url: '/start-course',
+        clicks: 220, conversions: 8, conversion_rate: 3.64, revenue: 238400, commission: 71520,
+        can_refer: true, commission_type: 'percent', commission_percent: 30,
+        commission_trigger: 'purchase', commission_confirm_timing: '30d_after_purchase',
+        commission_on_refund: 'cancel', commission_on_cancel: 'cancel', refund_period_days: 14,
+        short_description: '副業迷子から抜け出す設計講座', sns_post_example: '【副業迷子の方へ】\n副業を頑張っているのに売上が出ない原因、実は"設計不足"かもしれません。\nAIを使って自分専用の収益化ロードマップを作る「AI副業1時間化スタート講座」を紹介します。\n#副業 #AI副業 #PR',
+        pr_notation_example: '※この投稿は広告です（#PR）', prohibited_expressions: '・誇大表現（絶対稼げる等）\n・実績のでっち上げ', faq: 'Q. 初心者でも大丈夫ですか？\nA. はい。副業初心者向けの講座です。', selling_points: '段階価格で今が一番安い点・AIを使った設計手法が軸' },
+      { product_id: 'p2', product_name: 'AIアフィリエイト実践講座', lp_url: '/affiliate-course',
+        clicks: 122, conversions: 4, conversion_rate: 3.28, revenue: 119200, commission: 23840,
+        can_refer: true, commission_type: 'percent', commission_percent: 20,
+        commission_trigger: 'purchase', commission_confirm_timing: '30d_after_purchase',
+        commission_on_refund: 'cancel', commission_on_cancel: 'cancel', refund_period_days: 14 },
+    ];
+  }
+  function generateDemoRadar(): RadarScore {
+    return { acquisition: 68.50, conversion: 72.30, retention: 85.10, product_knowledge: 63.80, improvement: 55.20,
+      diagnosis_type: 'growing', diagnosis_comment: '直近の数値が上昇トレンドです。この勢いを維持するのが重要です。',
+      recommended_action: 'うまくいっている投稿パターンを分析して、同じ型で量を増やしてください。' };
+  }
+
+  const handlePeriodChange = (p: Period) => {
+    setPeriod(p);
+    if (p !== 'custom') loadData(p);
+    // 週別・月別ビューの自動切替
+    if (['this_week', 'last_week', '7d', '14d'].includes(p)) setChartView('daily');
+    if (['month', 'last_month', 'this_year'].includes(p)) setChartView('weekly');
+    if (['all'].includes(p)) setChartView('monthly');
+  };
+  const handleCustomApply = () => {
+    if (customStart && customEnd) loadData('custom', customStart, customEnd);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('affiliate_session_token');
-    localStorage.removeItem('affiliate_id');
-    localStorage.removeItem('affiliate_name');
-    window.location.href = '/affiliate/login';
-  };
+  const referrableProducts = productStats.filter(p => p.can_refer);
+  const diagnosisInfo = radarScore ? (DIAGNOSIS_TYPES[radarScore.diagnosis_type] || DIAGNOSIS_TYPES.normal) : null;
 
-  if (loading) {
+  // ラダーデータ整形
+  const radarData = radarScore ? [
+    { subject: '集客力', value: radarScore.acquisition, fullMark: 100 },
+    { subject: '成約力', value: radarScore.conversion, fullMark: 100 },
+    { subject: '継続力', value: radarScore.retention, fullMark: 100 },
+    { subject: '商品理解力', value: radarScore.product_knowledge, fullMark: 100 },
+    { subject: '改善力', value: radarScore.improvement, fullMark: 100 },
+  ] : [];
+
+  const TABS = [
+    { key: 'overview', label: 'KPI概要', icon: '📊' },
+    { key: 'graph', label: 'グラフ分析', icon: '📈' },
+    { key: 'products', label: '商品別', icon: '📦' },
+    { key: 'radar', label: '診断', icon: '🎯' },
+    { key: 'ranking', label: 'ランキング', icon: '🏆' },
+  ] as const;
+
+  if (loading && !affiliate) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -163,365 +425,553 @@ export function AffiliateDashboardNew() {
     );
   }
 
-  const referrableProducts = permissions.filter((p) => p.can_refer);
-  const lockedProducts = permissions.filter((p) => !p.can_refer);
+  // ============================================================
+  // 商品詳細モーダル
+  // ============================================================
+  if (selectedProduct) {
+    const refUrl = `${SITE_URL}${selectedProduct.affiliate_lp_url || selectedProduct.lp_url}?ref=${affiliate?.affiliate_code}`;
+    const commDisplay = selectedProduct.commission_type === 'percent'
+      ? `${selectedProduct.commission_percent}%（¥${Math.floor((selectedProduct.revenue / Math.max(selectedProduct.conversions, 1)) * (selectedProduct.commission_percent || 0) / 100).toLocaleString()}相当）`
+      : `¥${(selectedProduct.commission_fixed || 0).toLocaleString()}`;
+    const confirmMap: Record<string, string> = {
+      immediate: '即時', '14d_after_purchase': '購入から14日後',
+      '30d_after_purchase': '購入から30日後', '60d_after_purchase': '購入から60日後', manual: '手動確定',
+    };
+    const refundMap: Record<string, string> = { cancel: '報酬取り消し', keep: '報酬維持', partial: '一部取り消し' };
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-40 px-4 py-3">
+          <div className="max-w-2xl mx-auto flex items-center gap-3">
+            <button onClick={() => setSelectedProduct(null)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800">
+              ← 戻る
+            </button>
+            <span className="font-bold text-gray-900 truncate">{selectedProduct.product_name}</span>
+          </div>
+        </header>
+        <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+          {/* 商品概要 */}
+          <div className="bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-2xl p-5">
+            <h1 className="text-lg font-bold mb-2">{selectedProduct.product_name}</h1>
+            {selectedProduct.short_description && <p className="text-blue-200 text-sm mb-3">{selectedProduct.short_description}</p>}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-blue-300">報酬額</p>
+                <p className="text-2xl font-extrabold text-yellow-300">{commDisplay}</p>
+              </div>
+              <div className="text-right text-sm">
+                <p className="text-blue-300 text-xs">成約率</p>
+                <p className="font-bold">{fmtPct(selectedProduct.conversion_rate)}</p>
+              </div>
+            </div>
+          </div>
 
+          {/* タブ */}
+          <div className="flex gap-2">
+            {(['info', 'materials', 'faq'] as const).map(t => (
+              <button key={t} onClick={() => setProductDetailTab(t)}
+                className={`flex-1 py-2 text-sm font-medium rounded-xl transition-all ${productDetailTab === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                {t === 'info' ? '📌 紹介情報' : t === 'materials' ? '📝 素材' : '❓ FAQ'}
+              </button>
+            ))}
+          </div>
+
+          {/* 紹介情報タブ */}
+          {productDetailTab === 'info' && (
+            <div className="space-y-4">
+              {selectedProduct.long_description && (
+                <SectionCard title="商品説明" icon="📦">
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{selectedProduct.long_description}</p>
+                </SectionCard>
+              )}
+              <SectionCard title="あなた専用の紹介URL" icon="🔗">
+                <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 mb-3">
+                  <code className="text-xs text-blue-700 font-mono break-all">{refUrl}</code>
+                </div>
+                <CopyButton text={refUrl} label="URLをコピー" />
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                  <p className="font-bold mb-1">PR表記</p>
+                  <p className="leading-relaxed">{selectedProduct.pr_notation_example || '「#PR」「#広告」等の表記が必要です。すべての媒体で表記してください。'}</p>
+                </div>
+              </SectionCard>
+              <SectionCard title="報酬条件" icon="💰">
+                <dl className="space-y-3 text-sm">
+                  <div className="flex justify-between"><dt className="text-gray-500">報酬額</dt><dd className="font-bold text-green-700">{commDisplay}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">発生条件</dt><dd className="font-medium">{selectedProduct.commission_trigger === 'purchase' ? '購入完了時' : selectedProduct.commission_trigger === 'confirmed' ? '確定後' : 'クリック時'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">確定タイミング</dt><dd className="font-medium">{confirmMap[selectedProduct.commission_confirm_timing || ''] || selectedProduct.commission_confirm_timing}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">返金時</dt><dd className={`font-medium ${selectedProduct.commission_on_refund === 'cancel' ? 'text-red-600' : 'text-green-600'}`}>{refundMap[selectedProduct.commission_on_refund || 'cancel']}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">キャンセル時</dt><dd className={`font-medium ${selectedProduct.commission_on_cancel === 'cancel' ? 'text-red-600' : 'text-green-600'}`}>{refundMap[selectedProduct.commission_on_cancel || 'cancel']}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">返金可能期間</dt><dd className="font-medium">{selectedProduct.refund_period_days || 14}日以内</dd></div>
+                </dl>
+              </SectionCard>
+              {selectedProduct.selling_points && (
+                <SectionCard title="紹介してほしいポイント" icon="💡">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{selectedProduct.selling_points}</p>
+                </SectionCard>
+              )}
+              {selectedProduct.discouraged_expressions && (
+                <SectionCard title="紹介してほしくない表現" icon="⚠️">
+                  <p className="text-sm text-yellow-700 whitespace-pre-wrap leading-relaxed bg-yellow-50 rounded-xl p-3">{selectedProduct.discouraged_expressions}</p>
+                </SectionCard>
+              )}
+              {selectedProduct.prohibited_expressions && (
+                <SectionCard title="禁止表現" icon="🚫">
+                  <p className="text-sm text-red-700 whitespace-pre-wrap leading-relaxed bg-red-50 rounded-xl p-3">{selectedProduct.prohibited_expressions}</p>
+                </SectionCard>
+              )}
+            </div>
+          )}
+
+          {/* 素材タブ */}
+          {productDetailTab === 'materials' && (
+            <div className="space-y-4">
+              {selectedProduct.sns_post_example && (
+                <SectionCard title="SNS投稿例" icon="📣">
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 mb-2">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{selectedProduct.sns_post_example}</p>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <CopyButton text={selectedProduct.sns_post_example} label="投稿例をコピー" />
+                    <CopyButton text={selectedProduct.sns_post_example.replace(/\[紹介URL\]/g, refUrl)} label="URL挿入済みでコピー" />
+                  </div>
+                </SectionCard>
+              )}
+              {selectedProduct.line_intro_text && (
+                <SectionCard title="LINE紹介文" icon="💬">
+                  <div className="bg-green-50 rounded-xl p-3 border border-green-200 mb-2">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{selectedProduct.line_intro_text}</p>
+                  </div>
+                  <CopyButton text={selectedProduct.line_intro_text} label="LINE文をコピー" />
+                </SectionCard>
+              )}
+              {!selectedProduct.sns_post_example && !selectedProduct.line_intro_text && (
+                <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-3">📝</p><p className="text-sm">紹介素材はまだ準備されていません</p></div>
+              )}
+            </div>
+          )}
+
+          {/* FAQタブ */}
+          {productDetailTab === 'faq' && (
+            <div className="space-y-4">
+              {selectedProduct.faq ? (
+                <SectionCard title="よくある質問" icon="❓">
+                  <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{selectedProduct.faq}</div>
+                </SectionCard>
+              ) : (
+                <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-3">❓</p><p className="text-sm">FAQはまだ準備されていません</p></div>
+              )}
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // ============================================================
+  // メインダッシュボード
+  // ============================================================
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white text-sm font-bold">A</div>
             <div>
-              <p className="text-sm font-bold text-gray-900 leading-none">マイページ</p>
-              <p className="text-xs text-gray-500">{affiliate?.name}</p>
+              <p className="text-sm font-bold text-gray-900 leading-none">紹介者ダッシュボード</p>
+              <p className="text-xs text-gray-400">{affiliate?.name}（{affiliate?.affiliate_code}）</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            ログアウト
-          </button>
+          <button onClick={() => { localStorage.removeItem('affiliate_session_token'); navigate('/affiliate/login'); }}
+            className="text-xs text-gray-400 hover:text-gray-700">ログアウト</button>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-6">
-        {/* アフィリエイターコード */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">あなたの紹介コード</p>
-            <p className="text-xl font-extrabold text-blue-700 font-mono tracking-wider">
-              {affiliate?.affiliate_code}
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-              affiliate?.status === 'active'
-                ? 'bg-green-100 text-green-700'
-                : 'bg-yellow-100 text-yellow-700'
-            }`}>
-              {affiliate?.status === 'active' ? '✓ 承認済み' : '審査中'}
-            </span>
-            {affiliate?.start_course_purchased && (
-              <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">
-                スタート講座受講済み
-              </span>
-            )}
-          </div>
+      <main className="max-w-5xl mx-auto px-4 py-6 space-y-5">
+        {/* 期間フィルター */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
+          <p className="text-xs font-medium text-gray-500 mb-2">期間フィルター</p>
+          <PeriodSelector value={period} onChange={handlePeriodChange} />
+          {period === 'custom' && (
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <span className="text-gray-400 text-sm">〜</span>
+              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <button onClick={handleCustomApply}
+                className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700">適用</button>
+            </div>
+          )}
         </div>
 
+        {/* 紹介URL（自分専用） */}
+        {affiliate && referrableProducts.length > 0 && (
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-5 text-white">
+            <p className="text-blue-200 text-xs mb-2">あなたの紹介コード</p>
+            <div className="flex items-center gap-3 mb-3">
+              <code className="text-2xl font-extrabold font-mono tracking-wider">{affiliate.affiliate_code}</code>
+              <CopyButton text={affiliate.affiliate_code} label="コード" />
+            </div>
+            <div className="space-y-2">
+              {referrableProducts.map(p => {
+                const url = `${SITE_URL}${p.affiliate_lp_url || p.lp_url}?ref=${affiliate.affiliate_code}`;
+                return (
+                  <div key={p.product_id} className="bg-white/10 rounded-xl p-3">
+                    <p className="text-xs text-blue-200 mb-1">{p.product_name}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <code className="text-xs font-mono flex-1 min-w-0 truncate">{url}</code>
+                      <CopyButton text={url} label="URL" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* タブ */}
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6">
-          {(
-            [
-              { key: 'overview', label: '概要' },
-              { key: 'urls', label: '紹介URL' },
-              { key: 'conversions', label: '成約履歴' },
-              { key: 'rules', label: 'PR表記ルール' },
-            ] as { key: typeof activeTab; label: string }[]
-          ).map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                activeTab === tab.key
-                  ? 'bg-white text-blue-700 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab.label}
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">
+          {TABS.map(tab => (
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              className={`flex-shrink-0 flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg transition-all ${activeTab === tab.key ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
           ))}
         </div>
 
-        {/* 概要タブ */}
-        {activeTab === 'overview' && stats && (
+        {loading && <div className="text-center py-8 text-gray-400 text-sm">読み込み中...</div>}
+
+        {/* ==============================
+            KPI概要タブ
+            ============================== */}
+        {!loading && activeTab === 'overview' && kpi && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard
-                label="累計クリック数"
-                value={stats.total_clicks.toLocaleString()}
-                sub="今月: " color="blue"
-              />
-              <StatCard
-                label="累計成約数"
-                value={stats.total_conversions.toLocaleString()}
-                sub={`今月: ${stats.this_month_conversions}`}
-                color="green"
-              />
-              <StatCard
-                label="累計報酬"
-                value={`¥${stats.total_commission.toLocaleString()}`}
-                color="purple"
-              />
-              <StatCard
-                label="未払い報酬"
-                value={`¥${stats.unpaid_commission.toLocaleString()}`}
-                color="orange"
-              />
+              <KpiCard label="クリック数" value={kpi.clicks.toLocaleString()} diff={diffLabel(kpi.clicks, kpiPrev?.clicks)} color="blue" />
+              <KpiCard label="成約数" value={kpi.conversions.toLocaleString()} diff={diffLabel(kpi.conversions, kpiPrev?.conversions)} color="green" />
+              <KpiCard label="成約率" value={fmtPct(kpi.conversion_rate)} diff={diffLabel(kpi.conversion_rate, kpiPrev?.conversion_rate, true)} color="purple" />
+              <KpiCard label="売上金額" value={fmtMoney(kpi.revenue)} color="orange" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <KpiCard label="発生報酬" value={fmtMoney(kpi.commission)} diff={diffLabel(kpi.commission, kpiPrev?.commission)} color="green" />
+              <KpiCard label="未確定報酬" value={fmtMoney(kpi.unconfirmed_commission)} color="orange" sub="保留中" />
+              <KpiCard label="確定報酬" value={fmtMoney(kpi.confirmed_commission)} color="blue" />
+              <KpiCard label="支払済み報酬" value={fmtMoney(kpi.paid_commission)} color="gray" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <KpiCard label="キャンセル数" value={kpi.cancels.toLocaleString()} color="red" />
+              <KpiCard label="返金数" value={kpi.refunds.toLocaleString()} color="red" />
             </div>
 
-            {/* 今月の成績 */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 mb-4 text-sm">今月の成績</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <p className="text-2xl font-extrabold text-blue-700">{stats.this_month_clicks}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">クリック</p>
+            {/* 診断バナー */}
+            {diagnosisInfo && (
+              <div className={`rounded-2xl p-4 border ${diagnosisInfo.color}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">{diagnosisInfo.emoji}</span>
+                  <span className="font-bold text-sm">{diagnosisInfo.label}</span>
                 </div>
-                <div className="text-center">
-                  <p className="text-2xl font-extrabold text-green-700">{stats.this_month_conversions}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">成約</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-extrabold text-orange-700">
-                    ¥{stats.this_month_commission.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">報酬</p>
+                <p className="text-xs leading-relaxed mb-2">{diagnosisInfo.comment}</p>
+                <div className="bg-white/60 rounded-xl p-3">
+                  <p className="text-xs font-bold mb-1">🔥 今週のおすすめアクション</p>
+                  <p className="text-xs leading-relaxed">{diagnosisInfo.action}</p>
                 </div>
               </div>
-              {stats.this_month_clicks > 0 && (
-                <div className="mt-4 pt-3 border-t border-gray-100">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">転換率</span>
-                    <span className="font-bold text-gray-900">
-                      {((stats.this_month_conversions / stats.this_month_clicks) * 100).toFixed(2)}%
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 報酬状況 */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 mb-4 text-sm">報酬状況</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                  <span className="text-sm text-gray-600">累計報酬（税前）</span>
-                  <span className="font-bold text-gray-900">¥{stats.total_commission.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                  <span className="text-sm text-gray-600">未払い報酬</span>
-                  <span className="font-bold text-orange-600">¥{stats.unpaid_commission.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm text-gray-600">支払済み報酬</span>
-                  <span className="font-bold text-green-600">¥{stats.paid_commission.toLocaleString()}</span>
-                </div>
-              </div>
-              {stats.unpaid_commission > 0 && (
-                <div className="mt-4 bg-orange-50 rounded-xl p-3 text-xs text-orange-700">
-                  💰 未払い報酬 ¥{stats.unpaid_commission.toLocaleString()} は毎月末に振込申請手続きが可能です
-                </div>
-              )}
-            </div>
+            )}
           </div>
         )}
 
-        {/* 紹介URLタブ */}
-        {activeTab === 'urls' && (
-          <div className="space-y-4">
-            {referrableProducts.length === 0 && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center text-gray-400">
-                <p className="text-4xl mb-3">🔒</p>
-                <p className="font-semibold text-gray-600 mb-1">紹介可能な商品がありません</p>
-                <p className="text-sm">承認が完了するか、必要な条件を満たすと紹介URLが表示されます。</p>
-              </div>
-            )}
+        {/* ==============================
+            グラフ分析タブ
+            ============================== */}
+        {!loading && activeTab === 'graph' && (
+          <div className="space-y-5">
+            {/* 集計単位切り替え */}
+            <div className="flex gap-2">
+              {(['daily', 'weekly', 'monthly'] as const).map(v => (
+                <button key={v} onClick={() => setChartView(v)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    chartView === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}>
+                  {v === 'daily' ? '日別' : v === 'weekly' ? '週別' : '月別'}
+                </button>
+              ))}
+            </div>
 
-            {referrableProducts.length > 0 && (
-              <div>
-                <h3 className="text-sm font-bold text-gray-700 mb-3">紹介可能な商品</h3>
-                <div className="space-y-3">
-                  {referrableProducts.map((product) => {
-                    const referralUrl = `${SITE_URL}${product.lp_url}?ref=${affiliate?.affiliate_code}`;
+            {/* クリック数 vs 成約数 */}
+            <SectionCard title={`${chartView === 'daily' ? '日別' : chartView === 'weekly' ? '週別' : '月別'}クリック数 vs 成約数`} icon="📈">
+              <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart data={chartView === 'daily' ? dailyData : chartView === 'weekly' ? weeklyData : monthlyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey={chartView === 'daily' ? 'date' : chartView === 'weekly' ? 'week' : 'month'} tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                  <Area yAxisId="left" type="monotone" dataKey="clicks" fill="#dbeafe" stroke="#3b82f6" name="クリック数" />
+                  <Bar yAxisId="right" dataKey="conversions" fill="#10b981" name="成約数" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </SectionCard>
+
+            {/* 報酬額 */}
+            <SectionCard title={`${chartView === 'daily' ? '日別' : chartView === 'weekly' ? '週別' : '月別'}報酬額`} icon="💰">
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={chartView === 'daily' ? dailyData : chartView === 'weekly' ? weeklyData : monthlyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey={chartView === 'daily' ? 'date' : chartView === 'weekly' ? 'week' : 'month'} tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `¥${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v: any) => fmtMoney(v)} />
+                  <Bar dataKey="commission" fill="#f59e0b" name="報酬額" />
+                </BarChart>
+              </ResponsiveContainer>
+            </SectionCard>
+
+            {/* 前期比サマリー */}
+            {kpi && kpiPrev && (
+              <SectionCard title="前期比較" icon="📊">
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'クリック数', curr: kpi.clicks, prev: kpiPrev.clicks },
+                    { label: '成約数', curr: kpi.conversions, prev: kpiPrev.conversions },
+                    { label: '報酬額', curr: kpi.commission, prev: kpiPrev.commission, money: true },
+                    { label: '売上', curr: kpi.revenue, prev: kpiPrev.revenue, money: true },
+                    { label: '成約率', curr: kpi.conversion_rate, prev: kpiPrev.conversion_rate, rate: true },
+                    { label: 'キャンセル', curr: kpi.cancels, prev: kpiPrev.cancels },
+                  ].map(({ label, curr, prev, money, rate }) => {
+                    const d = diffLabel(curr, prev, rate);
                     return (
-                      <div key={product.product_id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <p className="font-bold text-gray-900 text-sm">{product.product_name}</p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-1 inline-block ${
-                              product.product_type === 'start_course'
-                                ? 'bg-purple-100 text-purple-700'
-                                : product.product_type === 'affiliate_course'
-                                ? 'bg-orange-100 text-orange-700'
-                                : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {product.product_type === 'start_course' ? 'スタート講座' :
-                               product.product_type === 'affiliate_course' ? 'アフィリエイト講座' : 'その他'}
-                            </span>
-                          </div>
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">
-                            紹介可能
-                          </span>
-                        </div>
-                        <div className="bg-gray-50 rounded-xl p-3">
-                          <p className="text-xs text-gray-500 mb-1">紹介URL</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-mono text-gray-800 flex-1 break-all">{referralUrl}</p>
-                            <CopyButton text={referralUrl} />
-                          </div>
-                        </div>
-                        <div className="mt-2 flex gap-3 flex-wrap">
-                          <a
-                            href={product.lp_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline"
-                          >
-                            販売ページ↗
-                          </a>
-                          <a
-                            href={`/affiliate/products/${product.product_id}`}
-                            className="text-xs text-purple-600 hover:underline font-medium"
-                          >
-                            📝 商品詳細・紹介素材 →
-                          </a>
-                        </div>
+                      <div key={label} className="bg-gray-50 rounded-xl p-3">
+                        <p className="text-xs text-gray-500">{label}</p>
+                        <p className="font-bold text-sm">{money ? fmtMoney(curr) : rate ? fmtPct(curr) : curr.toLocaleString()}</p>
+                        {d && <p className={`text-xs font-bold ${d.positive ? 'text-green-600' : 'text-red-500'}`}>{d.positive ? '▲' : '▼'} {d.text}</p>}
                       </div>
                     );
                   })}
                 </div>
-              </div>
+              </SectionCard>
             )}
 
-            {lockedProducts.length > 0 && (
-              <div>
-                <h3 className="text-sm font-bold text-gray-400 mb-3">紹介権限なし（条件未達）</h3>
-                <div className="space-y-2">
-                  {lockedProducts.map((product) => (
-                    <div key={product.product_id} className="bg-white rounded-xl border border-gray-100 p-4 opacity-60">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-600">{product.product_name}</p>
-                        <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                          🔒 権限なし
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {product.access_level === 'approved_only'
-                          ? 'スタート講座購入 + 管理者承認が必要です'
-                          : product.access_level === 'requires_purchase'
-                          ? 'この商品の購入が必要です'
-                          : '現在紹介権限がありません'}
+            {/* 商品別成約数 */}
+            <SectionCard title="商品別成約数" icon="📦">
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={productStats} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis type="number" tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="product_name" tick={{ fontSize: 10 }} width={120} />
+                  <Tooltip />
+                  <Bar dataKey="conversions" fill="#3b82f6" name="成約数" />
+                </BarChart>
+              </ResponsiveContainer>
+            </SectionCard>
+
+            {/* 商品別報酬額 */}
+            <SectionCard title="商品別報酬額" icon="💴">
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={productStats} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `¥${(v / 1000).toFixed(0)}k`} />
+                  <YAxis type="category" dataKey="product_name" tick={{ fontSize: 10 }} width={120} />
+                  <Tooltip formatter={(v: any) => fmtMoney(v)} />
+                  <Bar dataKey="commission" fill="#10b981" name="報酬額" />
+                </BarChart>
+              </ResponsiveContainer>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ==============================
+            商品別タブ
+            ============================== */}
+        {!loading && activeTab === 'products' && (
+          <div className="space-y-3">
+            {referrableProducts.length === 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center text-gray-400">
+                <p className="text-4xl mb-3">🔒</p><p>紹介可能な商品がありません</p>
+              </div>
+            )}
+            {referrableProducts.map(p => {
+              const refUrl = `${SITE_URL}${p.affiliate_lp_url || p.lp_url}?ref=${affiliate?.affiliate_code}`;
+              return (
+                <div key={p.product_id} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-bold text-gray-900">{p.product_name}</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        報酬: {p.commission_type === 'percent' ? `${p.commission_percent}%` : `¥${(p.commission_fixed || 0).toLocaleString()}`}
                       </p>
                     </div>
-                  ))}
+                    <button onClick={() => { setSelectedProduct(p); setProductDetailTab('info'); }}
+                      className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                      詳細 →
+                    </button>
+                  </div>
+                  {/* 個別KPI */}
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="bg-blue-50 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-gray-500">クリック</p>
+                      <p className="text-lg font-bold text-blue-700">{p.clicks.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-green-50 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-gray-500">成約</p>
+                      <p className="text-lg font-bold text-green-700">{p.conversions}</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-gray-500">成約率</p>
+                      <p className="text-lg font-bold text-purple-700">{fmtPct(p.conversion_rate)}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="bg-orange-50 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-gray-500">売上金額</p>
+                      <p className="font-bold text-orange-700">{fmtMoney(p.revenue)}</p>
+                    </div>
+                    <div className="bg-green-50 rounded-xl p-2.5 text-center">
+                      <p className="text-xs text-gray-500">発生報酬</p>
+                      <p className="font-bold text-green-700">{fmtMoney(p.commission)}</p>
+                    </div>
+                  </div>
+                  {/* 紹介URL */}
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+                    <p className="text-xs text-gray-500 mb-1">専用紹介URL</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <code className="text-xs font-mono text-blue-700 flex-1 min-w-0 truncate">{refUrl}</code>
+                      <CopyButton text={refUrl} label="コピー" />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })}
           </div>
         )}
 
-        {/* 成約履歴タブ */}
-        {activeTab === 'conversions' && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-gray-100">
-              <h3 className="font-bold text-gray-900 text-sm">成約履歴</h3>
-            </div>
-            {recentConversions.length === 0 ? (
-              <div className="p-10 text-center text-gray-400">
-                <p className="text-3xl mb-2">📊</p>
-                <p className="text-sm">まだ成約がありません</p>
-                <p className="text-xs mt-1">紹介URLをSNSや媒体で拡散して最初の成約を目指しましょう！</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-50">
-                {recentConversions.map((conv) => {
-                  const st = statusLabel[conv.commission_status] || { label: conv.commission_status, color: 'bg-gray-100 text-gray-500' };
-                  return (
-                    <div key={conv.id} className="p-4 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{conv.product_name}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {new Date(conv.purchased_at).toLocaleDateString('ja-JP')}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-green-700">+¥{conv.commission_amount.toLocaleString()}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.color}`}>
-                          {st.label}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* PR表記ルールタブ */}
-        {activeTab === 'rules' && (
+        {/* ==============================
+            診断タブ（レーダーチャート）
+            ============================== */}
+        {!loading && activeTab === 'radar' && radarScore && (
           <div className="space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
-              <h3 className="font-bold text-red-800 mb-3 text-sm">⚠️ 必ず守ってください</h3>
-              <ul className="space-y-2 text-sm text-red-700">
-                <li className="flex items-start gap-2">
-                  <span className="font-bold flex-shrink-0">•</span>
-                  SNS投稿・ブログ記事・動画等、すべての紹介コンテンツで「PR」「広告」「アフィリエイト」等の表記が義務です
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="font-bold flex-shrink-0">•</span>
-                  「必ず稼げる」「絶対に成功する」等の断定的な表現は禁止です
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="font-bold flex-shrink-0">•</span>
-                  虚偽の情報・誇大広告による紹介は法令違反となり、登録取り消しになります
-                </li>
-              </ul>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 mb-4 text-sm">PR表記の例文</h3>
-              <div className="space-y-3">
+            {/* レーダーチャート */}
+            <SectionCard title="パフォーマンス診断（5項目）" icon="🎯">
+              <ResponsiveContainer width="100%" height={280}>
+                <RadarChart data={radarData}>
+                  <PolarGrid />
+                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                  <Radar name="スコア" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.4} />
+                  <Tooltip formatter={(v: any) => fmtScore(Number(v))} />
+                </RadarChart>
+              </ResponsiveContainer>
+              {/* スコア一覧 */}
+              <div className="grid grid-cols-2 gap-2 mt-3">
                 {[
-                  {
-                    media: 'Twitter / X',
-                    example: '※ この投稿はPRを含みます。私自身が受講して良かったAIアフィリエイト講座をご紹介しています。',
-                  },
-                  {
-                    media: 'Instagram',
-                    example: '#PR #広告\nこの投稿はアフィリエイト広告を含みます。',
-                  },
-                  {
-                    media: 'ブログ・note',
-                    example: '※ 本記事はアフィリエイト広告を含みます。紹介しているリンクから購入いただくと、私に紹介報酬が支払われます。',
-                  },
-                ].map((item) => (
-                  <div key={item.media} className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs font-bold text-gray-600 mb-2">{item.media}</p>
-                    <div className="flex items-start gap-2">
-                      <p className="text-xs text-gray-700 flex-1 whitespace-pre-line">{item.example}</p>
-                      <CopyButton text={item.example} />
+                  { label: '集客力', value: radarScore.acquisition, desc: 'クリック数・リーチ力' },
+                  { label: '成約力', value: radarScore.conversion, desc: '成約率・クロージング' },
+                  { label: '継続力', value: radarScore.retention, desc: '活動継続・定期投稿' },
+                  { label: '商品理解力', value: radarScore.product_knowledge, desc: '主力商品への集中度' },
+                  { label: '改善力', value: radarScore.improvement, desc: '前期比改善トレンド' },
+                ].map(item => (
+                  <div key={item.label} className="bg-gray-50 rounded-xl p-3">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-xs font-bold text-gray-700">{item.label}</p>
+                      <p className="text-sm font-extrabold text-blue-700">{fmtScore(item.value)}</p>
                     </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${item.value}%` }} />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">{item.desc}</p>
                   </div>
                 ))}
               </div>
+            </SectionCard>
+
+            {/* 診断タイプ */}
+            {diagnosisInfo && (
+              <div className={`rounded-2xl p-5 border ${diagnosisInfo.color}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">{diagnosisInfo.emoji}</span>
+                  <div>
+                    <p className="text-xs opacity-70">あなたの診断タイプ</p>
+                    <p className="font-extrabold text-lg">{diagnosisInfo.label}</p>
+                  </div>
+                </div>
+                <p className="text-sm leading-relaxed mb-3">{diagnosisInfo.comment}</p>
+                <div className="bg-white/60 rounded-xl p-4">
+                  <p className="text-sm font-bold mb-2">🔥 今週のおすすめアクション</p>
+                  <p className="text-sm leading-relaxed">{diagnosisInfo.action}</p>
+                </div>
+              </div>
+            )}
+
+            {/* 全診断タイプ一覧 */}
+            <SectionCard title="診断タイプ一覧" icon="📋">
+              <div className="space-y-2">
+                {Object.entries(DIAGNOSIS_TYPES).map(([key, t]) => (
+                  <div key={key} className={`flex items-center gap-2 px-3 py-2 rounded-xl ${radarScore?.diagnosis_type === key ? t.color + ' ring-2 ring-current/30' : 'bg-gray-50 text-gray-500'}`}>
+                    <span>{t.emoji}</span>
+                    <span className="text-sm font-medium">{t.label}</span>
+                    {radarScore?.diagnosis_type === key && <span className="ml-auto text-xs font-bold">← 現在</span>}
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          </div>
+        )}
+
+        {/* ==============================
+            ランキングタブ
+            ============================== */}
+        {!loading && activeTab === 'ranking' && (
+          <div className="space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-800">
+              <p className="font-bold mb-1">🏆 ランキング（プライバシー保護）</p>
+              <p className="text-xs">他の紹介者の名前・詳細は表示されません。自分の順位と差分のみ確認できます。</p>
             </div>
 
-            <div className="bg-blue-50 rounded-2xl p-5">
-              <h3 className="font-bold text-blue-800 mb-3 text-sm">📋 推奨する紹介方法</h3>
-              <ul className="space-y-2 text-sm text-blue-700">
-                <li>✓ 実際に受講した体験談・感想を正直に伝える</li>
-                <li>✓ 具体的にどんな人に役立つか伝える</li>
-                <li>✓ メリット・デメリットを公平に伝える</li>
-                <li>✓ 紹介URLは自分のコードが付いたものを使用する</li>
-              </ul>
-            </div>
+            {ranking ? (
+              <div className="space-y-3">
+                {/* 自分の順位 */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center shadow-sm">
+                  <p className="text-gray-500 text-sm mb-2">今月の順位</p>
+                  <div className="flex items-baseline justify-center gap-1">
+                    <span className="text-6xl font-extrabold text-blue-700">{ranking.my_rank}</span>
+                    <span className="text-2xl text-gray-400">位</span>
+                    <span className="text-gray-400 text-sm ml-1">/ {ranking.total}人中</span>
+                  </div>
+                </div>
 
-            <div className="bg-gray-50 rounded-2xl p-5 text-xs text-gray-500">
-              <p className="font-semibold text-gray-600 mb-2">参考法令</p>
-              <p>景品表示法第5条、消費者庁「ステルスマーケティング規制」に基づき、広告・宣伝であることを明示する義務があります。違反した場合、個人の責任が問われる場合があります。</p>
-            </div>
+                {/* 差分 */}
+                <div className="grid grid-cols-1 gap-3">
+                  {ranking.diff_above !== null && (
+                    <div className="bg-white rounded-2xl border border-green-200 p-4">
+                      <p className="text-xs text-gray-500 mb-1">1つ上の順位との差</p>
+                      <p className="text-xl font-bold text-green-600">
+                        ▲ {fmtMoney(ranking.diff_above)} の差
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">この報酬額を上回ると順位が上がります</p>
+                    </div>
+                  )}
+                  {ranking.diff_below !== null && (
+                    <div className="bg-white rounded-2xl border border-orange-200 p-4">
+                      <p className="text-xs text-gray-500 mb-1">1つ下の順位との差</p>
+                      <p className="text-xl font-bold text-orange-600">
+                        ▼ {fmtMoney(ranking.diff_below)} の差
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">リードしている差分です</p>
+                    </div>
+                  )}
+                  <div className="bg-white rounded-2xl border border-blue-200 p-4">
+                    <p className="text-xs text-gray-500 mb-1">1位との差</p>
+                    <p className="text-xl font-bold text-blue-600">
+                      {ranking.my_rank === 1 ? '🥇 あなたが1位です！' : `▲ ${fmtMoney(ranking.diff_from_top)} の差`}
+                    </p>
+                    {ranking.my_rank !== 1 && <p className="text-xs text-gray-400 mt-1">1位に必要な追加報酬</p>}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center text-gray-400">
+                <p className="text-4xl mb-3">🏆</p><p className="text-sm">ランキングデータがありません</p>
+              </div>
+            )}
           </div>
         )}
       </main>

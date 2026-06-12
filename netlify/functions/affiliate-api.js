@@ -353,6 +353,20 @@ exports.handler = async (event) => {
       return await cancelCampaignApplication(affiliate, applicationId, headers);
     }
 
+    // ======================================================
+    // 分析ダッシュボード（新：期間フィルター付き）
+    // ======================================================
+    if (path === '/dashboard/analytics' && method === 'GET') {
+      const params = event.queryStringParameters || {};
+      return await getDashboardAnalytics(affiliate, params, headers);
+    }
+
+    // 商品詳細（紹介権限チェック付き）
+    if (path.match(/^\/products\/[^/]+$/) && method === 'GET') {
+      const productId = path.split('/')[2];
+      return await getProductDetail(affiliate, productId, headers);
+    }
+
     return {
       statusCode: 404,
       headers,
@@ -1053,6 +1067,645 @@ async function getDashboardV2(affiliate, headers) {
       },
       product_permissions: productPermissions,
       recent_conversions: recentConversionsRes.data || [],
+    }),
+  };
+}
+
+// ======================================================
+// getDashboardAnalytics: 期間フィルター付き分析ダッシュボード
+// ======================================================
+async function getDashboardAnalytics(affiliate, params, headers) {
+  const affiliateId = affiliate.id;
+  const now = new Date();
+
+  // 期間計算ヘルパー
+  function getPeriodDates(period, customStart, customEnd) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(today);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    switch (period) {
+      case 'today': {
+        return { start: today, end: todayEnd };
+      }
+      case 'yesterday': {
+        const y = new Date(today);
+        y.setDate(y.getDate() - 1);
+        const yEnd = new Date(y);
+        yEnd.setHours(23, 59, 59, 999);
+        return { start: y, end: yEnd };
+      }
+      case '7d': {
+        const s = new Date(today);
+        s.setDate(s.getDate() - 6);
+        return { start: s, end: todayEnd };
+      }
+      case '14d': {
+        const s = new Date(today);
+        s.setDate(s.getDate() - 13);
+        return { start: s, end: todayEnd };
+      }
+      case '30d': {
+        const s = new Date(today);
+        s.setDate(s.getDate() - 29);
+        return { start: s, end: todayEnd };
+      }
+      case 'this_week': {
+        const dow = today.getDay();
+        const s = new Date(today);
+        s.setDate(s.getDate() - dow);
+        return { start: s, end: todayEnd };
+      }
+      case 'last_week': {
+        const dow = today.getDay();
+        const e = new Date(today);
+        e.setDate(e.getDate() - dow - 1);
+        e.setHours(23, 59, 59, 999);
+        const s = new Date(e);
+        s.setDate(s.getDate() - 6);
+        s.setHours(0, 0, 0, 0);
+        return { start: s, end: e };
+      }
+      case 'month': {
+        const s = new Date(today.getFullYear(), today.getMonth(), 1);
+        return { start: s, end: todayEnd };
+      }
+      case 'last_month': {
+        const s = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const e = new Date(today.getFullYear(), today.getMonth(), 0);
+        e.setHours(23, 59, 59, 999);
+        return { start: s, end: e };
+      }
+      case 'this_year': {
+        const s = new Date(today.getFullYear(), 0, 1);
+        return { start: s, end: todayEnd };
+      }
+      case 'all': {
+        return { start: new Date('2020-01-01'), end: todayEnd };
+      }
+      case 'custom': {
+        if (customStart && customEnd) {
+          return {
+            start: new Date(customStart),
+            end: new Date(customEnd + 'T23:59:59'),
+          };
+        }
+        // fallthrough to 30d
+        const s = new Date(today);
+        s.setDate(s.getDate() - 29);
+        return { start: s, end: todayEnd };
+      }
+      default: {
+        const s = new Date(today);
+        s.setDate(s.getDate() - 29);
+        return { start: s, end: todayEnd };
+      }
+    }
+  }
+
+  // 前の期間計算
+  function getPrevPeriodDates(period, currentStart, currentEnd) {
+    const diff = currentEnd - currentStart;
+    return {
+      start: new Date(currentStart - diff - 1000),
+      end: new Date(currentStart - 1000),
+    };
+  }
+
+  const period = params.period || '30d';
+  const { start: periodStart, end: periodEnd } = getPeriodDates(
+    period,
+    params.start,
+    params.end
+  );
+  const { start: prevStart, end: prevEnd } = getPrevPeriodDates(period, periodStart, periodEnd);
+
+  const startISO = periodStart.toISOString();
+  const endISO = periodEnd.toISOString();
+  const prevStartISO = prevStart.toISOString();
+  const prevEndISO = prevEnd.toISOString();
+
+  // ---- 並列データ取得 ----
+  const [
+    clicksRes,
+    prevClicksRes,
+    purchasesRes,
+    prevPurchasesRes,
+    commissionsRes,
+    prevCommissionsRes,
+    productsRes,
+    dailyStatsRes,
+    rankingRes,
+  ] = await Promise.all([
+    // クリック（期間内）
+    supabase
+      .from('clicks')
+      .select('id, created_at, product_id')
+      .eq('affiliate_id', affiliateId)
+      .gte('created_at', startISO)
+      .lte('created_at', endISO),
+    // クリック（前期間）
+    supabase
+      .from('clicks')
+      .select('id')
+      .eq('affiliate_id', affiliateId)
+      .gte('created_at', prevStartISO)
+      .lte('created_at', prevEndISO),
+    // 購入（期間内）
+    supabase
+      .from('purchases')
+      .select('id, amount_total, commission_amount, commission_status, purchased_at, product_id, product_name, status')
+      .eq('affiliate_id', affiliateId)
+      .gte('purchased_at', startISO)
+      .lte('purchased_at', endISO),
+    // 購入（前期間）
+    supabase
+      .from('purchases')
+      .select('id, amount_total, commission_amount, commission_status, status')
+      .eq('affiliate_id', affiliateId)
+      .gte('purchased_at', prevStartISO)
+      .lte('purchased_at', prevEndISO),
+    // 報酬（期間内）
+    supabase
+      .from('commissions')
+      .select('id, amount, status, created_at, purchase_id')
+      .eq('affiliate_id', affiliateId)
+      .gte('created_at', startISO)
+      .lte('created_at', endISO),
+    // 報酬（前期間）
+    supabase
+      .from('commissions')
+      .select('id, amount, status')
+      .eq('affiliate_id', affiliateId)
+      .gte('created_at', prevStartISO)
+      .lte('created_at', prevEndISO),
+    // 商品一覧（アクティブ）
+    supabase
+      .from('products')
+      .select('id, name, product_type, lp_url, price, status, commission_type, commission_percent, commission_fixed, commission_trigger, commission_confirm_timing, refund_period_days, revoke_commission_on_refund')
+      .eq('status', 'active'),
+    // デイリー統計（period内）
+    supabase
+      .from('affiliate_daily_stats')
+      .select('stat_date, clicks, purchases, revenue, commission')
+      .eq('affiliate_id', affiliateId)
+      .gte('stat_date', periodStart.toISOString().split('T')[0])
+      .lte('stat_date', periodEnd.toISOString().split('T')[0])
+      .order('stat_date', { ascending: true }),
+    // ランキング用（今月）
+    supabase
+      .from('commissions')
+      .select('affiliate_id, amount')
+      .gte('created_at', new Date(now.getFullYear(), now.getMonth(), 1).toISOString())
+      .in('status', ['pending', 'approved', 'payable', 'paid']),
+  ]);
+
+  const clicks = clicksRes.data || [];
+  const prevClicks = prevClicksRes.data || [];
+  const purchases = purchasesRes.data || [];
+  const prevPurchases = prevPurchasesRes.data || [];
+  const commissions = commissionsRes.data || [];
+  const prevCommissions = prevCommissionsRes.data || [];
+  const products = productsRes.data || [];
+  const dailyStats = dailyStatsRes.data || [];
+  const allRankingComms = rankingRes.data || [];
+
+  // ---- KPI計算 ----
+  const validPurchases = purchases.filter(p => p.status === 'completed' || p.status === 'active');
+  const cancelledPurchases = purchases.filter(p => p.status === 'cancelled');
+  const refundedPurchases = purchases.filter(p => p.status === 'refunded');
+
+  const prevValidPurchases = prevPurchases.filter(p => p.status === 'completed' || p.status === 'active');
+
+  const kpi = {
+    clicks: clicks.length,
+    conversions: validPurchases.length,
+    conversion_rate: clicks.length > 0 ? validPurchases.length / clicks.length : 0,
+    revenue: validPurchases.reduce((s, p) => s + (p.amount_total || 0), 0),
+    commission: commissions.reduce((s, c) => s + (c.amount || 0), 0),
+    unconfirmed_commission: commissions.filter(c => c.status === 'pending').reduce((s, c) => s + (c.amount || 0), 0),
+    confirmed_commission: commissions.filter(c => ['approved', 'payable'].includes(c.status)).reduce((s, c) => s + (c.amount || 0), 0),
+    paid_commission: commissions.filter(c => c.status === 'paid').reduce((s, c) => s + (c.amount || 0), 0),
+    cancels: cancelledPurchases.length,
+    refunds: refundedPurchases.length,
+  };
+
+  const kpi_prev = {
+    clicks: prevClicks.length,
+    conversions: prevValidPurchases.length,
+    conversion_rate: prevClicks.length > 0 ? prevValidPurchases.length / prevClicks.length : 0,
+    revenue: prevValidPurchases.reduce((s, p) => s + (p.amount_total || 0), 0),
+    commission: prevCommissions.reduce((s, c) => s + (c.amount || 0), 0),
+    unconfirmed_commission: prevCommissions.filter(c => c.status === 'pending').reduce((s, c) => s + (c.amount || 0), 0),
+    confirmed_commission: prevCommissions.filter(c => ['approved', 'payable'].includes(c.status)).reduce((s, c) => s + (c.amount || 0), 0),
+    paid_commission: prevCommissions.filter(c => c.status === 'paid').reduce((s, c) => s + (c.amount || 0), 0),
+    cancels: prevPurchases.filter(p => p.status === 'cancelled').length,
+    refunds: prevPurchases.filter(p => p.status === 'refunded').length,
+  };
+
+  // ---- デイリーデータ生成（daily_stats補完） ----
+  const statsMap = {};
+  for (const s of dailyStats) {
+    statsMap[s.stat_date] = s;
+  }
+  // クリックデータからも補完
+  for (const c of clicks) {
+    const date = c.created_at.split('T')[0];
+    if (!statsMap[date]) statsMap[date] = { stat_date: date, clicks: 0, purchases: 0, revenue: 0, commission: 0 };
+    statsMap[date].clicks = (statsMap[date].clicks || 0) + 1;
+  }
+  for (const p of validPurchases) {
+    const date = p.purchased_at.split('T')[0];
+    if (!statsMap[date]) statsMap[date] = { stat_date: date, clicks: 0, purchases: 0, revenue: 0, commission: 0 };
+    statsMap[date].purchases = (statsMap[date].purchases || 0) + 1;
+    statsMap[date].revenue = (statsMap[date].revenue || 0) + (p.amount_total || 0);
+  }
+  for (const c of commissions) {
+    const date = c.created_at.split('T')[0];
+    if (!statsMap[date]) statsMap[date] = { stat_date: date, clicks: 0, purchases: 0, revenue: 0, commission: 0 };
+    statsMap[date].commission = (statsMap[date].commission || 0) + (c.amount || 0);
+  }
+
+  // 期間内の日付を全て生成
+  const daily_data = [];
+  const cursor = new Date(periodStart);
+  cursor.setHours(0, 0, 0, 0);
+  const endDate = new Date(periodEnd);
+  endDate.setHours(0, 0, 0, 0);
+  while (cursor <= endDate) {
+    const dateStr = cursor.toISOString().split('T')[0];
+    daily_data.push({
+      date: dateStr,
+      clicks: statsMap[dateStr]?.clicks || 0,
+      conversions: statsMap[dateStr]?.purchases || 0,
+      revenue: statsMap[dateStr]?.revenue || 0,
+      commission: statsMap[dateStr]?.commission || 0,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  // ---- 週別データ生成 ----
+  const weeklyMap = {};
+  for (const d of daily_data) {
+    const date = new Date(d.date);
+    const year = date.getFullYear();
+    const week = getWeekNumber(date);
+    const key = `${year}-W${String(week).padStart(2, '0')}`;
+    if (!weeklyMap[key]) weeklyMap[key] = { week: key, clicks: 0, conversions: 0, revenue: 0, commission: 0 };
+    weeklyMap[key].clicks += d.clicks;
+    weeklyMap[key].conversions += d.conversions;
+    weeklyMap[key].revenue += d.revenue;
+    weeklyMap[key].commission += d.commission;
+  }
+  const weekly_data = Object.values(weeklyMap).sort((a, b) => a.week.localeCompare(b.week));
+
+  // ---- 月別データ生成 ----
+  const monthlyMap = {};
+  for (const d of daily_data) {
+    const key = d.date.substring(0, 7);
+    if (!monthlyMap[key]) monthlyMap[key] = { month: key, clicks: 0, conversions: 0, revenue: 0, commission: 0 };
+    monthlyMap[key].clicks += d.clicks;
+    monthlyMap[key].conversions += d.conversions;
+    monthlyMap[key].revenue += d.revenue;
+    monthlyMap[key].commission += d.commission;
+  }
+  const monthly_data = Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month));
+
+  // ---- 商品別統計 ----
+  const productStatsMap = {};
+  for (const p of validPurchases) {
+    const pid = p.product_id;
+    if (!pid) continue;
+    if (!productStatsMap[pid]) {
+      productStatsMap[pid] = { product_id: pid, product_name: p.product_name || '', conversions: 0, revenue: 0, commission: 0, cancels: 0, refunds: 0 };
+    }
+    productStatsMap[pid].conversions++;
+    productStatsMap[pid].revenue += p.amount_total || 0;
+  }
+  for (const p of cancelledPurchases) {
+    const pid = p.product_id;
+    if (!pid) continue;
+    if (!productStatsMap[pid]) productStatsMap[pid] = { product_id: pid, product_name: p.product_name || '', conversions: 0, revenue: 0, commission: 0, cancels: 0, refunds: 0 };
+    productStatsMap[pid].cancels++;
+  }
+  for (const p of refundedPurchases) {
+    const pid = p.product_id;
+    if (!pid) continue;
+    if (!productStatsMap[pid]) productStatsMap[pid] = { product_id: pid, product_name: p.product_name || '', conversions: 0, revenue: 0, commission: 0, cancels: 0, refunds: 0 };
+    productStatsMap[pid].refunds++;
+  }
+  for (const c of commissions) {
+    // commission→purchaseのproduct_idはpurchasesテーブルから引く
+    const purchase = purchases.find(p => p.id === c.purchase_id);
+    if (purchase?.product_id) {
+      const pid = purchase.product_id;
+      if (productStatsMap[pid]) {
+        productStatsMap[pid].commission += c.amount || 0;
+      }
+    }
+  }
+
+  // 権限チェック付き商品統計
+  const product_stats = [];
+  for (const product of products) {
+    const canRefer = await checkProductPermission(affiliate, product);
+    const stats = productStatsMap[product.id] || { conversions: 0, revenue: 0, commission: 0, cancels: 0, refunds: 0 };
+    const clickCount = clicks.filter(c => c.product_id === product.id).length;
+
+    product_stats.push({
+      product_id: product.id,
+      product_name: product.name,
+      product_type: product.product_type,
+      lp_url: product.lp_url,
+      price: product.price,
+      can_refer: canRefer,
+      commission_type: product.commission_type,
+      commission_percent: product.commission_percent,
+      commission_fixed: product.commission_fixed,
+      commission_trigger: product.commission_trigger,
+      commission_confirm_timing: product.commission_confirm_timing,
+      refund_period_days: product.refund_period_days,
+      revoke_commission_on_refund: product.revoke_commission_on_refund,
+      clicks: clickCount,
+      conversions: stats.conversions,
+      revenue: stats.revenue,
+      commission: stats.commission,
+      cancels: stats.cancels,
+      refunds: stats.refunds,
+      conversion_rate: clickCount > 0 ? stats.conversions / clickCount : 0,
+    });
+  }
+
+  // ---- レーダースコア計算 ----
+  const radar_score = calculateRadarScore(affiliate, kpi, product_stats, daily_data);
+
+  // ---- ランキング計算（プライバシー保護）----
+  const commByAffiliate = {};
+  for (const c of allRankingComms) {
+    commByAffiliate[c.affiliate_id] = (commByAffiliate[c.affiliate_id] || 0) + (c.amount || 0);
+  }
+  const sorted = Object.entries(commByAffiliate).sort((a, b) => b[1] - a[1]);
+  const myAmount = commByAffiliate[affiliateId] || 0;
+  const myRankIdx = sorted.findIndex(([id]) => id === affiliateId);
+  const myRank = myRankIdx >= 0 ? myRankIdx + 1 : null;
+  const totalAffiliates = sorted.length;
+  const rankAboveDiff = myRank && myRank > 1 ? sorted[myRank - 2][1] - myAmount : 0;
+  const rankBelowDiff = myRank && myRank < totalAffiliates ? myAmount - sorted[myRank][1] : 0;
+  const rankTopDiff = myRank && myRank > 1 ? sorted[0][1] - myAmount : 0;
+
+  const ranking = {
+    my_rank: myRank,
+    total: totalAffiliates,
+    my_amount: myAmount,
+    diff_above: rankAboveDiff,
+    diff_below: rankBelowDiff,
+    diff_from_top: rankTopDiff,
+  };
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      affiliate: {
+        id: affiliate.id,
+        name: affiliate.name,
+        affiliate_code: affiliate.affiliate_code,
+        status: affiliate.status,
+      },
+      period: { period, start: startISO, end: endISO },
+      kpi,
+      kpi_prev,
+      daily_data,
+      weekly_data,
+      monthly_data,
+      product_stats,
+      radar_score,
+      ranking,
+    }),
+  };
+}
+
+function getWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+async function checkProductPermission(affiliate, product) {
+  // デフォルト権限
+  const { data: defaultPerm } = await supabase
+    .from('product_affiliate_permissions')
+    .select('access_level, required_product_id')
+    .eq('product_id', product.id)
+    .is('affiliate_id', null)
+    .single();
+
+  // 個別権限
+  const { data: individualPerm } = await supabase
+    .from('product_affiliate_permissions')
+    .select('is_explicitly_granted, revoked_at')
+    .eq('product_id', product.id)
+    .eq('affiliate_id', affiliate.id)
+    .single();
+
+  if (individualPerm && individualPerm.is_explicitly_granted !== null && !individualPerm.revoked_at) {
+    return individualPerm.is_explicitly_granted;
+  }
+
+  const accessLevel = defaultPerm?.access_level || 'none';
+  if (accessLevel === 'open') return affiliate.status === 'active';
+  if (accessLevel === 'approved_only') return affiliate.status === 'active' && !!affiliate.approved_at;
+  if (accessLevel === 'requires_purchase') {
+    const reqProductId = defaultPerm?.required_product_id || product.id;
+    const { data: purchase } = await supabase
+      .from('purchases')
+      .select('id')
+      .eq('buyer_email', affiliate.email)
+      .eq('product_id', reqProductId)
+      .eq('status', 'completed')
+      .limit(1)
+      .single();
+    return !!purchase;
+  }
+  return false;
+}
+
+function calculateRadarScore(affiliate, kpi, product_stats, daily_data) {
+  // 集客力: クリック数ベース (100クリック=100点, 対数スケール)
+  const clickScore = Math.min(100, kpi.clicks > 0 ? Math.log10(kpi.clicks + 1) * 40 : 0);
+
+  // 成約力: 成約率ベース (5%=100点)
+  const convRate = kpi.conversion_rate || 0;
+  const convScore = Math.min(100, convRate * 2000);
+
+  // 継続力: 活動日数（直近30日で何日活動したか）
+  const activeDays = daily_data.filter(d => d.clicks > 0 || d.conversions > 0).length;
+  const totalDays = daily_data.length || 1;
+  const retentionScore = Math.min(100, (activeDays / Math.min(totalDays, 30)) * 100);
+
+  // 商品理解力: 複数商品に渡って成果があるか
+  const activeProducts = product_stats.filter(p => p.conversions > 0 || p.clicks > 0).length;
+  const productKnowledgeScore = Math.min(100, activeProducts * 30 + (kpi.conversions > 0 ? 10 : 0));
+
+  // 改善力: 前比と現在の成果から（暫定: 成約数×10 + クリック×0.5）
+  const improvementScore = Math.min(100, kpi.conversions * 10 + kpi.clicks * 0.5);
+
+  // スコアを0.00-100.00に整形
+  const round2 = (v) => Math.round(v * 100) / 100;
+  const acquisition = round2(clickScore);
+  const conversion = round2(convScore);
+  const retention = round2(retentionScore);
+  const product_knowledge = round2(productKnowledgeScore);
+  const improvement = round2(improvementScore);
+
+  // 診断タイプ決定
+  const avg = (acquisition + conversion + retention + product_knowledge + improvement) / 5;
+  let diagnosis_type = 'normal';
+
+  if (kpi.clicks < 10) {
+    diagnosis_type = 'click_shortage';
+  } else if (convRate < 0.01 && kpi.clicks >= 10) {
+    diagnosis_type = 'low_conversion';
+  } else if (kpi.conversions > 0 && activeProducts <= 1) {
+    diagnosis_type = 'weak_main_product';
+  } else if (avg >= 70) {
+    diagnosis_type = 'balanced_excellent';
+  } else if (avg >= 50 && improvementScore > 60) {
+    diagnosis_type = 'growing';
+  } else if (avg >= 40) {
+    diagnosis_type = 'stable';
+  } else {
+    diagnosis_type = 'normal';
+  }
+
+  return {
+    acquisition,
+    conversion,
+    retention,
+    product_knowledge,
+    improvement,
+    diagnosis_type,
+  };
+}
+
+// ======================================================
+// getProductDetail: 商品詳細（紹介権限チェック付き）
+// ======================================================
+async function getProductDetail(affiliate, productId, headers) {
+  // 商品取得
+  const { data: product, error: productError } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', productId)
+    .eq('status', 'active')
+    .single();
+
+  if (productError || !product) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Product not found' }) };
+  }
+
+  // 権限チェック
+  const canRefer = await checkProductPermission(affiliate, product);
+  if (!canRefer) {
+    return { statusCode: 403, headers, body: JSON.stringify({ error: 'No referral permission for this product' }) };
+  }
+
+  // 紹介素材取得
+  const { data: promoAssets } = await supabase
+    .from('promo_assets')
+    .select('*')
+    .eq('product_id', productId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  // 紹介URL生成
+  const referralUrl = `${process.env.SITE_URL || 'https://your-site.netlify.app'}${product.lp_url || '/'}?ref=${affiliate.affiliate_code}`;
+
+  // 商品ごとのクリック数
+  const { count: clickCount } = await supabase
+    .from('clicks')
+    .select('id', { count: 'exact' })
+    .eq('affiliate_id', affiliate.id)
+    .eq('product_id', productId);
+
+  // 成約数
+  const { data: conversions } = await supabase
+    .from('purchases')
+    .select('id, amount_total, commission_amount, commission_status, purchased_at')
+    .eq('affiliate_id', affiliate.id)
+    .eq('product_id', productId)
+    .eq('status', 'completed');
+
+  // 報酬合計
+  const { data: commissions } = await supabase
+    .from('commissions')
+    .select('amount, status')
+    .eq('affiliate_id', affiliate.id);
+
+  const myCommissions = commissions || [];
+  const totalCommission = myCommissions.reduce((s, c) => s + (c.amount || 0), 0);
+  const confirmedCommission = myCommissions
+    .filter(c => ['approved', 'payable', 'paid'].includes(c.status))
+    .reduce((s, c) => s + (c.amount || 0), 0);
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      product: {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        product_type: product.product_type,
+        lp_url: product.lp_url,
+        price: product.price,
+        status: product.status,
+        // 報酬条件
+        commission_type: product.commission_type,
+        commission_percent: product.commission_percent,
+        commission_fixed: product.commission_fixed,
+        commission_trigger: product.commission_trigger,
+        commission_confirm_timing: product.commission_confirm_timing,
+        commission_hold_days: product.commission_hold_days,
+        // キャンセル・返金
+        refund_period_days: product.refund_period_days,
+        refund_policy_text: product.refund_policy_text,
+        cancel_policy_text: product.cancel_policy_text,
+        revoke_commission_on_refund: product.revoke_commission_on_refund,
+        revoke_commission_on_cancel: product.revoke_commission_on_cancel,
+        // 紹介条件
+        affiliate_enabled: product.affiliate_enabled,
+        affiliate_access_level: product.affiliate_access_level,
+        pr_notation_required: product.pr_notation_required,
+        pr_notation_text: product.pr_notation_text,
+        prohibited_expressions: product.prohibited_expressions,
+      },
+      promo_assets: promoAssets ? {
+        short_description: promoAssets.short_description,
+        long_description: promoAssets.long_description,
+        selling_points: promoAssets.selling_points,
+        sns_post_example: promoAssets.sns_post_example,
+        line_intro_text: promoAssets.line_intro_text,
+        story_text: promoAssets.story_text,
+        pr_notation_example: promoAssets.pr_notation_example,
+        prohibited_expressions: promoAssets.prohibited_expressions,
+        discouraged_expressions: promoAssets.discouraged_expressions,
+        faq: promoAssets.faq,
+        target_audience: promoAssets.target_audience,
+      } : null,
+      referral_url: referralUrl,
+      can_refer: canRefer,
+      my_stats: {
+        clicks: clickCount || 0,
+        conversions: (conversions || []).length,
+        revenue: (conversions || []).reduce((s, p) => s + (p.amount_total || 0), 0),
+        total_commission: totalCommission,
+        confirmed_commission: confirmedCommission,
+      },
     }),
   };
 }

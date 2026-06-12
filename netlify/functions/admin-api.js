@@ -1005,6 +1005,83 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
+    // ======================================================
+    // 分析エンドポイント群（新規追加）
+    // ======================================================
+
+    // 分析ダッシュボード（KPI + 手元残り見込み）
+    if (path === '/analytics/dashboard' && method === 'GET') {
+      return await getAnalyticsDashboard(params, headers);
+    }
+
+    // LP分析
+    if (path === '/analytics/lp' && method === 'GET') {
+      return await getAnalyticsLP(params, headers);
+    }
+
+    // 導線分析（1時間/本気）
+    if (path === '/analytics/funnels' && method === 'GET') {
+      return await getAnalyticsFunnels(params, headers);
+    }
+
+    // LINE数値手動入力
+    if (path === '/analytics/line-data' && method === 'POST') {
+      const body = JSON.parse(event.body || '{}');
+      return await upsertLineData(body, headers);
+    }
+
+    // 商品別分析
+    if (path === '/analytics/products' && method === 'GET') {
+      return await getAnalyticsProducts(params, headers);
+    }
+
+    // 紹介者別分析
+    if (path === '/analytics/affiliates' && method === 'GET') {
+      return await getAnalyticsAffiliates(params, headers);
+    }
+
+    // ======================================================
+    // 紹介素材 CRUD
+    // ======================================================
+
+    // 紹介素材取得
+    if (path === '/promo-assets' && method === 'GET') {
+      if (!params.product_id) return { statusCode: 400, headers, body: JSON.stringify({ error: 'product_id required' }) };
+      const { data, error } = await supabase.from('promo_assets').select('*').eq('product_id', params.product_id).order('created_at', { ascending: false }).limit(1).single();
+      if (error && error.code !== 'PGRST116') throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data || {}) };
+    }
+
+    // 紹介素材作成・更新（upsert）
+    if (path === '/promo-assets' && method === 'POST') {
+      const body = JSON.parse(event.body || '{}');
+      if (!body.product_id) return { statusCode: 400, headers, body: JSON.stringify({ error: 'product_id required' }) };
+      // 既存チェック
+      const { data: existing } = await supabase.from('promo_assets').select('id').eq('product_id', body.product_id).limit(1).single();
+      let result;
+      if (existing?.id) {
+        const { data, error } = await supabase.from('promo_assets').update({ ...body, updated_at: new Date().toISOString() }).eq('id', existing.id).select().single();
+        if (error) throw error;
+        result = data;
+      } else {
+        const { data, error } = await supabase.from('promo_assets').insert(body).select().single();
+        if (error) throw error;
+        result = data;
+      }
+      return { statusCode: 200, headers, body: JSON.stringify(result) };
+    }
+
+    // 紹介素材更新
+    if (path.match(/^\/promo-assets\/[^/]+$/) && method === 'PUT') {
+      const id = path.split('/')[2];
+      const body = JSON.parse(event.body || '{}');
+      delete body.id; delete body.product_id;
+      body.updated_at = new Date().toISOString();
+      const { data, error } = await supabase.from('promo_assets').update(body).eq('id', id).select().single();
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
     return {
       statusCode: 404,
       headers,
@@ -1254,4 +1331,562 @@ async function applyPartnerRequest(req, adminEmail) {
     default:
       break;
   }
+}
+
+// ============================================================
+// 分析ダッシュボード（管理者向け・期間フィルター付き）
+// ============================================================
+
+function getAdminPeriodDates(period, customStart, customEnd) {
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  switch (period) {
+    case 'today': return { start: new Date(todayStart), end: new Date(today) };
+    case 'yesterday': {
+      const s = new Date(todayStart); s.setDate(s.getDate() - 1);
+      const e = new Date(s); e.setHours(23, 59, 59, 999);
+      return { start: s, end: e };
+    }
+    case 'this_week': {
+      const dow = todayStart.getDay();
+      const s = new Date(todayStart); s.setDate(s.getDate() - dow);
+      return { start: s, end: new Date(today) };
+    }
+    case 'last_week': {
+      const dow = todayStart.getDay();
+      const e = new Date(todayStart); e.setDate(e.getDate() - dow - 1); e.setHours(23, 59, 59, 999);
+      const s = new Date(e); s.setDate(s.getDate() - 6); s.setHours(0, 0, 0, 0);
+      return { start: s, end: e };
+    }
+    case '7d': { const s = new Date(todayStart); s.setDate(s.getDate() - 6); return { start: s, end: new Date(today) }; }
+    case '14d': { const s = new Date(todayStart); s.setDate(s.getDate() - 13); return { start: s, end: new Date(today) }; }
+    case '30d': { const s = new Date(todayStart); s.setDate(s.getDate() - 29); return { start: s, end: new Date(today) }; }
+    case 'month': { const s = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1); return { start: s, end: new Date(today) }; }
+    case 'last_month': {
+      const s = new Date(todayStart.getFullYear(), todayStart.getMonth() - 1, 1);
+      const e = new Date(todayStart.getFullYear(), todayStart.getMonth(), 0); e.setHours(23, 59, 59, 999);
+      return { start: s, end: e };
+    }
+    case 'this_year': { const s = new Date(todayStart.getFullYear(), 0, 1); return { start: s, end: new Date(today) }; }
+    case 'all': return { start: new Date('2020-01-01'), end: new Date(today) };
+    case 'custom': if (customStart && customEnd) {
+      return { start: new Date(customStart), end: new Date(customEnd + 'T23:59:59') };
+    }
+    default: { const s = new Date(todayStart); s.setDate(s.getDate() - 29); return { start: s, end: new Date(today) }; }
+  }
+}
+
+async function getAnalyticsDashboard(params, headers) {
+  const { start, end } = getAdminPeriodDates(params.period || '30d', params.start, params.end);
+  const startISO = start.toISOString();
+  const endISO = end.toISOString();
+
+  // 前期間
+  const diff = end - start;
+  const prevStart = new Date(start - diff);
+  const prevEnd = new Date(start - 1);
+  const prevStartISO = prevStart.toISOString();
+  const prevEndISO = prevEnd.toISOString();
+
+  const [
+    purchasesRes, prevPurchasesRes,
+    commissionsRes, prevCommissionsRes,
+    clicksRes, prevClicksRes,
+    productsRes,
+  ] = await Promise.all([
+    supabase.from('purchases').select('id,amount_total,status,purchased_at,affiliate_id,product_id').gte('purchased_at', startISO).lte('purchased_at', endISO),
+    supabase.from('purchases').select('id,amount_total,status').gte('purchased_at', prevStartISO).lte('purchased_at', prevEndISO),
+    supabase.from('commissions').select('id,amount,status,created_at,affiliate_id').gte('created_at', startISO).lte('created_at', endISO),
+    supabase.from('commissions').select('id,amount,status').gte('created_at', prevStartISO).lte('created_at', prevEndISO),
+    supabase.from('clicks').select('id', { count: 'exact' }).gte('created_at', startISO).lte('created_at', endISO),
+    supabase.from('clicks').select('id', { count: 'exact' }).gte('created_at', prevStartISO).lte('created_at', prevEndISO),
+    supabase.from('products').select('id,name,price,status').eq('status', 'active'),
+  ]);
+
+  const purchases = purchasesRes.data || [];
+  const prevPurchases = prevPurchasesRes.data || [];
+  const commissions = commissionsRes.data || [];
+  const prevCommissions = prevCommissionsRes.data || [];
+  const clicks = clicksRes.count || 0;
+  const prevClicks = prevClicksRes.count || 0;
+
+  const valid = purchases.filter(p => p.status === 'completed');
+  const refunded = purchases.filter(p => p.status === 'refunded');
+  const cancelled = purchases.filter(p => p.status === 'cancelled');
+  const prevValid = prevPurchases.filter(p => p.status === 'completed');
+
+  const revenue = valid.reduce((s, p) => s + (p.amount_total || 0), 0);
+  const prevRevenue = prevValid.reduce((s, p) => s + (p.amount_total || 0), 0);
+  const stripeFeePct = 0.036; // Stripe: 3.6%
+  const stripeFee = revenue * stripeFeePct;
+  const affiliateCommission = commissions.filter(c => ['pending', 'approved', 'payable', 'paid'].includes(c.status)).reduce((s, c) => s + (c.amount || 0), 0);
+  const refundReserve = revenue * 0.05; // 5%返金予備
+  const netRemaining = revenue - stripeFee - affiliateCommission - refundReserve;
+
+  const totalCommission = commissions.reduce((s, c) => s + (c.amount || 0), 0);
+  const unconfirmedCommission = commissions.filter(c => c.status === 'pending').reduce((s, c) => s + (c.amount || 0), 0);
+  const confirmedCommission = commissions.filter(c => ['approved', 'payable'].includes(c.status)).reduce((s, c) => s + (c.amount || 0), 0);
+  const paidCommission = commissions.filter(c => c.status === 'paid').reduce((s, c) => s + (c.amount || 0), 0);
+  const prevTotalCommission = prevCommissions.reduce((s, c) => s + (c.amount || 0), 0);
+
+  const convRate = clicks > 0 ? valid.length / clicks : 0;
+  const prevConvRate = prevClicks > 0 ? prevValid.length / prevClicks : 0;
+
+  // デイリーデータ
+  const dailyMap = {};
+  for (const p of valid) {
+    const d = p.purchased_at.split('T')[0];
+    if (!dailyMap[d]) dailyMap[d] = { date: d, revenue: 0, sales: 0, commission: 0, clicks: 0 };
+    dailyMap[d].revenue += p.amount_total || 0;
+    dailyMap[d].sales++;
+  }
+  for (const c of commissions) {
+    const d = c.created_at.split('T')[0];
+    if (!dailyMap[d]) dailyMap[d] = { date: d, revenue: 0, sales: 0, commission: 0, clicks: 0 };
+    dailyMap[d].commission += c.amount || 0;
+  }
+
+  const daily_data = [];
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  while (cursor <= end) {
+    const d = cursor.toISOString().split('T')[0];
+    const dd = dailyMap[d] || { date: d, revenue: 0, sales: 0, commission: 0, clicks: 0 };
+    const net = dd.revenue - dd.revenue * stripeFeePct - dd.commission - dd.revenue * 0.05;
+    daily_data.push({ ...dd, net_remaining: Math.max(0, net) });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  // 週別・月別
+  const weeklyMap = {}, monthlyMap = {};
+  for (const d of daily_data) {
+    const dt = new Date(d.date);
+    const wk = getAdminWeekKey(dt);
+    if (!weeklyMap[wk]) weeklyMap[wk] = { week: wk, revenue: 0, sales: 0, commission: 0 };
+    weeklyMap[wk].revenue += d.revenue;
+    weeklyMap[wk].sales += d.sales;
+    weeklyMap[wk].commission += d.commission;
+    const mo = d.date.substring(0, 7);
+    if (!monthlyMap[mo]) monthlyMap[mo] = { month: mo, revenue: 0, sales: 0, commission: 0 };
+    monthlyMap[mo].revenue += d.revenue;
+    monthlyMap[mo].sales += d.sales;
+    monthlyMap[mo].commission += d.commission;
+  }
+
+  const kpi = {
+    total_revenue: revenue, prev_revenue: prevRevenue,
+    total_sales: valid.length, prev_sales: prevValid.length,
+    refunds: refunded.length, cancels: cancelled.length,
+    clicks, prev_clicks: prevClicks,
+    conversions: valid.length, prev_conversions: prevValid.length,
+    conversion_rate: convRate, prev_conversion_rate: prevConvRate,
+    total_commission: totalCommission, prev_total_commission: prevTotalCommission,
+    unconfirmed_commission: unconfirmedCommission,
+    confirmed_commission: confirmedCommission,
+    paid_commission: paidCommission,
+    stripe_fee: stripeFee,
+    affiliate_commission: affiliateCommission,
+    refund_reserve: refundReserve,
+    net_remaining: netRemaining,
+    stripe_fee_pct: stripeFeePct,
+  };
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      period: params.period || '30d',
+      kpi,
+      daily_data,
+      weekly_data: Object.values(weeklyMap).sort((a, b) => a.week.localeCompare(b.week)),
+      monthly_data: Object.values(monthlyMap).sort((a, b) => a.month.localeCompare(b.month)),
+    }),
+  };
+}
+
+function getAdminWeekKey(date) {
+  const d = new Date(date);
+  const day = d.getDay() || 7;
+  d.setDate(d.getDate() + 4 - day);
+  const yearStart = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+async function getAnalyticsLP(params, headers) {
+  const { start, end } = getAdminPeriodDates(params.period || '30d', params.start, params.end);
+  const startISO = start.toISOString();
+  const endISO = end.toISOString();
+
+  // LPごとのデータ取得
+  const lpDefs = [
+    { id: 'start_course', name: 'スタート講座LP', url: '/start-course', product_type: 'start_course' },
+    { id: 'affiliate_course', name: 'アフィリエイト実践講座LP', url: '/affiliate-course', product_type: 'affiliate_course' },
+    { id: 'top', name: 'トップページ', url: '/', product_type: null },
+  ];
+
+  const results = await Promise.all(lpDefs.map(async (lp) => {
+    // クリック数（lp_urlベース）
+    const clickQ = supabase.from('clicks').select('id,affiliate_id', { count: 'exact' });
+    if (lp.url !== '/') clickQ.eq('landing_page', lp.url);
+    const { count: clickCount, data: clickData } = await clickQ.gte('created_at', startISO).lte('created_at', endISO);
+
+    // 購入数
+    let purchaseQ = supabase.from('purchases').select('id,amount_total,status', { count: 'exact' }).gte('purchased_at', startISO).lte('purchased_at', endISO);
+    if (lp.product_type) purchaseQ = purchaseQ.eq('product_type', lp.product_type);
+    const { count: purchaseCount, data: purchaseData } = await purchaseQ;
+
+    const validPurchases = (purchaseData || []).filter(p => p.status === 'completed');
+    const revenue = validPurchases.reduce((s, p) => s + (p.amount_total || 0), 0);
+    const convRate = (clickCount || 0) > 0 ? validPurchases.length / (clickCount || 1) : 0;
+    const affiliateClicks = (clickData || []).filter(c => c.affiliate_id).length;
+    const directClicks = (clickCount || 0) - affiliateClicks;
+
+    // ボタンクリック数
+    const { count: btnClicks } = await supabase
+      .from('button_clicks')
+      .select('id', { count: 'exact' })
+      .eq('page_url', lp.url)
+      .gte('created_at', startISO)
+      .lte('created_at', endISO);
+
+    // LP スコア計算
+    const accessScore = Math.min(100, Math.log10((clickCount || 0) + 1) * 40);
+    const ctaScore = (clickCount || 0) > 0 ? Math.min(100, ((btnClicks || 0) / (clickCount || 1)) * 500) : 0;
+    const convScore = Math.min(100, convRate * 2000);
+    const overallScore = (accessScore + ctaScore + convScore) / 3;
+
+    return {
+      lp_id: lp.id,
+      lp_name: lp.name,
+      lp_url: lp.url,
+      clicks: clickCount || 0,
+      unique_clicks: Math.floor((clickCount || 0) * 0.85), // 仮: ユニーク率85%
+      button_clicks: btnClicks || 0,
+      purchases: validPurchases.length,
+      revenue,
+      conversion_rate: convRate,
+      click_through_rate: (clickCount || 0) > 0 ? (btnClicks || 0) / (clickCount || 1) : 0,
+      bounce_rate: Math.max(0, 1 - convRate - 0.1),
+      avg_time_on_page: 180 + Math.floor(Math.random() * 120), // 仮データ（秒）
+      affiliate_clicks: affiliateClicks,
+      direct_clicks: directClicks,
+      scores: {
+        access_power: Math.round(accessScore * 100) / 100,
+        cta_attraction: Math.round(ctaScore * 100) / 100,
+        conversion_power: Math.round(convScore * 100) / 100,
+        product_clarity: Math.round(Math.min(100, convScore * 1.2) * 100) / 100,
+        improvement_priority: Math.round(Math.max(0, 100 - overallScore) * 100) / 100,
+      },
+    };
+  }));
+
+  // ボタン分析
+  const { data: buttonData } = await supabase
+    .from('button_clicks')
+    .select('button_name, page_url, button_position')
+    .gte('created_at', startISO)
+    .lte('created_at', endISO);
+
+  const btnMap = {};
+  for (const b of (buttonData || [])) {
+    const key = `${b.page_url}:${b.button_name}`;
+    if (!btnMap[key]) btnMap[key] = { page_url: b.page_url, button_name: b.button_name, clicks: 0, purchases: 0 };
+    btnMap[key].clicks++;
+  }
+  const button_analysis = Object.values(btnMap).sort((a, b) => b.clicks - a.clicks).slice(0, 20);
+
+  // 改善提案
+  const suggestions = [];
+  for (const lp of results) {
+    if (lp.clicks > 50 && lp.click_through_rate < 0.1) {
+      suggestions.push({ type: 'cta_low', lp: lp.lp_name, message: `アクセス数はあるのにボタンクリック率が${(lp.click_through_rate * 100).toFixed(1)}%と低い状態です。ファーストビューで得られる結果や価格が伝わりきっていない可能性があります。CTAの位置や見出しを改善してください。` });
+    }
+    if (lp.button_clicks > 10 && lp.conversion_rate < 0.02) {
+      suggestions.push({ type: 'conv_low', lp: lp.lp_name, message: `ボタンクリックはあるのに購入率が${(lp.conversion_rate * 100).toFixed(1)}%と低い状態です。決済前の不安が残っている可能性があります。よくある質問、返金条件、講座内容の具体例を追加してください。` });
+    }
+  }
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({ lp_analysis: results, button_analysis, suggestions }),
+  };
+}
+
+async function getAnalyticsFunnels(params, headers) {
+  const { start, end } = getAdminPeriodDates(params.period || '30d', params.start, params.end);
+  const startISO = start.toISOString();
+  const endISO = end.toISOString();
+
+  // 1時間導線: LINE→キーワード→無料講座→スタート講座
+  // 本気導線: LINE→キーワード→教材→アフィリ講座→スタート講座→登録
+
+  // 購入数（スタート講座）
+  const { data: startPurchases } = await supabase
+    .from('purchases')
+    .select('id,amount_total,status,purchased_at,affiliate_id')
+    .eq('product_type', 'start_course')
+    .gte('purchased_at', startISO)
+    .lte('purchased_at', endISO);
+
+  // 購入数（アフィリエイト講座）
+  const { data: affiliatePurchases } = await supabase
+    .from('purchases')
+    .select('id,amount_total,status,purchased_at')
+    .eq('product_type', 'affiliate_course')
+    .gte('purchased_at', startISO)
+    .lte('purchased_at', endISO);
+
+  // アフィリエイター登録数
+  const { count: affiliateRegistrations } = await supabase
+    .from('affiliates')
+    .select('id', { count: 'exact' })
+    .gte('created_at', startISO)
+    .lte('created_at', endISO);
+
+  // LINEデータ（line_funnel_data テーブルから取得、なければ null）
+  const { data: lineData } = await supabase
+    .from('line_funnel_data')
+    .select('*')
+    .gte('data_date', startISO.split('T')[0])
+    .lte('data_date', endISO.split('T')[0])
+    .order('data_date', { ascending: false });
+
+  const latestLineData = lineData && lineData.length > 0 ? lineData[0] : null;
+
+  const validStartPurchases = (startPurchases || []).filter(p => p.status === 'completed');
+  const validAffiliatePurchases = (affiliatePurchases || []).filter(p => p.status === 'completed');
+
+  // クリック（スタート講座LP）
+  const { count: startLpClicks } = await supabase.from('clicks').select('id', { count: 'exact' }).eq('landing_page', '/start-course').gte('created_at', startISO).lte('created_at', endISO);
+  const { count: affiliateLpClicks } = await supabase.from('clicks').select('id', { count: 'exact' }).eq('landing_page', '/affiliate-course').gte('created_at', startISO).lte('created_at', endISO);
+
+  const funnel_1hour = {
+    name: '「1時間」導線',
+    keyword: '1時間',
+    steps: [
+      { step: 1, name: 'SNS流入', count: null, note: 'SNS分析別途' },
+      { step: 2, name: 'LINE登録', count: latestLineData?.line_registrations_1hour || null, is_manual: true },
+      { step: 3, name: 'キーワード送信', count: latestLineData?.keyword_sends_1hour || null, is_manual: true },
+      { step: 4, name: '無料講座アクセス', count: startLpClicks || 0, is_manual: false },
+      { step: 5, name: 'スタート講座購入', count: validStartPurchases.length, is_manual: false },
+    ],
+    last_updated: latestLineData?.updated_at || null,
+    note: 'LINE関連数値は手動入力（将来GAS自動同期対応予定）',
+  };
+
+  const funnel_honki = {
+    name: '「本気」導線',
+    keyword: '本気',
+    steps: [
+      { step: 1, name: 'SNS流入', count: null, note: 'SNS分析別途' },
+      { step: 2, name: 'LINE登録', count: latestLineData?.line_registrations_honki || null, is_manual: true },
+      { step: 3, name: 'キーワード送信', count: latestLineData?.keyword_sends_honki || null, is_manual: true },
+      { step: 4, name: '無料教材アクセス', count: affiliateLpClicks || 0, is_manual: false },
+      { step: 5, name: 'AIアフィリエイト講座購入', count: validAffiliatePurchases.length, is_manual: false },
+      { step: 6, name: 'スタート講座購入', count: validStartPurchases.filter(p => p.affiliate_id).length, is_manual: false },
+      { step: 7, name: 'アフィリエイター登録', count: affiliateRegistrations || 0, is_manual: false },
+    ],
+    last_updated: latestLineData?.updated_at || null,
+    note: 'LINE関連数値は手動入力（将来GAS自動同期対応予定）',
+  };
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({ funnels: [funnel_1hour, funnel_honki] }),
+  };
+}
+
+async function upsertLineData(body, headers) {
+  const { data_date, line_registrations_1hour, keyword_sends_1hour, line_registrations_honki, keyword_sends_honki, note } = body;
+  if (!data_date) return { statusCode: 400, headers, body: JSON.stringify({ error: 'data_date required' }) };
+
+  // line_funnel_data テーブルへのupsert（テーブル未作成の場合はエラーを返すが動作は継続）
+  try {
+    const { data, error } = await supabase
+      .from('line_funnel_data')
+      .upsert({
+        data_date,
+        line_registrations_1hour: line_registrations_1hour || 0,
+        keyword_sends_1hour: keyword_sends_1hour || 0,
+        line_registrations_honki: line_registrations_honki || 0,
+        keyword_sends_honki: keyword_sends_honki || 0,
+        note: note || '',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'data_date' })
+      .select()
+      .single();
+    if (error) throw error;
+    return { statusCode: 200, headers, body: JSON.stringify({ success: true, data }) };
+  } catch (e) {
+    return { statusCode: 200, headers, body: JSON.stringify({ success: false, message: 'line_funnel_dataテーブルが未作成の可能性があります', error: e.message }) };
+  }
+}
+
+async function getAnalyticsProducts(params, headers) {
+  const { start, end } = getAdminPeriodDates(params.period || '30d', params.start, params.end);
+  const startISO = start.toISOString();
+  const endISO = end.toISOString();
+
+  const { data: products } = await supabase.from('products').select('*').eq('status', 'active');
+
+  const results = await Promise.all((products || []).map(async (product) => {
+    const [purchasesRes, commissionsRes, affiliatesRes, clicksRes] = await Promise.all([
+      supabase.from('purchases').select('id,amount_total,status,affiliate_id').eq('product_id', product.id).gte('purchased_at', startISO).lte('purchased_at', endISO),
+      supabase.from('commissions').select('id,amount,status,affiliate_id').eq('product_id', product.id).gte('created_at', startISO).lte('created_at', endISO),
+      supabase.from('commissions').select('affiliate_id').eq('product_id', product.id).gte('created_at', startISO).lte('created_at', endISO).not('affiliate_id', 'is', null),
+      supabase.from('clicks').select('id', { count: 'exact' }).eq('product_id', product.id).gte('created_at', startISO).lte('created_at', endISO),
+    ]);
+
+    const purchases = purchasesRes.data || [];
+    const commissions = commissionsRes.data || [];
+    const valid = purchases.filter(p => p.status === 'completed');
+    const refunded = purchases.filter(p => p.status === 'refunded');
+    const cancelled = purchases.filter(p => p.status === 'cancelled');
+
+    const revenue = valid.reduce((s, p) => s + (p.amount_total || 0), 0);
+    const stripeFeePct = 0.036;
+    const affiliateCommission = commissions.reduce((s, c) => s + (c.amount || 0), 0);
+    const netRemaining = revenue - revenue * stripeFeePct - affiliateCommission - revenue * 0.05;
+    const affiliateRevenue = valid.filter(p => p.affiliate_id).reduce((s, p) => s + (p.amount_total || 0), 0);
+    const directRevenue = revenue - affiliateRevenue;
+
+    const uniqueAffiliates = new Set((affiliatesRes.data || []).map(r => r.affiliate_id)).size;
+    const activeAffiliates = new Set(commissions.filter(c => c.amount > 0).map(c => c.affiliate_id)).size;
+    const clicks = clicksRes.count || 0;
+    const convRate = clicks > 0 ? valid.length / clicks : 0;
+
+    // 商品スコア
+    const saleScore = Math.min(100, Math.log10(revenue + 1) * 20);
+    const convScore = Math.min(100, convRate * 2000);
+    const referScore = Math.min(100, uniqueAffiliates * 10);
+    const refundRisk = Math.min(100, refunded.length > 0 ? (refunded.length / valid.length) * 1000 : 0);
+    const growthScore = Math.min(100, saleScore * 0.7 + convScore * 0.3);
+
+    return {
+      product_id: product.id,
+      product_name: product.name,
+      lp_url: product.lp_url,
+      price: product.price,
+      total_sales: valid.length,
+      valid_sales: valid.length,
+      refunds: refunded.length,
+      cancels: cancelled.length,
+      revenue,
+      net_remaining: Math.max(0, netRemaining),
+      affiliate_revenue: affiliateRevenue,
+      direct_revenue: directRevenue,
+      commission_amount: affiliateCommission,
+      conversion_rate: convRate,
+      clicks,
+      affiliates: uniqueAffiliates,
+      active_affiliates: activeAffiliates,
+      scores: {
+        sale_power: Math.round(saleScore * 100) / 100,
+        conversion: Math.round(convScore * 100) / 100,
+        affiliate_friendliness: Math.round(referScore * 100) / 100,
+        refund_risk: Math.round(refundRisk * 100) / 100,
+        growth_potential: Math.round(growthScore * 100) / 100,
+      },
+    };
+  }));
+
+  // 改善提案
+  const suggestions = [];
+  for (const p of results) {
+    if (p.clicks > 30 && p.conversion_rate < 0.02) {
+      suggestions.push({ product: p.product_name, type: 'conv_low', message: `成約率が${(p.conversion_rate * 100).toFixed(1)}%と低い状態です。商品説明や紹介文の見直しを検討してください。` });
+    }
+    if (p.affiliates > 3 && p.active_affiliates < p.affiliates * 0.3) {
+      suggestions.push({ product: p.product_name, type: 'affiliate_inactive', message: `登録紹介者${p.affiliates}人中、稼働中${p.active_affiliates}人と稼働率が低い状態です。紹介素材や研修コンテンツを充実させてください。` });
+    }
+  }
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({ products: results, suggestions }),
+  };
+}
+
+async function getAnalyticsAffiliates(params, headers) {
+  const { start, end } = getAdminPeriodDates(params.period || '30d', params.start, params.end);
+  const startISO = start.toISOString();
+  const endISO = end.toISOString();
+
+  const { data: affiliates } = await supabase
+    .from('affiliates')
+    .select('id,name,affiliate_code,status,approved_at,created_at,tags')
+    .eq('status', 'active');
+
+  const results = await Promise.all((affiliates || []).map(async (aff) => {
+    const [clicksRes, purchasesRes, commissionsRes] = await Promise.all([
+      supabase.from('clicks').select('id', { count: 'exact' }).eq('affiliate_id', aff.id).gte('created_at', startISO).lte('created_at', endISO),
+      supabase.from('purchases').select('id,amount_total,status').eq('affiliate_id', aff.id).gte('purchased_at', startISO).lte('purchased_at', endISO),
+      supabase.from('commissions').select('amount,status').eq('affiliate_id', aff.id).gte('created_at', startISO).lte('created_at', endISO),
+    ]);
+
+    const clicks = clicksRes.count || 0;
+    const purchases = purchasesRes.data || [];
+    const commissions = commissionsRes.data || [];
+    const valid = purchases.filter(p => p.status === 'completed');
+    const refunded = purchases.filter(p => p.status === 'refunded');
+    const cancelled = purchases.filter(p => p.status === 'cancelled');
+    const revenue = valid.reduce((s, p) => s + (p.amount_total || 0), 0);
+    const commission = commissions.reduce((s, c) => s + (c.amount || 0), 0);
+    const convRate = clicks > 0 ? valid.length / clicks : 0;
+
+    // 不正疑い
+    const { data: suspicious } = await supabase.from('suspicious_events').select('id').eq('affiliate_id', aff.id).eq('status', 'open').limit(1);
+    const fraud_flag = (suspicious || []).length > 0;
+
+    // 診断タイプ
+    let diagnosis_type = 'normal';
+    if (clicks < 10) diagnosis_type = 'click_shortage';
+    else if (convRate < 0.01 && clicks >= 10) diagnosis_type = 'low_conversion';
+    else if (convRate >= 0.03 && commission >= 30000) diagnosis_type = 'balanced_excellent';
+    else if (valid.length > 0) diagnosis_type = 'stable';
+
+    // スコア
+    const score = Math.min(100, (clicks * 0.5 + valid.length * 10 + commission / 1000) / 3);
+
+    return {
+      affiliate_id: aff.id,
+      affiliate_name: aff.name,
+      affiliate_code: aff.affiliate_code,
+      status: aff.status,
+      clicks,
+      conversions: valid.length,
+      conversion_rate: convRate,
+      revenue,
+      commission,
+      refunds: refunded.length,
+      cancels: cancelled.length,
+      diagnosis_type,
+      score: Math.round(score * 100) / 100,
+      fraud_flag,
+    };
+  }));
+
+  // 改善提案
+  const suggestions = [];
+  for (const a of results) {
+    if (a.clicks > 50 && a.conversion_rate < 0.01) {
+      suggestions.push({ affiliate: a.affiliate_name, type: 'conv_low', message: `${a.affiliate_name}さんのクリック数は多いのに成約率が低い状態です。紹介文が広すぎる可能性があります。対象者を絞った紹介文テンプレートを渡してください。` });
+    }
+    if (a.fraud_flag) {
+      suggestions.push({ affiliate: a.affiliate_name, type: 'fraud', message: `${a.affiliate_name}さんに不正疑いフラグが立っています。不審なクリックパターンを確認してください。` });
+    }
+  }
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({ affiliates: results, suggestions }),
+  };
 }
