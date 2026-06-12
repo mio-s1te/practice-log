@@ -281,6 +281,192 @@ exports.handler = async (event) => {
       return await exportCsv(path.split('/')[2], params, headers);
     }
 
+    // ======================================================
+    // 段階価格設定 (price_tiers) CRUD
+    // ======================================================
+
+    // 商品の price_tiers 一覧取得
+    // GET /price-tiers?product_id=xxx
+    if (path === '/price-tiers' && method === 'GET') {
+      if (!params.product_id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'product_id is required' }),
+        };
+      }
+      const { data, error } = await supabase
+        .from('price_tiers')
+        .select('*')
+        .eq('product_id', params.product_id)
+        .order('min_valid_sales_count', { ascending: true });
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // price_tier 作成
+    // POST /price-tiers
+    if (path === '/price-tiers' && method === 'POST') {
+      const body = JSON.parse(event.body || '{}');
+      const { data, error } = await supabase
+        .from('price_tiers')
+        .insert(body)
+        .select()
+        .single();
+      if (error) throw error;
+      return { statusCode: 201, headers, body: JSON.stringify(data) };
+    }
+
+    // price_tier 更新
+    // PUT /price-tiers/:tier_id
+    if (path.startsWith('/price-tiers/') && method === 'PUT') {
+      const tierId = path.split('/')[2];
+      const body = JSON.parse(event.body || '{}');
+      delete body.tier_id;
+      delete body.product_id; // product_idは変更不可
+      const { data, error } = await supabase
+        .from('price_tiers')
+        .update(body)
+        .eq('tier_id', tierId)
+        .select()
+        .single();
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // price_tier 削除 (論理削除: is_active=false)
+    // DELETE /price-tiers/:tier_id
+    if (path.startsWith('/price-tiers/') && method === 'DELETE') {
+      const tierId = path.split('/')[2];
+      const { data, error } = await supabase
+        .from('price_tiers')
+        .update({ is_active: false })
+        .eq('tier_id', tierId)
+        .select()
+        .single();
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // price_change_history 一覧取得
+    // GET /price-change-history?product_id=xxx
+    if (path === '/price-change-history' && method === 'GET') {
+      const query = supabase
+        .from('price_change_history')
+        .select('*')
+        .order('changed_at', { ascending: false })
+        .limit(params.limit || 50);
+
+      if (params.product_id) {
+        query.eq('product_id', params.product_id);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // 手動価格切り替え
+    // POST /price-tiers/switch-manually
+    if (path === '/price-tiers/switch-manually' && method === 'POST') {
+      const body = JSON.parse(event.body || '{}');
+      const { product_id, new_tier_id, changed_by, memo } = body;
+
+      if (!product_id || !new_tier_id) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'product_id and new_tier_id are required' }),
+        };
+      }
+
+      // 新しいtierを取得
+      const { data: newTier } = await supabase
+        .from('price_tiers')
+        .select('*')
+        .eq('tier_id', new_tier_id)
+        .eq('product_id', product_id)
+        .single();
+
+      if (!newTier) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'Price tier not found' }),
+        };
+      }
+
+      // 現在の商品価格を取得
+      const { data: product } = await supabase
+        .from('products')
+        .select('price, stripe_price_id')
+        .eq('id', product_id)
+        .single();
+
+      if (!product) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'Product not found' }),
+        };
+      }
+
+      // 有効販売数
+      const { count: salesCount } = await supabase
+        .from('purchases')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', product_id)
+        .eq('status', 'completed');
+
+      // 商品価格を更新
+      await supabase
+        .from('products')
+        .update({
+          price: newTier.price,
+          stripe_price_id: newTier.stripe_price_id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', product_id);
+
+      // 履歴保存
+      const { data: history } = await supabase
+        .from('price_change_history')
+        .insert({
+          product_id,
+          old_price: product.price,
+          new_price: newTier.price,
+          old_stripe_price_id: product.stripe_price_id || null,
+          new_stripe_price_id: newTier.stripe_price_id || null,
+          trigger_type: 'manual',
+          trigger_sales_count: salesCount || 0,
+          changed_by: changed_by || 'admin',
+          memo: memo || `手動で${newTier.tier_name}に切り替え`,
+        })
+        .select()
+        .single();
+
+      // 管理者通知
+      const { data: prod } = await supabase
+        .from('products')
+        .select('name')
+        .eq('id', product_id)
+        .single();
+      const productName = prod?.name || '商品';
+      const notifBody = `${productName}の価格が${product.price.toLocaleString()}円から${newTier.price.toLocaleString()}円に手動変更されました。(${changed_by || 'admin'})`;
+
+      await supabase.from('notifications').insert({
+        recipient_type: 'admin',
+        recipient_id: 'admin',
+        type: 'price_tier_changed',
+        title: `${productName}の価格が変更されました`,
+        body: notifBody,
+        related_type: 'product',
+        related_id: product_id,
+      });
+
+      return { statusCode: 200, headers, body: JSON.stringify(history) };
+    }
+
     return {
       statusCode: 404,
       headers,

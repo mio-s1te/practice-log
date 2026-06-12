@@ -72,6 +72,12 @@ exports.handler = async (event) => {
       };
     }
 
+    // --------------------------------------------------------
+    // 段階価格設定: 有効累計販売数に基づく価格tier判定
+    // --------------------------------------------------------
+    const { currentPriceForCheckout, currentStripePriceIdForCheckout, currentTierForCheckout } =
+      await resolveCurrentPriceTier(product);
+
     // キャンペーン確認（案件停止チェック）
     let campaignName = null;
     let affiliateName = null;
@@ -138,30 +144,40 @@ exports.handler = async (event) => {
       product_name: product.name,
       campaign_name: campaignName || '',
       affiliate_name: affiliateName || '',
+      // 段階価格情報をmetadataに保存
+      price_tier_id: currentTierForCheckout?.tier_id || '',
+      price_tier_name: currentTierForCheckout?.tier_name || '',
     };
 
+    // --------------------------------------------------------
     // Stripe Checkout Session作成
+    // 段階価格が設定されている場合はtierのStripe Price IDを使用
+    // --------------------------------------------------------
+    let lineItems;
+    if (currentStripePriceIdForCheckout) {
+      // Stripe Price IDが設定されている (tier or 商品デフォルト)
+      lineItems = [{ price: currentStripePriceIdForCheckout, quantity: 1 }];
+    } else {
+      // Stripe Price IDが未設定: price_dataでインライン指定
+      lineItems = [
+        {
+          price_data: {
+            currency: 'jpy',
+            product_data: {
+              name: product.name,
+              description: product.description || '',
+            },
+            unit_amount: currentPriceForCheckout,
+          },
+          quantity: 1,
+        },
+      ];
+    }
+
     const sessionParams = {
       mode: 'payment',
       payment_method_types: ['card'],
-      line_items: [
-        product.stripe_price_id
-          ? {
-              price: product.stripe_price_id,
-              quantity: 1,
-            }
-          : {
-              price_data: {
-                currency: 'jpy',
-                product_data: {
-                  name: product.name,
-                  description: product.description || '',
-                },
-                unit_amount: product.price,
-              },
-              quantity: 1,
-            },
-      ],
+      line_items: lineItems,
       metadata,
       client_reference_id: lead_id || click_id || undefined,
       success_url: `${SITE_URL}/purchase-complete?session_id={CHECKOUT_SESSION_ID}`,
@@ -182,7 +198,7 @@ exports.handler = async (event) => {
       affiliate_code: finalAffiliateCode || null,
       click_id: click_id || null,
       attribution_event_id: attributionEventId,
-      amount_total: product.price,
+      amount_total: currentPriceForCheckout,
       status: 'pending',
     });
 
@@ -205,3 +221,75 @@ exports.handler = async (event) => {
     };
   }
 };
+
+// --------------------------------------------------------
+// 価格tier判定ヘルパー
+// 有効累計販売数を取得し、現在適用すべき price_tier を返す
+// --------------------------------------------------------
+async function resolveCurrentPriceTier(product) {
+  try {
+    // 商品の全 price_tiers を取得
+    const { data: tiers } = await supabase
+      .from('price_tiers')
+      .select('*')
+      .eq('product_id', product.id)
+      .eq('is_active', true)
+      .order('min_valid_sales_count', { ascending: true });
+
+    if (!tiers || tiers.length === 0) {
+      // price_tiers 未設定: 商品デフォルト価格を使用
+      return {
+        currentPriceForCheckout: product.price,
+        currentStripePriceIdForCheckout: product.stripe_price_id || null,
+        currentTierForCheckout: null,
+      };
+    }
+
+    // 有効累計販売数を取得 (status='completed' のみ)
+    const { count: salesCount } = await supabase
+      .from('purchases')
+      .select('id', { count: 'exact', head: true })
+      .eq('product_id', product.id)
+      .eq('status', 'completed');
+
+    const validSales = salesCount || 0;
+
+    // 現在適用中のtierを判定
+    const matchingTiers = tiers.filter(
+      (t) =>
+        t.min_valid_sales_count <= validSales &&
+        (t.max_valid_sales_count === null || t.max_valid_sales_count >= validSales)
+    );
+
+    let currentTier = null;
+    if (matchingTiers.length > 0) {
+      // min_valid_sales_count が最大のものを採用
+      currentTier = matchingTiers.reduce((prev, curr) =>
+        curr.min_valid_sales_count > prev.min_valid_sales_count ? curr : prev
+      );
+    }
+
+    if (!currentTier) {
+      // 販売数が最小tierを下回る場合は最初のtierを使用
+      currentTier = tiers[0];
+    }
+
+    console.log(
+      `Price tier resolved: product=${product.id}, sales=${validSales}, tier=${currentTier.tier_name}, price=${currentTier.price}`
+    );
+
+    return {
+      currentPriceForCheckout: currentTier.price,
+      currentStripePriceIdForCheckout: currentTier.stripe_price_id || null,
+      currentTierForCheckout: currentTier,
+    };
+  } catch (err) {
+    console.error('resolveCurrentPriceTier error:', err);
+    // エラー時はデフォルト価格にフォールバック
+    return {
+      currentPriceForCheckout: product.price,
+      currentStripePriceIdForCheckout: product.stripe_price_id || null,
+      currentTierForCheckout: null,
+    };
+  }
+}

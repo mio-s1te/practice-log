@@ -318,6 +318,11 @@ async function handleCheckoutCompleted(session) {
     await checkAndAutoStopCampaign(campaign_id);
   }
 
+  // 価格tier切り替えチェック (購入完了後に実行)
+  if (product_id) {
+    await checkAndSwitchPriceTier(product_id, purchase.id);
+  }
+
   // デイリー統計更新
   if (affiliate_id && affiliate_id !== '') {
     const today = new Date().toISOString().split('T')[0];
@@ -541,5 +546,140 @@ async function checkAndAutoStopCampaign(campaignId) {
     }
   } catch (error) {
     console.error('Auto stop check error:', error);
+  }
+}
+
+// ============================================================
+// 価格tier切り替えチェック
+// 購入完了後に呼び出し、販売数が次のtierの閾値に達していれば
+// 価格を切り替え、管理者・全紹介者へアプリ内通知を送る
+// ============================================================
+async function checkAndSwitchPriceTier(productId, purchaseId) {
+  try {
+    // 商品の全 price_tiers を取得 (active のみ、昇順)
+    const { data: tiers } = await supabase
+      .from('price_tiers')
+      .select('*')
+      .eq('product_id', productId)
+      .eq('is_active', true)
+      .order('min_valid_sales_count', { ascending: true });
+
+    if (!tiers || tiers.length <= 1) return; // 1段階しかない場合は何もしない
+
+    // 現在の有効累計販売数 (status='completed' のみ)
+    const { count: salesCount } = await supabase
+      .from('purchases')
+      .select('id', { count: 'exact', head: true })
+      .eq('product_id', productId)
+      .eq('status', 'completed');
+
+    const validSales = salesCount || 0;
+
+    // 現在適用すべき tier を判定
+    const matchingTiers = tiers.filter(
+      (t) =>
+        t.min_valid_sales_count <= validSales &&
+        (t.max_valid_sales_count === null || t.max_valid_sales_count >= validSales)
+    );
+
+    if (matchingTiers.length === 0) return;
+
+    const newTier = matchingTiers.reduce((prev, curr) =>
+      curr.min_valid_sales_count > prev.min_valid_sales_count ? curr : prev
+    );
+
+    // 商品の現在価格を確認
+    const { data: product } = await supabase
+      .from('products')
+      .select('id, name, price, stripe_price_id')
+      .eq('id', productId)
+      .single();
+
+    if (!product) return;
+
+    // 価格が変わっていない場合は何もしない
+    if (product.price === newTier.price) return;
+
+    // ======================================================
+    // 価格切り替え: products テーブルを更新
+    // ======================================================
+    const oldPrice = product.price;
+    const oldStripePriceId = product.stripe_price_id || null;
+    const newPrice = newTier.price;
+    const newStripePriceId = newTier.stripe_price_id || null;
+
+    await supabase
+      .from('products')
+      .update({
+        price: newPrice,
+        stripe_price_id: newStripePriceId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', productId);
+
+    // ======================================================
+    // price_change_history に履歴保存
+    // ======================================================
+    await supabase.from('price_change_history').insert({
+      product_id: productId,
+      old_price: oldPrice,
+      new_price: newPrice,
+      old_stripe_price_id: oldStripePriceId,
+      new_stripe_price_id: newStripePriceId,
+      trigger_type: 'sales_count',
+      trigger_sales_count: validSales,
+      changed_by: 'system',
+      memo: `${newTier.tier_name}へ自動切り替え (${validSales}部到達)`,
+    });
+
+    // ======================================================
+    // 通知メッセージ生成
+    // ======================================================
+    const priceChangeTitle = `${product.name}の価格が変更されました`;
+    const priceChangeBody = `${product.name}が${validSales.toLocaleString()}部を突破したため、価格が${oldPrice.toLocaleString()}円から${newPrice.toLocaleString()}円に切り替わりました。`;
+
+    // 管理者通知
+    await supabase.from('notifications').insert({
+      recipient_type: 'admin',
+      recipient_id: 'admin',
+      type: 'price_tier_changed',
+      title: priceChangeTitle,
+      body: priceChangeBody,
+      related_type: 'product',
+      related_id: productId,
+    });
+
+    // 全紹介者への通知
+    // active な全紹介者を取得して通知
+    const { data: allAffiliates } = await supabase
+      .from('affiliates')
+      .select('id')
+      .eq('status', 'active');
+
+    if (allAffiliates && allAffiliates.length > 0) {
+      const affiliateNotifications = allAffiliates.map((aff) => ({
+        recipient_type: 'affiliate',
+        recipient_id: aff.id,
+        type: 'price_tier_changed',
+        title: priceChangeTitle,
+        body: priceChangeBody,
+        related_type: 'product',
+        related_id: productId,
+      }));
+
+      // バルクインサート (50件ずつ分割)
+      const chunkSize = 50;
+      for (let i = 0; i < affiliateNotifications.length; i += chunkSize) {
+        const chunk = affiliateNotifications.slice(i, i + chunkSize);
+        await supabase.from('notifications').insert(chunk);
+      }
+    }
+
+    console.log(
+      `Price tier switched: product=${productId}, ${oldPrice}円→${newPrice}円, sales=${validSales}`
+    );
+  } catch (error) {
+    console.error('checkAndSwitchPriceTier error:', error);
+    // 価格切り替えエラーは購入処理全体を失敗させない
   }
 }

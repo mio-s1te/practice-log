@@ -373,6 +373,53 @@ export interface AffiliateDashboardStats {
   rankTopDiff?: number;
 }
 
+// ============================================
+// 段階価格設定
+// ============================================
+
+export interface PriceTier {
+  tier_id: string;
+  product_id: string;
+  tier_name: string;
+  min_valid_sales_count: number;
+  max_valid_sales_count: number | null; // null = 上限なし
+  price: number;
+  stripe_price_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PriceChangeTriggerType = 'sales_count' | 'manual' | 'scheduled';
+
+export interface PriceChangeHistory {
+  id: string;
+  product_id: string;
+  old_price: number;
+  new_price: number;
+  old_stripe_price_id: string | null;
+  new_stripe_price_id: string | null;
+  trigger_type: PriceChangeTriggerType;
+  trigger_sales_count: number | null;
+  changed_at: string;
+  changed_by: string;
+  memo: string | null;
+  // Joined
+  product?: Product;
+}
+
+// LP表示用: 価格情報サマリ
+export interface ProductPriceInfo {
+  product_id: string;
+  product_name: string;
+  current_price: number;
+  current_tier: PriceTier | null;
+  next_tier: PriceTier | null;
+  valid_sales_count: number;
+  remaining_until_next_tier: number | null; // null = 次のtierなし
+  all_tiers: PriceTier[];
+}
+
 // クッキー/ストレージ保存データ
 export interface TrackingData {
   ref?: string;
