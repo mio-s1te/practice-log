@@ -1,22 +1,41 @@
-# アフィリエイト管理機能付き オンライン講座販売アプリ
+# AIアフィリエイト講座 販売・紹介管理システム
 
 ## 📋 プロジェクト概要
 
 AIを活用した副業講座の販売・アフィリエイト管理システムです。
-紹介者ごとのクリック数・LINE登録・セミナー視聴・購入・報酬を自動管理します。
+
+### ユーザー導線
+```
+SNS投稿 → 公式LINE登録 → 無料教材配布（LINE）
+→ AIアフィリエイト実践講座購入（/affiliate-course）
+→ AI副業1時間化スタート講座購入（/start-course）
+→ アフィリエイター登録申請（/affiliate/register）
+→ 管理者承認 → 紹介URL発行 → アフィリエイト活動
+```
+
+### 主要URL
+| URL | 内容 |
+|-----|------|
+| `/affiliate-course` | AIアフィリエイト実践講座販売ページ（¥29,800 / キャンペーン¥4,980） |
+| `/start-course` | AI副業1時間化スタート講座（段階価格: ¥29,800/¥49,800/¥99,800） |
+| `/affiliate/register` | アフィリエイター登録申請（スタート講座購入者のみ） |
+| `/affiliate/login` | アフィリエイターログイン |
+| `/affiliate/dashboard` | アフィリエイターマイページ（紹介URL・報酬） |
+| `/admin/login` | 管理者ログイン |
+| `/admin` | 管理者画面（全機能） |
+| `/partner/login` | パートナーログイン |
+| `/partner/dashboard` | パートナー管理画面（商品提供者向け） |
 
 ### 主な機能
-- 🛒 **商品管理** - 講座の登録・編集・販売期間管理
-- 🎯 **アフィリエイト案件管理** - 案件の作成・報酬設定・自動停止
-- 👥 **紹介者管理** - 紹介者の登録・スコア・タグ管理
-- 📊 **分析ダッシュボード** - 管理者・紹介者それぞれの詳細分析
-- 💰 **報酬自動計算** - 購入ごとに報酬を自動計算・管理
-- 📱 **LINE 2アカウント連携** - 無料セミナーLINE（見込み客）と購入者LINE（購入者）の完全分離
-- 💳 **Stripe決済** - Checkout Sessionで安全な決済処理
-- 🔒 **不正チェック** - 自動不正検知とフラグ管理
-- 📈 **段階価格設定** - 販売数に応じた自動価格切り替え（¥29,800 / ¥49,800 / ¥99,800）
-- 🏢 **パートナー管理** - product_ownerロール専用ダッシュボード（RBAC・申請ワークフロー）
-- 🔗 **GAS→Netlify→Supabase同期** - 既存GAS Webhookを維持しながらSupabaseへサイドカー同期
+- 🛒 **販売ページ** - 段階価格・キャンペーン価格対応のLP
+- 👥 **アフィリエイター管理** - 登録申請〜承認〜紹介URL発行
+- 🔐 **商品ごとの紹介権限** - open/approved_only/requires_purchase/none
+- 📊 **成果ダッシュボード** - クリック・成約・未払い/支払済み報酬
+- 💰 **報酬管理** - RBAC対応（super_admin/product_owner/affiliate）
+- 🏢 **パートナー管理** - 自分の商品データのみ閲覧可（RLS制限）
+- 📋 **申請ワークフロー** - 価格変更・素材追加等の承認フロー
+- 📱 **LINE連携** - GAS/スプレッドシートで継続管理（Webhook不変）
+- 💳 **Stripe決済** - Checkout Session + 段階価格対応
 
 ---
 
@@ -54,10 +73,16 @@ AIを活用した副業講座の販売・アフィリエイト管理システム
 2. リージョン: `Northeast Asia (Tokyo)` を選択
 3. データベースパスワードをメモ
 
-#### 2-2. SQLスキーマ作成
+#### 2-2. SQLスキーマ作成（順番通りに実行）
 1. Supabase → SQL Editor → New Query
-2. `supabase/migrations/001_initial_schema.sql` の内容を貼り付けて実行
-3. 同様に `supabase/migrations/002_rls_policies.sql` を実行
+2. 以下の順番でマイグレーションを実行してください：
+   - `001_initial_schema.sql` - 基本テーブル（products, affiliates, clicks, purchases等）
+   - `002_rls_policies.sql` - Row Level Securityポリシー
+   - `003_price_tiers.sql` - 段階価格テーブル
+   - `004_dual_line_accounts.sql` - LINE2アカウント対応
+   - `005_roles_and_permissions.sql` - RBAC（app_users, product_owners, partner_requests等）
+   - `006_line_sync.sql` - LINE同期ログ
+   - `007_new_schema.sql` - **新要件対応**（product_affiliate_permissions, affiliate_registrations等）
 
 #### 2-3. APIキー取得
 - Settings → API → `URL`, `anon public`, `service_role` をコピー
