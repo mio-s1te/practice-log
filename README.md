@@ -17,14 +17,27 @@ SNS投稿 → 公式LINE登録 → 無料教材配布（LINE）
 | URL | 内容 |
 |-----|------|
 | `/affiliate-course` | AIアフィリエイト実践講座販売ページ（¥29,800 / キャンペーン¥4,980） |
-| `/start-course` | AI副業1時間化スタート講座（段階価格: ¥29,800/¥49,800/¥99,800） |
+| `/start-course` | AI副業1時間化スタート講座（段階価格: ¥29,800/¥49,800/¥99,800）※全面改訂済み |
 | `/affiliate/register` | アフィリエイター登録申請（スタート講座購入者のみ） |
 | `/affiliate/login` | アフィリエイターログイン |
 | `/affiliate/dashboard` | アフィリエイターマイページ（紹介URL・報酬） |
+| `/affiliate/products/:id` | 商品詳細ページ（紹介素材・報酬条件・禁止表現・FAQ）※新規 |
 | `/admin/login` | 管理者ログイン |
 | `/admin` | 管理者画面（全機能） |
+| `/admin/products` | 商品管理（7タブ: 基本・価格・紹介条件・報酬・返金・紹介素材・パートナー設定）※大幅拡張 |
 | `/partner/login` | パートナーログイン |
-| `/partner/dashboard` | パートナー管理画面（商品提供者向け） |
+| `/partner/dashboard` | パートナー管理画面（自分の商品データのみ）※制限強化済み |
+
+### LINEキーワード（2系統）
+| キーワード | 用途 | 送付先 |
+|-----------|------|--------|
+| `1時間` | スタート講座前の無料講座 | https://melodic-pony-33c4e9.netlify.app/ |
+| `本気` | 無料アフィリエイト教材（未作成） | URL未定 |
+
+### 公式LINE
+- URL: https://lin.ee/TJWaKcD
+- 「1時間」→ 無料スタート講座動画（既存ページ）→ スタート講座購入
+- 「本気」→ 無料アフィリエイト教材（未作成）→ AIアフィリエイト実践講座購入
 
 ### 主な機能
 - 🛒 **販売ページ** - 段階価格・キャンペーン価格対応のLP
@@ -77,6 +90,8 @@ SNS投稿 → 公式LINE登録 → 無料教材配布（LINE）
 1. Supabase → SQL Editor → New Query
 2. 以下の順番でマイグレーションを実行してください：
    - `001_initial_schema.sql` - 基本テーブル（products, affiliates, clicks, purchases等）
+   - 〜 007: 各拡張スキーマ（詳細は各ファイルのコメント参照）
+   - `008_product_management.sql` - 商品管理拡張（promo_assets・product_tags・商品詳細フィールド）
    - `002_rls_policies.sql` - Row Level Securityポリシー
    - `003_price_tiers.sql` - 段階価格テーブル
    - `004_dual_line_accounts.sql` - LINE2アカウント対応
