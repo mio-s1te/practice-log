@@ -371,14 +371,20 @@ export function AffiliateDashboardNew() {
                             <CopyButton text={referralUrl} />
                           </div>
                         </div>
-                        <div className="mt-2 flex gap-2">
+                        <div className="mt-2 flex gap-3 flex-wrap">
                           <a
                             href={product.lp_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-blue-600 hover:underline"
                           >
-                            販売ページを確認 →
+                            販売ページ↗
+                          </a>
+                          <a
+                            href={`/affiliate/products/${product.product_id}`}
+                            className="text-xs text-purple-600 hover:underline font-medium"
+                          >
+                            📝 商品詳細・紹介素材 →
                           </a>
                         </div>
                       </div>

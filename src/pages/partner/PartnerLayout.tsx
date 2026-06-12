@@ -2,14 +2,17 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 
+// ⚠️ 重要: パートナー画面は「自分の商品」に関する情報のみ表示
+// 以下は表示しない: 他商品データ・全体売上・全アフィリエイター一覧・Stripe設定・システム設定
 const menuItems = [
   { path: '/partner/dashboard', icon: '📊', label: 'ダッシュボード' },
-  { path: '/partner/purchases', icon: '🛒', label: '購入者一覧' },
-  { path: '/partner/affiliates', icon: '👥', label: '紹介者成果' },
-  { path: '/partner/campaigns', icon: '🎯', label: 'キャンペーン成果' },
+  { path: '/partner/purchases', icon: '🛒', label: '購入者一覧（自商品）' },
+  { path: '/partner/affiliates', icon: '👥', label: '紹介者別成果（自商品）' },
   { path: '/partner/requests', icon: '📝', label: '申請管理' },
-  { path: '/partner/notices', icon: '📢', label: 'お知らせ履歴' },
-  { path: '/partner/csv', icon: '📥', label: 'CSV出力' },
+  { path: '/partner/notices', icon: '📢', label: 'お知らせ' },
+  { path: '/partner/csv', icon: '📥', label: 'CSV出力（自商品）' },
+  // 注意: キャンペーン成果はダッシュボードに統合
+  // 注意: Stripe設定・システム設定・全体売上・全アフィリエイター一覧は表示禁止
 ];
 
 export function PartnerLayout() {

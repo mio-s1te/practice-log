@@ -33,6 +33,7 @@ import { AffiliateProfile } from '@/pages/affiliate/AffiliateProfile';
 import { AffiliateMaterials } from '@/pages/affiliate/AffiliateMaterials';
 // 新規追加
 import { AffiliateRegister } from '@/pages/affiliate/AffiliateRegister';
+import { AffiliateProductDetail } from '@/pages/affiliate/AffiliateProductDetail';
 
 // ==================== Partner Pages ====================
 import { PartnerLogin } from '@/pages/partner/PartnerLogin';
@@ -94,6 +95,8 @@ function App() {
           <Route index element={<Navigate to="/affiliate/dashboard" replace />} />
           {/* 新版ダッシュボード: 紹介URL・権限商品のみ表示 */}
           <Route path="dashboard" element={<AffiliateDashboardNew />} />
+          {/* 商品詳細ページ（紹介権限ある商品のみ表示） */}
+          <Route path="products/:productId" element={<AffiliateProductDetail />} />
           <Route path="profile" element={<AffiliateProfile />} />
           <Route path="materials" element={<AffiliateMaterials />} />
         </Route>
