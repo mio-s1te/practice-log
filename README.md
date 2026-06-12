@@ -588,6 +588,6 @@ supabase/migrations/006_line_sync.sql
 - **Platform**: Netlify
 - **Database**: Supabase
 - **Payment**: Stripe
-- **LINE**: 2アカウント構成（無料セミナーLINE + 購入者LINE）
+- **LINE**: 2アカウント構成（無料セミナーLINE + 購入者LINE）+ GAS→Netlify同期
 - **Status**: ⚠️ セットアップ必要
 - **Last Updated**: 2025-06
