@@ -127,21 +127,9 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify(data) };
     }
 
-    // 参加案件一覧
+    // 参加案件一覧（紹介権限チェック付き）
     if (path === '/campaigns' && method === 'GET') {
-      const { data, error } = await supabase
-        .from('campaign_affiliates')
-        .select(`
-          *,
-          campaign:affiliate_campaigns(
-            *,
-            product:products(id, name, price, lp_url)
-          )
-        `)
-        .eq('affiliate_id', affiliate.id)
-        .eq('status', 'active');
-      if (error) throw error;
-      return { statusCode: 200, headers, body: JSON.stringify(data) };
+      return await getAccessibleCampaigns(affiliate, headers);
     }
 
     // 紹介素材
@@ -211,6 +199,23 @@ exports.handler = async (event) => {
     // ランキング位置
     if (path === '/ranking-position' && method === 'GET') {
       return await getRankingPosition(affiliate, headers);
+    }
+
+    // 紹介申請 一覧取得
+    if (path === '/campaign-applications' && method === 'GET') {
+      return await getCampaignApplications(affiliate, headers);
+    }
+
+    // 紹介申請 新規作成
+    if (path === '/campaign-applications' && method === 'POST') {
+      const body = JSON.parse(event.body || '{}');
+      return await submitCampaignApplication(affiliate, body, headers);
+    }
+
+    // 紹介申請 キャンセル
+    if (path.match(/^\/campaign-applications\/[^/]+\/cancel$/) && method === 'POST') {
+      const applicationId = path.split('/')[2];
+      return await cancelCampaignApplication(affiliate, applicationId, headers);
     }
 
     return {
@@ -550,4 +555,231 @@ async function getRankingPosition(affiliate, headers) {
       rankTopDiff,
     }),
   };
+}
+
+// ============================================================
+// 紹介権限チェック付き案件一覧取得
+// - publicキャンペーン: 全員に表示
+// - tag_based: 紹介者が必要タグを持っていれば表示
+// - approved_only / specific_affiliates: affiliate_campaign_accessがapprovedなら表示
+// - allow_application=true で権限なしの場合は「申請可能」として返す
+// ============================================================
+async function getAccessibleCampaigns(affiliate, headers) {
+  // 全アクティブキャンペーンを取得
+  const { data: allCampaigns, error } = await supabase
+    .from('affiliate_campaigns')
+    .select(`
+      *,
+      product:products(id, name, price, lp_url)
+    `)
+    .eq('status', 'active');
+
+  if (error) throw error;
+
+  // 紹介者のタグ取得
+  const { data: affiliateData } = await supabase
+    .from('affiliates')
+    .select('tags')
+    .eq('id', affiliate.id)
+    .single();
+  const affiliateTags = affiliateData?.tags || [];
+
+  // 承認済みアクセス一覧取得
+  const { data: accessList } = await supabase
+    .from('affiliate_campaign_access')
+    .select('campaign_id, access_status')
+    .eq('affiliate_id', affiliate.id)
+    .eq('access_status', 'approved');
+  const approvedCampaignIds = new Set((accessList || []).map(a => a.campaign_id));
+
+  // 申請中一覧取得（重複申請防止）
+  const { data: pendingApps } = await supabase
+    .from('affiliate_campaign_applications')
+    .select('campaign_id, status')
+    .eq('affiliate_id', affiliate.id)
+    .in('status', ['pending', 'approved']);
+  const pendingCampaignIds = new Set((pendingApps || []).map(a => a.campaign_id));
+
+  // campaign_affiliates (参加中案件)
+  const { data: joinedCampaigns } = await supabase
+    .from('campaign_affiliates')
+    .select('campaign_id')
+    .eq('affiliate_id', affiliate.id)
+    .eq('status', 'active');
+  const joinedCampaignIds = new Set((joinedCampaigns || []).map(c => c.campaign_id));
+
+  const accessible = [];
+  const applicableOnly = [];  // 申請のみ可能
+
+  for (const campaign of (allCampaigns || [])) {
+    const accessType = campaign.access_type || 'public';
+    let hasAccess = false;
+
+    if (accessType === 'public') {
+      hasAccess = true;
+    } else if (accessType === 'tag_based') {
+      const requiredTags = campaign.required_affiliate_tags || [];
+      hasAccess = requiredTags.length === 0 || requiredTags.every(t => affiliateTags.includes(t));
+    } else if (accessType === 'approved_only' || accessType === 'specific_affiliates') {
+      hasAccess = approvedCampaignIds.has(campaign.id);
+    }
+
+    if (hasAccess) {
+      accessible.push({
+        ...campaign,
+        is_joined: joinedCampaignIds.has(campaign.id),
+        can_apply: false,
+        has_pending_application: false,
+      });
+    } else if (campaign.allow_application) {
+      // アクセス権はないが申請可能
+      applicableOnly.push({
+        ...campaign,
+        is_joined: false,
+        can_apply: true,
+        has_pending_application: pendingCampaignIds.has(campaign.id),
+        // 紹介URLは表示しない
+        affiliate_url: null,
+      });
+    }
+    // それ以外(権限なし・申請不可)は表示しない
+  }
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      accessible_campaigns: accessible,
+      applicable_campaigns: applicableOnly,
+    }),
+  };
+}
+
+// ============================================================
+// 紹介申請一覧
+// ============================================================
+async function getCampaignApplications(affiliate, headers) {
+  const { data, error } = await supabase
+    .from('affiliate_campaign_applications')
+    .select(`
+      *,
+      campaign:affiliate_campaigns(id, name, product:products(id, name))
+    `)
+    .eq('affiliate_id', affiliate.id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return { statusCode: 200, headers, body: JSON.stringify(data || []) };
+}
+
+// ============================================================
+// 紹介申請 送信
+// ============================================================
+async function submitCampaignApplication(affiliate, body, headers) {
+  const {
+    campaign_id,
+    application_reason,
+    promotion_channel,
+    target_audience,
+    past_results,
+    agreed_to_rules,
+    agreed_no_prohibited,
+  } = body;
+
+  if (!campaign_id) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'campaign_id required' }) };
+  }
+  if (!agreed_to_rules || !agreed_no_prohibited) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Both agreement fields are required' }) };
+  }
+
+  // キャンペーンが申請可能か確認
+  const { data: campaign } = await supabase
+    .from('affiliate_campaigns')
+    .select('id, name, status, allow_application, access_type')
+    .eq('id', campaign_id)
+    .single();
+
+  if (!campaign) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Campaign not found' }) };
+  }
+  if (!campaign.allow_application) {
+    return { statusCode: 403, headers, body: JSON.stringify({ error: 'This campaign does not accept applications' }) };
+  }
+
+  // 重複申請チェック
+  const { data: existing } = await supabase
+    .from('affiliate_campaign_applications')
+    .select('id, status')
+    .eq('campaign_id', campaign_id)
+    .eq('affiliate_id', affiliate.id)
+    .in('status', ['pending', 'approved'])
+    .single();
+
+  if (existing) {
+    return {
+      statusCode: 409,
+      headers,
+      body: JSON.stringify({ error: 'Application already exists', status: existing.status }),
+    };
+  }
+
+  const { data: application, error } = await supabase
+    .from('affiliate_campaign_applications')
+    .insert({
+      campaign_id,
+      affiliate_id: affiliate.id,
+      application_reason: application_reason || '',
+      promotion_channel: promotion_channel || '',
+      target_audience: target_audience || '',
+      past_results: past_results || '',
+      agreed_to_rules: !!agreed_to_rules,
+      agreed_no_prohibited: !!agreed_no_prohibited,
+      status: 'pending',
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // 管理者への通知
+  await supabase.from('notifications').insert({
+    recipient_type: 'admin',
+    recipient_id: 'admin',
+    type: 'campaign_application',
+    title: '紹介申請が届きました',
+    body: `${affiliate.name}さんが「${campaign.name}」の紹介を申請しました。`,
+    related_type: 'campaign_application',
+    related_id: application.id,
+  });
+
+  return { statusCode: 201, headers, body: JSON.stringify(application) };
+}
+
+// ============================================================
+// 紹介申請 キャンセル
+// ============================================================
+async function cancelCampaignApplication(affiliate, applicationId, headers) {
+  const { data: application } = await supabase
+    .from('affiliate_campaign_applications')
+    .select('id, affiliate_id, status')
+    .eq('id', applicationId)
+    .single();
+
+  if (!application) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Application not found' }) };
+  }
+  if (application.affiliate_id !== affiliate.id) {
+    return { statusCode: 403, headers, body: JSON.stringify({ error: 'Forbidden' }) };
+  }
+  if (application.status !== 'pending') {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'Only pending applications can be cancelled' }) };
+  }
+
+  await supabase
+    .from('affiliate_campaign_applications')
+    .update({ status: 'cancelled' })
+    .eq('id', applicationId);
+
+  return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
 }

@@ -78,15 +78,16 @@ exports.handler = async (event) => {
     const { currentPriceForCheckout, currentStripePriceIdForCheckout, currentTierForCheckout } =
       await resolveCurrentPriceTier(product);
 
-    // キャンペーン確認（案件停止チェック）
+    // キャンペーン確認（案件停止チェック + 紹介権限チェック）
     let campaignName = null;
     let affiliateName = null;
     let finalAffiliateCode = affiliate_code;
+    let affiliateAccessDenied = false;   // 紹介権限なしフラグ
 
     if (campaign_id) {
       const { data: campaign } = await supabase
         .from('affiliate_campaigns')
-        .select('id, name, status, commission_type, commission_amount')
+        .select('id, name, status, commission_type, commission_amount, access_type, required_affiliate_tags')
         .eq('id', campaign_id)
         .single();
 
@@ -95,6 +96,17 @@ exports.handler = async (event) => {
         if (campaign.status === 'ended' || campaign.status === 'paused') {
           // 停止中案件経由の購入：報酬は発生しない
           console.log(`Campaign ${campaign_id} is ${campaign.status}, no commission`);
+        }
+
+        // ── 紹介権限チェック ──────────────────────────────────────
+        if (affiliate_id && affiliate_id !== '') {
+          const hasAccess = await checkAffiliateCampaignAccess(affiliate_id, campaign_id, campaign);
+          if (!hasAccess) {
+            // 権限なし: affiliate情報をクリアして直接購入として扱う
+            // (購入は許可するが affiliate_id は記録しない)
+            affiliateAccessDenied = true;
+            console.log(`[create-checkout] affiliate ${affiliate_id} has NO access to campaign ${campaign_id}. Treating as direct purchase.`);
+          }
         }
       }
     }
@@ -106,7 +118,7 @@ exports.handler = async (event) => {
         .eq('id', affiliate_id)
         .single();
       
-      if (affiliate) {
+      if (affiliate && !affiliateAccessDenied) {
         affiliateName = affiliate.name;
         if (!finalAffiliateCode) {
           finalAffiliateCode = affiliate.affiliate_code;
@@ -135,15 +147,16 @@ exports.handler = async (event) => {
     const metadata = {
       product_id: product_id || '',
       line_user_id: line_user_id || '',
-      affiliate_id: affiliate_id || '',
-      affiliate_code: finalAffiliateCode || '',
-      campaign_id: campaign_id || '',
+      // 紹介権限なしの場合は affiliate 情報を記録しない (報酬0円の直接購入として処理)
+      affiliate_id: (affiliate_id && !affiliateAccessDenied) ? affiliate_id : '',
+      affiliate_code: (!affiliateAccessDenied && finalAffiliateCode) ? finalAffiliateCode : '',
+      campaign_id: (campaign_id && !affiliateAccessDenied) ? campaign_id : '',
       lead_id: lead_id || '',
       click_id: click_id || '',
-      attribution_event_id: attributionEventId || '',
+      attribution_event_id: (!affiliateAccessDenied && attributionEventId) ? attributionEventId : '',
       product_name: product.name,
-      campaign_name: campaignName || '',
-      affiliate_name: affiliateName || '',
+      campaign_name: (!affiliateAccessDenied && campaignName) ? campaignName : '',
+      affiliate_name: (!affiliateAccessDenied && affiliateName) ? affiliateName : '',
       // 段階価格情報をmetadataに保存
       price_tier_id: currentTierForCheckout?.tier_id || '',
       price_tier_name: currentTierForCheckout?.tier_name || '',
@@ -193,11 +206,11 @@ exports.handler = async (event) => {
       lead_id: lead_id || null,
       line_user_id: line_user_id || null,
       product_id,
-      campaign_id: campaign_id || null,
-      affiliate_id: affiliate_id || null,
-      affiliate_code: finalAffiliateCode || null,
+      campaign_id: (!affiliateAccessDenied && campaign_id) ? campaign_id : null,
+      affiliate_id: (!affiliateAccessDenied && affiliate_id) ? affiliate_id : null,
+      affiliate_code: (!affiliateAccessDenied && finalAffiliateCode) ? finalAffiliateCode : null,
       click_id: click_id || null,
-      attribution_event_id: attributionEventId,
+      attribution_event_id: (!affiliateAccessDenied) ? attributionEventId : null,
       amount_total: currentPriceForCheckout,
       status: 'pending',
     });
@@ -291,5 +304,52 @@ async function resolveCurrentPriceTier(product) {
       currentStripePriceIdForCheckout: product.stripe_price_id || null,
       currentTierForCheckout: null,
     };
+  }
+}
+
+// --------------------------------------------------------
+// 紹介権限チェックヘルパー (checkout時用)
+// campaignオブジェクトを渡すことで余分なDB呼び出しを省く
+// --------------------------------------------------------
+async function checkAffiliateCampaignAccess(affiliateId, campaignId, campaign) {
+  try {
+    if (!campaign) return false;
+    if (campaign.status !== 'active') return false;
+
+    // public: 全員OK
+    if (!campaign.access_type || campaign.access_type === 'public') return true;
+
+    // tag_based
+    if (campaign.access_type === 'tag_based') {
+      const requiredTags = campaign.required_affiliate_tags || [];
+      if (requiredTags.length === 0) return true;
+
+      const { data: affiliate } = await supabase
+        .from('affiliates')
+        .select('tags')
+        .eq('id', affiliateId)
+        .single();
+
+      if (!affiliate) return false;
+      const affiliateTags = affiliate.tags || [];
+      return requiredTags.every(tag => affiliateTags.includes(tag));
+    }
+
+    // approved_only / specific_affiliates
+    if (campaign.access_type === 'approved_only' || campaign.access_type === 'specific_affiliates') {
+      const { data: access } = await supabase
+        .from('affiliate_campaign_access')
+        .select('id, access_status')
+        .eq('campaign_id', campaignId)
+        .eq('affiliate_id', affiliateId)
+        .eq('access_status', 'approved')
+        .single();
+      return !!access;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('checkAffiliateCampaignAccess (checkout) error:', error);
+    return false;
   }
 }

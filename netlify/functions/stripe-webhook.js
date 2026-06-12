@@ -178,42 +178,56 @@ async function handleCheckoutCompleted(session) {
   // 報酬計算
   let commissionAmount = 0;
   let shouldPayCommission = false;
+  let accessVerified = true;      // デフォルト: 権限あり (直接購入など)
+  let noAccessReason = null;
 
   if (affiliate_id && affiliate_id !== '' && campaign_id && campaign_id !== '') {
-    // キャンペーン情報取得
-    const { data: campaign } = await supabase
-      .from('affiliate_campaigns')
-      .select('*')
-      .eq('id', campaign_id)
-      .single();
+    // ── 紹介権限チェック ──────────────────────────────────────────
+    const hasAccess = await checkAffiliateCampaignAccess(affiliate_id, campaign_id);
+    if (!hasAccess) {
+      accessVerified = false;
+      noAccessReason = 'affiliate_campaign_access: no valid access';
+      console.log(`[stripe-webhook] affiliate ${affiliate_id} has NO access to campaign ${campaign_id}. Commission set to 0.`);
+    } else {
+      // 紹介権限あり → 通常の報酬計算
+      // キャンペーン情報取得
+      const { data: campaign } = await supabase
+        .from('affiliate_campaigns')
+        .select('*')
+        .eq('id', campaign_id)
+        .single();
 
-    if (campaign && campaign.status === 'active') {
-      // アトリビューション有効期限チェック
-      if (attribution_event_id && attribution_event_id !== '') {
-        const { data: attrEvent } = await supabase
-          .from('attribution_events')
-          .select('expires_at')
-          .eq('id', attribution_event_id)
-          .single();
+      if (campaign && campaign.status === 'active') {
+        // アトリビューション有効期限チェック
+        if (attribution_event_id && attribution_event_id !== '') {
+          const { data: attrEvent } = await supabase
+            .from('attribution_events')
+            .select('expires_at')
+            .eq('id', attribution_event_id)
+            .single();
 
-        if (attrEvent && new Date(attrEvent.expires_at) > new Date()) {
-          shouldPayCommission = true;
+          if (attrEvent && new Date(attrEvent.expires_at) > new Date()) {
+            shouldPayCommission = true;
+          }
+        } else {
+          // attribution_event_idがない場合でも、click_idがあれば有効とみなす
+          if (click_id && click_id !== '') {
+            shouldPayCommission = true;
+          }
         }
-      } else {
-        // attribution_event_idがない場合でも、click_idがあれば有効とみなす
-        if (click_id && click_id !== '') {
-          shouldPayCommission = true;
-        }
-      }
 
-      if (shouldPayCommission) {
-        if (campaign.commission_type === 'fixed') {
-          commissionAmount = campaign.commission_amount;
-        } else if (campaign.commission_type === 'percent') {
-          commissionAmount = Math.floor(amountTotal * campaign.commission_amount / 100);
+        if (shouldPayCommission) {
+          if (campaign.commission_type === 'fixed') {
+            commissionAmount = campaign.commission_amount;
+          } else if (campaign.commission_type === 'percent') {
+            commissionAmount = Math.floor(amountTotal * campaign.commission_amount / 100);
+          }
         }
       }
     }
+  } else if (!affiliate_id || affiliate_id === '') {
+    // 直接購入: access_verified=true のまま
+    accessVerified = true;
   }
 
   // purchasesテーブルに保存
@@ -238,6 +252,8 @@ async function handleCheckoutCompleted(session) {
       amount_total: amountTotal,
       commission_amount: commissionAmount,
       commission_status: shouldPayCommission ? 'pending' : 'cancelled',
+      access_verified: accessVerified,
+      no_access_reason: noAccessReason,
       stripe_session_id: session.id,
       stripe_payment_intent_id: session.payment_intent,
       status: 'completed',
@@ -681,5 +697,79 @@ async function checkAndSwitchPriceTier(productId, purchaseId) {
   } catch (error) {
     console.error('checkAndSwitchPriceTier error:', error);
     // 価格切り替えエラーは購入処理全体を失敗させない
+  }
+}
+
+// ============================================================
+// 紹介権限チェック
+// affiliate_id + campaign_id の組み合わせが有効かチェックする
+// check_affiliate_campaign_access() PostgreSQL関数を呼び出す
+// ============================================================
+async function checkAffiliateCampaignAccess(affiliateId, campaignId) {
+  try {
+    // まずキャンペーンの access_type を確認
+    const { data: campaign } = await supabase
+      .from('affiliate_campaigns')
+      .select('id, access_type, required_affiliate_tags, status')
+      .eq('id', campaignId)
+      .single();
+
+    if (!campaign) {
+      console.log(`[checkAffiliateCampaignAccess] campaign ${campaignId} not found`);
+      return false;
+    }
+
+    if (campaign.status !== 'active') {
+      console.log(`[checkAffiliateCampaignAccess] campaign ${campaignId} is not active`);
+      return false;
+    }
+
+    // public: 全員OK
+    if (campaign.access_type === 'public') {
+      return true;
+    }
+
+    // tag_based: required_affiliate_tags を紹介者が持っているか確認
+    if (campaign.access_type === 'tag_based') {
+      const requiredTags = campaign.required_affiliate_tags || [];
+      if (requiredTags.length === 0) return true;
+
+      const { data: affiliate } = await supabase
+        .from('affiliates')
+        .select('tags')
+        .eq('id', affiliateId)
+        .single();
+
+      if (!affiliate) return false;
+      const affiliateTags = affiliate.tags || [];
+      const hasAllTags = requiredTags.every(tag => affiliateTags.includes(tag));
+      if (!hasAllTags) {
+        console.log(`[checkAffiliateCampaignAccess] affiliate ${affiliateId} missing required tags. Required: ${requiredTags.join(', ')}, Has: ${affiliateTags.join(', ')}`);
+      }
+      return hasAllTags;
+    }
+
+    // approved_only / specific_affiliates: affiliate_campaign_access テーブルを確認
+    if (campaign.access_type === 'approved_only' || campaign.access_type === 'specific_affiliates') {
+      const { data: access } = await supabase
+        .from('affiliate_campaign_access')
+        .select('id, access_status')
+        .eq('campaign_id', campaignId)
+        .eq('affiliate_id', affiliateId)
+        .eq('access_status', 'approved')
+        .single();
+
+      if (!access) {
+        console.log(`[checkAffiliateCampaignAccess] affiliate ${affiliateId} not approved for campaign ${campaignId}`);
+      }
+      return !!access;
+    }
+
+    // 不明な access_type はデフォルトで拒否
+    return false;
+  } catch (error) {
+    console.error('checkAffiliateCampaignAccess error:', error);
+    // エラー時は安全側に倒して false を返す
+    return false;
   }
 }

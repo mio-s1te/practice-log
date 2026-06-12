@@ -496,6 +496,310 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify(history) };
     }
 
+    // ============================================================
+    // ロール・パートナー管理
+    // ============================================================
+
+    // app_users 一覧（product_owner）
+    if (path === '/app-users' && method === 'GET') {
+      const query = supabase
+        .from('app_users')
+        .select('id,email,role,display_name,is_active,last_login_at,created_at')
+        .order('created_at', { ascending: false });
+      if (params.role) query.eq('role', params.role);
+      const { data, error } = await query;
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // app_users 作成（product_ownerアカウント発行）
+    if (path === '/app-users' && method === 'POST') {
+      const body = JSON.parse(event.body || '{}');
+      const crypto = require('crypto');
+      const SALT = process.env.PASSWORD_SALT || 'salt_change_me';
+      // パスワードが渡された場合はハッシュ化
+      if (body.password) {
+        body.password_hash = crypto.createHash('sha256').update(body.password + SALT).digest('hex');
+        delete body.password;
+      }
+      body.role = body.role || 'product_owner';
+      const { data, error } = await supabase.from('app_users').insert(body).select('id,email,role,display_name,is_active,created_at').single();
+      if (error) throw error;
+      return { statusCode: 201, headers, body: JSON.stringify(data) };
+    }
+
+    // app_users 更新（is_active切替・パスワード変更）
+    if (path.match(/^\/app-users\/[^/]+$/) && method === 'PUT') {
+      const id = path.split('/')[2];
+      const body = JSON.parse(event.body || '{}');
+      const crypto = require('crypto');
+      const SALT = process.env.PASSWORD_SALT || 'salt_change_me';
+      if (body.password) {
+        body.password_hash = crypto.createHash('sha256').update(body.password + SALT).digest('hex');
+        delete body.password;
+      }
+      delete body.id;
+      body.updated_at = new Date().toISOString();
+      const { data, error } = await supabase.from('app_users').update(body).eq('id', id).select('id,email,role,display_name,is_active').single();
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // product_owners 一覧（product_id or user_id でフィルタ）
+    if (path === '/product-owners' && method === 'GET') {
+      const query = supabase
+        .from('product_owners')
+        .select(`
+          id, user_id, product_id, permission_level, status, created_at,
+          app_users(id,email,display_name),
+          products(id,name,price),
+          product_owner_permissions(*)
+        `)
+        .order('created_at', { ascending: false });
+      if (params.product_id) query.eq('product_id', params.product_id);
+      if (params.user_id)    query.eq('user_id', params.user_id);
+      const { data, error } = await query;
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // product_owners 作成（商品とユーザーを紐づけ）
+    if (path === '/product-owners' && method === 'POST') {
+      const body = JSON.parse(event.body || '{}');
+      const { permissions, ...ownerData } = body;
+      const { data: po, error } = await supabase.from('product_owners').insert(ownerData).select().single();
+      if (error) throw error;
+      // 権限レコードも同時作成
+      if (po && permissions) {
+        await supabase.from('product_owner_permissions').insert({ product_owner_id: po.id, ...permissions });
+      }
+      return { statusCode: 201, headers, body: JSON.stringify(po) };
+    }
+
+    // product_owners 更新（権限レベル・ステータス）
+    if (path.match(/^\/product-owners\/[^/]+$/) && method === 'PUT') {
+      const id = path.split('/')[2];
+      const body = JSON.parse(event.body || '{}');
+      const { permissions, ...ownerData } = body;
+      delete ownerData.id;
+      ownerData.updated_at = new Date().toISOString();
+      const { data, error } = await supabase.from('product_owners').update(ownerData).eq('id', id).select().single();
+      if (error) throw error;
+      // 細粒度権限更新
+      if (permissions) {
+        await supabase.from('product_owner_permissions').upsert({ product_owner_id: id, ...permissions, updated_at: new Date().toISOString() }, { onConflict: 'product_owner_id' });
+      }
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // ============================================================
+    // パートナー申請管理（super_admin/admin が処理）
+    // ============================================================
+
+    // 申請一覧
+    if (path === '/partner-requests' && method === 'GET') {
+      const query = supabase
+        .from('partner_requests')
+        .select(`
+          id, product_id, request_type, status, request_data,
+          rejection_reason, reviewed_by, reviewed_at, created_at, updated_at,
+          requester:app_users(id,email,display_name),
+          products(id,name)
+        `)
+        .order('created_at', { ascending: false });
+      if (params.status) query.eq('status', params.status);
+      if (params.product_id) query.eq('product_id', params.product_id);
+      const { data, error } = await query;
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // 申請承認
+    if (path.match(/^\/partner-requests\/[^/]+\/approve$/) && method === 'POST') {
+      const reqId = path.split('/')[2];
+      const body = JSON.parse(event.body || '{}');
+
+      const { data: req } = await supabase.from('partner_requests').select('*').eq('id', reqId).single();
+      if (!req) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found' }) };
+      if (req.status !== 'pending') return { statusCode: 400, headers, body: JSON.stringify({ error: 'pendingの申請のみ承認できます' }) };
+
+      // 承認者のuser_idを取得
+      const { data: reviewer } = await supabase.from('app_users').select('id').eq('email', body.admin_email || '').single();
+
+      const { data: updated } = await supabase
+        .from('partner_requests')
+        .update({ status: 'approved', reviewed_by: reviewer?.id, reviewed_at: new Date().toISOString() })
+        .eq('id', reqId)
+        .select().single();
+
+      // 申請種別ごとに実際の処理を反映
+      await applyPartnerRequest(req, body.admin_email);
+
+      // 申請者通知
+      await supabase.from('notifications').insert({
+        recipient_type: 'admin', recipient_id: req.requester_id,
+        type: 'partner_request_approved',
+        title: `申請が承認されました: ${req.request_type}`,
+        body: '申請が承認されました。内容が反映されています。',
+        related_type: 'partner_request', related_id: reqId,
+      });
+
+      return { statusCode: 200, headers, body: JSON.stringify(updated) };
+    }
+
+    // 申請却下
+    if (path.match(/^\/partner-requests\/[^/]+\/reject$/) && method === 'POST') {
+      const reqId = path.split('/')[2];
+      const body = JSON.parse(event.body || '{}');
+      if (!body.rejection_reason) return { statusCode: 400, headers, body: JSON.stringify({ error: 'rejection_reason required' }) };
+
+      const { data: req } = await supabase.from('partner_requests').select('*').eq('id', reqId).single();
+      if (!req) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found' }) };
+
+      const { data: reviewer } = await supabase.from('app_users').select('id').eq('email', body.admin_email || '').single();
+
+      const { data: updated } = await supabase
+        .from('partner_requests')
+        .update({ status: 'rejected', rejection_reason: body.rejection_reason, reviewed_by: reviewer?.id, reviewed_at: new Date().toISOString() })
+        .eq('id', reqId).select().single();
+
+      await supabase.from('notifications').insert({
+        recipient_type: 'admin', recipient_id: req.requester_id,
+        type: 'partner_request_rejected',
+        title: `申請が却下されました: ${req.request_type}`,
+        body: `却下理由: ${body.rejection_reason}`,
+        related_type: 'partner_request', related_id: reqId,
+      });
+
+      return { statusCode: 200, headers, body: JSON.stringify(updated) };
+    }
+
+    // ============================================================
+    // キャンペーン紹介権限管理
+    // ============================================================
+
+    // campaign_access 一覧
+    if (path === '/campaign-access' && method === 'GET') {
+      const query = supabase
+        .from('affiliate_campaign_access')
+        .select(`
+          id, campaign_id, affiliate_id, access_status, granted_by, granted_at, revoked_at, revoke_reason, created_at,
+          affiliate:affiliates(id,name,affiliate_code,tags)
+        `)
+        .order('created_at', { ascending: false });
+      if (params.campaign_id) query.eq('campaign_id', params.campaign_id);
+      if (params.affiliate_id) query.eq('affiliate_id', params.affiliate_id);
+      if (params.access_status) query.eq('access_status', params.access_status);
+      const { data, error } = await query;
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // campaign_access 一括付与（specific_affiliates用）
+    if (path === '/campaign-access' && method === 'POST') {
+      const body = JSON.parse(event.body || '{}');
+      const { campaign_id, affiliate_ids, granted_by } = body;
+      if (!campaign_id || !affiliate_ids?.length) return { statusCode: 400, headers, body: JSON.stringify({ error: 'campaign_id and affiliate_ids required' }) };
+
+      const inserts = affiliate_ids.map(aid => ({
+        campaign_id, affiliate_id: aid, access_status: 'approved', granted_by: granted_by || 'admin', granted_at: new Date().toISOString()
+      }));
+      const { error } = await supabase.from('affiliate_campaign_access').upsert(inserts, { onConflict: 'campaign_id,affiliate_id' });
+      if (error) throw error;
+      return { statusCode: 201, headers, body: JSON.stringify({ success: true, count: affiliate_ids.length }) };
+    }
+
+    // campaign_access 取消
+    if (path.match(/^\/campaign-access\/[^/]+\/revoke$/) && method === 'POST') {
+      const id = path.split('/')[2];
+      const body = JSON.parse(event.body || '{}');
+      const { data, error } = await supabase
+        .from('affiliate_campaign_access')
+        .update({ access_status: 'revoked', revoked_at: new Date().toISOString(), revoke_reason: body.revoke_reason || '' })
+        .eq('id', id).select().single();
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // ============================================================
+    // 紹介申請管理
+    // ============================================================
+
+    // 申請一覧
+    if (path === '/campaign-applications' && method === 'GET') {
+      const query = supabase
+        .from('affiliate_campaign_applications')
+        .select(`
+          id, campaign_id, affiliate_id, application_reason, promotion_channel, target_audience,
+          past_results, agreed_to_rules, agreed_no_prohibited, status, reviewed_by, reviewed_at, rejection_reason, created_at,
+          affiliate:affiliates(id,name,email,affiliate_code,tags),
+          campaign:affiliate_campaigns(id,name,product_id,products(name))
+        `)
+        .order('created_at', { ascending: false });
+      if (params.status) query.eq('status', params.status);
+      if (params.campaign_id) query.eq('campaign_id', params.campaign_id);
+      const { data, error } = await query;
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // 申請承認
+    if (path.match(/^\/campaign-applications\/[^/]+\/approve$/) && method === 'POST') {
+      const appId = path.split('/')[2];
+      const body = JSON.parse(event.body || '{}');
+
+      const { data: application } = await supabase.from('affiliate_campaign_applications').select('*').eq('id', appId).single();
+      if (!application) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found' }) };
+
+      await supabase.from('affiliate_campaign_applications').update({
+        status: 'approved', reviewed_by: body.admin_email, reviewed_at: new Date().toISOString()
+      }).eq('id', appId);
+
+      // affiliate_campaign_access にapprovedとして登録
+      await supabase.from('affiliate_campaign_access').upsert({
+        campaign_id: application.campaign_id,
+        affiliate_id: application.affiliate_id,
+        access_status: 'approved',
+        granted_by: body.admin_email || 'admin',
+        granted_at: new Date().toISOString(),
+      }, { onConflict: 'campaign_id,affiliate_id' });
+
+      // 紹介者通知
+      await supabase.from('notifications').insert({
+        recipient_type: 'affiliate', recipient_id: application.affiliate_id,
+        type: 'campaign_application_approved',
+        title: '紹介申請が承認されました',
+        body: '紹介申請が承認されました。紹介URLをご利用いただけます。',
+        related_type: 'campaign', related_id: application.campaign_id,
+      });
+
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+    }
+
+    // 申請却下
+    if (path.match(/^\/campaign-applications\/[^/]+\/reject$/) && method === 'POST') {
+      const appId = path.split('/')[2];
+      const body = JSON.parse(event.body || '{}');
+      if (!body.rejection_reason) return { statusCode: 400, headers, body: JSON.stringify({ error: 'rejection_reason required' }) };
+
+      const { data: application } = await supabase.from('affiliate_campaign_applications').select('*').eq('id', appId).single();
+
+      await supabase.from('affiliate_campaign_applications').update({
+        status: 'rejected', rejection_reason: body.rejection_reason,
+        reviewed_by: body.admin_email, reviewed_at: new Date().toISOString()
+      }).eq('id', appId);
+
+      await supabase.from('notifications').insert({
+        recipient_type: 'affiliate', recipient_id: application?.affiliate_id,
+        type: 'campaign_application_rejected',
+        title: '紹介申請が却下されました',
+        body: `却下理由: ${body.rejection_reason}`,
+        related_type: 'campaign', related_id: application?.campaign_id,
+      });
+
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+    }
+
     return {
       statusCode: 404,
       headers,
@@ -683,4 +987,66 @@ function generateAffiliateCode(name) {
     .substring(0, 8);
   const random = Math.random().toString(36).substring(2, 6);
   return `${base}_${random}`;
+}
+
+// パートナー申請を承認後に実際のデータに反映
+async function applyPartnerRequest(req, adminEmail) {
+  const { request_type, product_id, request_data } = req;
+
+  switch (request_type) {
+    case 'product_description_change':
+      if (request_data.description) {
+        await supabase.from('products').update({ description: request_data.description, updated_at: new Date().toISOString() }).eq('id', product_id);
+      }
+      break;
+
+    case 'price_change':
+      // 価格変更は price_change_history に記録してproductsを更新
+      if (request_data.new_price) {
+        const { data: prod } = await supabase.from('products').select('price,stripe_price_id').eq('id', product_id).single();
+        await supabase.from('price_change_history').insert({
+          product_id,
+          old_price: prod?.price,
+          new_price: request_data.new_price,
+          old_stripe_price_id: prod?.stripe_price_id,
+          new_stripe_price_id: request_data.new_stripe_price_id || prod?.stripe_price_id,
+          trigger_type: 'manual',
+          changed_by: adminEmail || 'admin',
+          memo: `パートナー申請承認: ${request_data.reason || ''}`,
+        });
+        await supabase.from('products').update({ price: request_data.new_price, updated_at: new Date().toISOString() }).eq('id', product_id);
+      }
+      break;
+
+    case 'campaign_start':
+      if (request_data.campaign_id) {
+        await supabase.from('affiliate_campaigns').update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', request_data.campaign_id);
+      }
+      break;
+
+    case 'campaign_stop':
+      if (request_data.campaign_id) {
+        await supabase.from('affiliate_campaigns').update({ status: 'paused', stop_reason: request_data.reason || 'パートナー申請による停止', updated_at: new Date().toISOString() }).eq('id', request_data.campaign_id);
+      }
+      break;
+
+    case 'notice_delivery':
+      // お知らせ配信: announcementsに登録
+      if (request_data.title && request_data.body) {
+        await supabase.from('announcements').insert({
+          title: request_data.title,
+          body: request_data.body,
+          type: request_data.type || 'important',
+          target_type: 'product_affiliates',
+          target_product_id: product_id,
+          is_published: true,
+          created_by: adminEmail || 'admin',
+        });
+      }
+      break;
+
+    // material_add, commission_change は管理者が手動で対応するため自動反映なし
+    default:
+      break;
+  }
 }
