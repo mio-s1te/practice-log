@@ -1041,6 +1041,43 @@ exports.handler = async (event) => {
     }
 
     // ======================================================
+    // ボタンクリック記録（フロントエンドLPから呼び出し）
+    // ======================================================
+
+    // POST /button-click  ← 認証不要（公開エンドポイント相当だが admin-api 経由でも可）
+    if (path === '/button-click' && method === 'POST') {
+      const body = JSON.parse(event.body || '{}');
+      const { page_url, button_name, button_position, button_label, affiliate_code, session_id } = body;
+      if (!page_url || !button_name) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'page_url と button_name は必須です' }) };
+      }
+      // affiliate_code から affiliate_id を解決
+      let affiliate_id = null;
+      if (affiliate_code) {
+        const { data: aff } = await supabase.from('affiliates').select('id').eq('affiliate_code', affiliate_code).single();
+        affiliate_id = aff?.id || null;
+      }
+      const ua = (event.headers || {})['user-agent'] || null;
+      const referer = (event.headers || {})['referer'] || null;
+      const { error } = await supabase.from('button_clicks').insert({
+        page_url, button_name,
+        button_position: button_position || null,
+        button_label: button_label || null,
+        affiliate_id,
+        affiliate_code: affiliate_code || null,
+        session_id: session_id || null,
+        user_agent: ua ? ua.slice(0, 200) : null,
+        referrer: referer ? referer.slice(0, 500) : null,
+      });
+      if (error) {
+        console.error('button_click insert error:', error);
+        // テーブル未作成の場合も graceful failure
+        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, warning: error.message }) };
+      }
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
+    }
+
+    // ======================================================
     // 紹介素材 CRUD
     // ======================================================
 
