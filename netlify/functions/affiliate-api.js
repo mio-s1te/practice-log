@@ -156,6 +156,7 @@ exports.handler = async (event) => {
         .eq('status', 'completed')
         .single();
 
+      // affiliate_registrations に記録（審査不要・自動承認）
       const { data: reg, error: regErr } = await supabase
         .from('affiliate_registrations')
         .insert({
@@ -167,7 +168,7 @@ exports.handler = async (event) => {
           agreed_to_rules: true,
           start_course_purchase_id: purchase?.id || null,
           start_course_verified: !!purchase,
-          status: 'pending',
+          status: 'approved', // 自動承認
         })
         .select()
         .single();
@@ -176,7 +177,41 @@ exports.handler = async (event) => {
         return { statusCode: 400, headers, body: JSON.stringify({ error: regErr.message }) };
       }
 
-      return { statusCode: 201, headers, body: JSON.stringify({ success: true, id: reg.id }) };
+      // affiliates テーブルに active で直接作成（即時ログイン可能）
+      const affiliateCode = generateAffiliateCode(name);
+      const { data: newAffiliate, error: affiliateErr } = await supabase
+        .from('affiliates')
+        .insert({
+          name,
+          email,
+          affiliate_code: affiliateCode,
+          status: 'active',
+          sns_url: sns_url || null,
+          promotion_channel,
+          notes: `自動承認 registration_id:${reg.id}`,
+        })
+        .select()
+        .single();
+
+      if (affiliateErr) {
+        // affiliates 作成失敗時は registrations の status を pending に戻す（ロールバック相当）
+        await supabase
+          .from('affiliate_registrations')
+          .update({ status: 'pending' })
+          .eq('id', reg.id);
+        return { statusCode: 400, headers, body: JSON.stringify({ error: affiliateErr.message }) };
+      }
+
+      return {
+        statusCode: 201,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          id: reg.id,
+          affiliate_id: newAffiliate.id,
+          affiliate_code: affiliateCode,
+        }),
+      };
     }
 
     // 新ダッシュボードv2（商品ごとの紹介権限付き）
@@ -1708,4 +1743,14 @@ async function getProductDetail(affiliate, productId, headers) {
       },
     }),
   };
+}
+
+// 紹介者コード生成
+function generateAffiliateCode(name) {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .substring(0, 8);
+  const random = Math.random().toString(36).substring(2, 6);
+  return `${base}_${random}`;
 }

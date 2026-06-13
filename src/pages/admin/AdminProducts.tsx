@@ -142,6 +142,18 @@ function Textarea({ value, onChange, placeholder, rows = 3 }: { value: string; o
 }
 
 // ============================================================
+// 分析データ型
+// ============================================================
+interface ProductAnalytics {
+  product_id: string;
+  total_purchases: number;
+  total_revenue: number;
+  total_clicks: number;
+  total_affiliates: number;
+  conversion_rate: number;
+}
+
+// ============================================================
 // メインコンポーネント
 // ============================================================
 export function AdminProducts() {
@@ -153,6 +165,16 @@ export function AdminProducts() {
   const [activeTab, setActiveTab] = useState<EditTabKey>('basic');
   const [promoAsset, setPromoAsset] = useState<PromoAsset>(defaultPromoAsset);
   const [promoSaving, setPromoSaving] = useState(false);
+
+  // 検索・フィルター
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
+
+  // ページタブ（一覧 / 分析）
+  const [pageTab, setPageTab] = useState<'list' | 'analytics'>('list');
+  const [analytics, setAnalytics] = useState<ProductAnalytics[]>([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   // 段階価格モーダル
   const [tierModalOpen, setTierModalOpen] = useState(false);
@@ -177,6 +199,61 @@ export function AdminProducts() {
       setLoading(false);
     }
   };
+
+  // 分析データ取得
+  const fetchAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch('/api/admin-api/products/analytics');
+      if (res.ok) {
+        setAnalytics(await res.json());
+      } else {
+        // デモデータ
+        setAnalytics(demoProducts().map(p => ({
+          product_id: p.id,
+          total_purchases: Math.floor(Math.random() * 300) + 10,
+          total_revenue: (Math.floor(Math.random() * 300) + 10) * p.price,
+          total_clicks: Math.floor(Math.random() * 2000) + 100,
+          total_affiliates: Math.floor(Math.random() * 50) + 5,
+          conversion_rate: Math.random() * 15 + 1,
+        })));
+      }
+    } catch {
+      setAnalytics(demoProducts().map(p => ({
+        product_id: p.id,
+        total_purchases: Math.floor(Math.random() * 300) + 10,
+        total_revenue: (Math.floor(Math.random() * 300) + 10) * p.price,
+        total_clicks: Math.floor(Math.random() * 2000) + 100,
+        total_affiliates: Math.floor(Math.random() * 50) + 5,
+        conversion_rate: Math.random() * 15 + 1,
+      })));
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, []);
+
+  // 商品固定トグル（display_order: 0 = 上部固定、元の値 = 通常）
+  const handleTogglePin = async (product: ProductExtended) => {
+    const isPinned = product.display_order === 0;
+    const newOrder = isPinned ? 999 : 0;
+    await fetch(`/api/admin-api/products/${product.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_order: newOrder }),
+    });
+    fetchProducts();
+  };
+
+  // フィルタリング済み商品リスト
+  const filteredProducts = products.filter(p => {
+    const matchSearch =
+      !search ||
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      (p.description || '').toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === 'all' || p.status === filterStatus;
+    const matchCategory = filterCategory === 'all' || p.category === filterCategory;
+    return matchSearch && matchStatus && matchCategory;
+  });
 
   function demoProducts(): ProductExtended[] {
     return [
@@ -346,80 +423,296 @@ export function AdminProducts() {
   // ============================================================
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* ヘッダー */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">📦 商品管理</h1>
-        <button onClick={openCreate} className="btn-primary">+ 商品追加</button>
+        <div className="flex items-center gap-2">
+          {/* ページタブ切り替え */}
+          <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+            <button
+              onClick={() => setPageTab('list')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                pageTab === 'list' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              📋 一覧
+            </button>
+            <button
+              onClick={() => { setPageTab('analytics'); if (analytics.length === 0) fetchAnalytics(); }}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                pageTab === 'analytics' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              📊 分析
+            </button>
+          </div>
+          {pageTab === 'list' && (
+            <button onClick={openCreate} className="btn-primary">+ 商品追加</button>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {products.map(product => (
-          <div key={product.id} className="card card-hover">
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-xl font-bold text-blue-600">¥{product.price.toLocaleString()}</span>
-                  {product.regular_price && product.regular_price !== product.price && (
-                    <span className="text-xs text-gray-400 line-through">¥{product.regular_price.toLocaleString()}</span>
+      {/* ===================== 一覧タブ ===================== */}
+      {pageTab === 'list' && (
+        <>
+          {/* 検索・フィルター */}
+          <div className="flex flex-wrap gap-2 bg-white border border-gray-200 rounded-2xl p-3">
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="🔍 商品名・説明で検索"
+              className="input-field flex-1 min-w-48 text-sm"
+            />
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+              className="select-field text-sm"
+            >
+              <option value="all">すべてのステータス</option>
+              <option value="active">販売中</option>
+              <option value="paused">一時停止</option>
+              <option value="archived">アーカイブ</option>
+            </select>
+            <select
+              value={filterCategory}
+              onChange={e => setFilterCategory(e.target.value)}
+              className="select-field text-sm"
+            >
+              <option value="all">すべてのカテゴリ</option>
+              <option value="course">講座</option>
+              <option value="digital">デジタルコンテンツ</option>
+              <option value="membership">メンバーシップ</option>
+              <option value="other">その他</option>
+            </select>
+            {(search || filterStatus !== 'all' || filterCategory !== 'all') && (
+              <button
+                onClick={() => { setSearch(''); setFilterStatus('all'); setFilterCategory('all'); }}
+                className="text-xs text-gray-500 hover:text-gray-700 px-2"
+              >
+                ✕ クリア
+              </button>
+            )}
+          </div>
+
+          {/* 件数表示 */}
+          <p className="text-xs text-gray-500">
+            {filteredProducts.length} / {products.length} 件表示
+            {filteredProducts.some(p => p.display_order === 0) && (
+              <span className="ml-2 text-yellow-600">⭐ 固定済みあり</span>
+            )}
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredProducts.map(product => (
+              <div
+                key={product.id}
+                className={`card card-hover relative ${product.display_order === 0 ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}`}
+              >
+                {/* 固定バッジ */}
+                {product.display_order === 0 && (
+                  <span className="absolute top-2 right-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-semibold">
+                    ⭐ 固定中
+                  </span>
+                )}
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-xl font-bold text-blue-600">¥{product.price.toLocaleString()}</span>
+                      {product.regular_price && product.regular_price !== product.price && (
+                        <span className="text-xs text-gray-400 line-through">¥{product.regular_price.toLocaleString()}</span>
+                      )}
+                    </div>
+                  </div>
+                  <StatusBadge status={product.status} />
+                </div>
+                <p className="text-xs text-gray-500 mb-2 line-clamp-2">{product.description}</p>
+
+                {/* タグ行 */}
+                <div className="flex flex-wrap gap-1.5 text-xs mb-3">
+                  {product.category && (
+                    <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{product.category}</span>
+                  )}
+                  {product.affiliate_enabled && (
+                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                      AF対象 ({product.affiliate_access_level})
+                    </span>
+                  )}
+                  {product.campaign_price_active && (
+                    <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                      CP ¥{(product.campaign_price ?? 0).toLocaleString()}
+                    </span>
+                  )}
+                  {product.lp_url && (
+                    <a href={product.lp_url} target="_blank" rel="noopener noreferrer"
+                       className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full hover:bg-blue-200">LP↗</a>
                   )}
                 </div>
+
+                {/* アクションボタン */}
+                <div className="flex gap-1.5 flex-wrap">
+                  <button onClick={() => openEdit(product)} className="btn-secondary flex-1 text-xs py-1.5 min-w-0">
+                    詳細編集
+                  </button>
+                  <button
+                    onClick={() => openTierModal(product)}
+                    className="flex-1 text-xs py-1.5 rounded-xl font-semibold bg-purple-100 text-purple-700 hover:bg-purple-200 min-w-0"
+                  >
+                    段階価格
+                  </button>
+                  {/* 固定トグル */}
+                  <button
+                    onClick={() => handleTogglePin(product)}
+                    title={product.display_order === 0 ? '固定を解除' : '上部に固定'}
+                    className={`flex-1 text-xs py-1.5 rounded-xl font-semibold transition-colors min-w-0 ${
+                      product.display_order === 0
+                        ? 'bg-yellow-200 text-yellow-800 hover:bg-yellow-300'
+                        : 'bg-gray-100 text-gray-600 hover:bg-yellow-100 hover:text-yellow-700'
+                    }`}
+                  >
+                    {product.display_order === 0 ? '⭐ 固定中' : '☆ 固定'}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('ステータスを変更しますか？')) return;
+                      const newStatus = product.status === 'active' ? 'paused' : 'active';
+                      await fetch(`/api/admin-api/products/${product.id}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: newStatus }),
+                      });
+                      fetchProducts();
+                    }}
+                    className={`flex-1 text-xs py-1.5 rounded-xl font-semibold transition-colors min-w-0 ${
+                      product.status === 'active' ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                  >
+                    {product.status === 'active' ? '停止' : '再開'}
+                  </button>
+                </div>
               </div>
-              <StatusBadge status={product.status} />
-            </div>
-            <p className="text-xs text-gray-500 mb-2 line-clamp-2">{product.description}</p>
-
-            {/* タグ行 */}
-            <div className="flex flex-wrap gap-1.5 text-xs mb-3">
-              {product.category && (
-                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{product.category}</span>
-              )}
-              {product.affiliate_enabled && (
-                <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                  AF対象 ({product.affiliate_access_level})
-                </span>
-              )}
-              {product.campaign_price_active && (
-                <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
-                  CP ¥{(product.campaign_price ?? 0).toLocaleString()}
-                </span>
-              )}
-              {product.lp_url && (
-                <a href={product.lp_url} target="_blank" rel="noopener noreferrer"
-                   className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full hover:bg-blue-200">LP↗</a>
-              )}
-            </div>
-
-            {/* アクションボタン */}
-            <div className="flex gap-1.5 flex-wrap">
-              <button onClick={() => openEdit(product)} className="btn-secondary flex-1 text-xs py-1.5 min-w-0">
-                詳細編集
-              </button>
-              <button
-                onClick={() => openTierModal(product)}
-                className="flex-1 text-xs py-1.5 rounded-xl font-semibold bg-purple-100 text-purple-700 hover:bg-purple-200 min-w-0"
-              >
-                段階価格
-              </button>
-              <button
-                onClick={async () => {
-                  if (!confirm('ステータスを変更しますか？')) return;
-                  const newStatus = product.status === 'active' ? 'paused' : 'active';
-                  await fetch(`/api/admin-api/products/${product.id}`, {
-                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: newStatus }),
-                  });
-                  fetchProducts();
-                }}
-                className={`flex-1 text-xs py-1.5 rounded-xl font-semibold transition-colors min-w-0 ${
-                  product.status === 'active' ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' : 'bg-green-100 text-green-700 hover:bg-green-200'
-                }`}
-              >
-                {product.status === 'active' ? '停止' : '再開'}
-              </button>
-            </div>
+            ))}
+            {filteredProducts.length === 0 && (
+              <div className="col-span-full text-center py-12 text-gray-400">
+                <p className="text-4xl mb-2">📦</p>
+                <p>条件に一致する商品がありません</p>
+              </div>
+            )}
           </div>
-        ))}
-      </div>
+        </>
+      )}
+
+      {/* ===================== 分析タブ ===================== */}
+      {pageTab === 'analytics' && (
+        <div className="space-y-4">
+          {analyticsLoading ? (
+            <LoadingSpinner size="lg" />
+          ) : (
+            <>
+              {/* サマリーカード */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  {
+                    label: '総売上',
+                    value: `¥${analytics.reduce((s, a) => s + a.total_revenue, 0).toLocaleString()}`,
+                    icon: '💰', color: 'bg-green-50 border-green-200 text-green-700',
+                  },
+                  {
+                    label: '総購入数',
+                    value: `${analytics.reduce((s, a) => s + a.total_purchases, 0).toLocaleString()} 件`,
+                    icon: '🛒', color: 'bg-blue-50 border-blue-200 text-blue-700',
+                  },
+                  {
+                    label: '総クリック数',
+                    value: `${analytics.reduce((s, a) => s + a.total_clicks, 0).toLocaleString()} 回`,
+                    icon: '👆', color: 'bg-purple-50 border-purple-200 text-purple-700',
+                  },
+                  {
+                    label: '平均成約率',
+                    value: analytics.length > 0
+                      ? `${(analytics.reduce((s, a) => s + a.conversion_rate, 0) / analytics.length).toFixed(1)}%`
+                      : '—',
+                    icon: '📈', color: 'bg-orange-50 border-orange-200 text-orange-700',
+                  },
+                ].map(card => (
+                  <div key={card.label} className={`border rounded-2xl p-4 ${card.color}`}>
+                    <p className="text-2xl mb-1">{card.icon}</p>
+                    <p className="text-xs font-medium opacity-70">{card.label}</p>
+                    <p className="text-lg font-bold">{card.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* 商品別分析テーブル */}
+              <div className="table-container">
+                <table className="table">
+                  <thead className="table-header">
+                    <tr>
+                      <th className="table-th">商品名</th>
+                      <th className="table-th text-right">購入数</th>
+                      <th className="table-th text-right">売上</th>
+                      <th className="table-th text-right">クリック</th>
+                      <th className="table-th text-right">紹介者数</th>
+                      <th className="table-th text-right">成約率</th>
+                      <th className="table-th text-center">ステータス</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {products.map(product => {
+                      const a = analytics.find(x => x.product_id === product.id);
+                      return (
+                        <tr key={product.id} className="table-row">
+                          <td className="table-td">
+                            <div>
+                              <p className="font-medium text-gray-900 text-sm">{product.name}</p>
+                              <p className="text-xs text-gray-400">{product.category}</p>
+                            </div>
+                          </td>
+                          <td className="table-td text-right font-semibold">
+                            {a ? `${a.total_purchases.toLocaleString()} 件` : '—'}
+                          </td>
+                          <td className="table-td text-right font-semibold text-green-600">
+                            {a ? `¥${a.total_revenue.toLocaleString()}` : '—'}
+                          </td>
+                          <td className="table-td text-right">
+                            {a ? `${a.total_clicks.toLocaleString()} 回` : '—'}
+                          </td>
+                          <td className="table-td text-right">
+                            {a ? `${a.total_affiliates} 人` : '—'}
+                          </td>
+                          <td className="table-td text-right">
+                            {a ? (
+                              <span className={`font-semibold ${a.conversion_rate >= 5 ? 'text-green-600' : a.conversion_rate >= 2 ? 'text-yellow-600' : 'text-red-500'}`}>
+                                {a.conversion_rate.toFixed(1)}%
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td className="table-td text-center">
+                            <StatusBadge status={product.status} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {products.length === 0 && (
+                      <tr><td colSpan={7} className="table-td text-center text-gray-400 py-8">商品がありません</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 更新ボタン */}
+              <div className="text-right">
+                <button
+                  onClick={fetchAnalytics}
+                  className="btn-secondary text-sm"
+                >
+                  🔄 データ更新
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ============================================================
           商品編集モーダル（7タブ）

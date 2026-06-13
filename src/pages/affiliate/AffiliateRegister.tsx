@@ -1,6 +1,6 @@
 // src/pages/affiliate/AffiliateRegister.tsx
 // アフィリエイター登録ページ
-// 条件: スタート講座購入済み + 購入メールアドレスで照合 + 管理者承認
+// 条件: スタート講座購入済み + 購入メールアドレスで照合 → 自動承認
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -118,24 +118,19 @@ export function AffiliateRegister() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">登録申請済みです</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">登録済みです</h2>
           <p className="text-gray-600 text-sm mb-4">
-            このメールアドレスはすでに登録申請されています。<br />
+            このメールアドレスはすでに登録されています。<br />
             現在のステータス:{' '}
             <span className="font-bold text-blue-700">{statusLabel[status] || status}</span>
           </p>
-          {status === 'approved' && (
+          {(status === 'approved' || status === 'active') && (
             <Link
               to="/affiliate/login"
               className="inline-block bg-blue-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors"
             >
               ログインする
             </Link>
-          )}
-          {status === 'pending' && (
-            <p className="text-sm text-gray-500">
-              管理者が審査中です。承認されるとメールでご連絡します。
-            </p>
           )}
         </div>
       </div>
@@ -152,24 +147,29 @@ export function AffiliateRegister() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">申請を受け付けました</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">登録完了！</h2>
           <p className="text-gray-600 text-sm mb-6">
-            <strong>{email}</strong> で登録申請を受け付けました。<br />
-            管理者が内容を確認し、通常2〜3営業日以内に<br />
-            メールにてご連絡いたします。
+            <strong>{email}</strong> でアフィリエイター登録が完了しました。<br />
+            今すぐダッシュボードにログインして活動を開始できます。
           </p>
-          <div className="bg-blue-50 rounded-xl p-4 mb-6 text-left text-sm text-blue-800">
-            <p className="font-semibold mb-2">📋 申請後の流れ</p>
+          <div className="bg-green-50 rounded-xl p-4 mb-6 text-left text-sm text-green-800">
+            <p className="font-semibold mb-2">🎉 登録完了後の流れ</p>
             <ol className="space-y-1 text-xs">
-              <li>1. 管理者が申請内容を確認（2〜3営業日）</li>
-              <li>2. 承認メールが届く</li>
-              <li>3. メール内のリンクからログイン</li>
-              <li>4. 紹介URLを確認して活動スタート</li>
+              <li>1. 下のボタンからログイン画面へ</li>
+              <li>2. 登録メールアドレスでログイン</li>
+              <li>3. 紹介URLを確認して活動スタート</li>
+              <li>4. 紹介経由の購入で報酬が発生します</li>
             </ol>
           </div>
           <Link
+            to="/affiliate/login"
+            className="inline-block w-full bg-green-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-green-700 transition-colors mb-3"
+          >
+            ダッシュボードにログインする →
+          </Link>
+          <Link
             to="/"
-            className="text-sm text-blue-600 hover:underline"
+            className="block text-sm text-gray-500 hover:underline text-center"
           >
             トップページに戻る
           </Link>
@@ -193,12 +193,12 @@ export function AffiliateRegister() {
         </div>
 
         {/* 条件説明 */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-sm">
-          <p className="font-semibold text-amber-800 mb-2">⚠️ 登録条件</p>
-          <ul className="text-amber-700 space-y-1 text-xs">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm">
+          <p className="font-semibold text-blue-800 mb-2">✅ 登録条件</p>
+          <ul className="text-blue-700 space-y-1 text-xs">
             <li>✓ AI副業1時間化スタート講座の購入者であること</li>
-            <li>✓ 管理者による審査・承認が必要です</li>
-            <li>✓ 承認後に紹介URLが発行されます</li>
+            <li>✓ 購入メールアドレスで照合後、即時登録完了</li>
+            <li>✓ 登録完了後すぐに紹介URLが発行されます</li>
           </ul>
         </div>
 
@@ -291,9 +291,9 @@ export function AffiliateRegister() {
               </div>
             </div>
 
-            <h2 className="text-lg font-bold text-gray-900 mb-1">申請情報を入力</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">登録情報を入力</h2>
             <p className="text-gray-500 text-sm mb-6">
-              以下の情報をご記入ください。管理者が審査後、承認メールをお送りします。
+              以下の情報をご記入ください。送信後すぐに登録完了となります。
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -403,7 +403,7 @@ export function AffiliateRegister() {
                   disabled={loading || !form.agreed}
                   className="flex-2 flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50 text-sm"
                 >
-                  {loading ? '送信中...' : '登録申請を送信する'}
+                  {loading ? '登録中...' : '今すぐ登録する'}
                 </button>
               </div>
             </form>
