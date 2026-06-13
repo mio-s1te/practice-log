@@ -519,11 +519,12 @@ export function LandingPageStartCourse() {
         <p className="font-bold text-white mb-1">AI副業1時間化スタート講座</p>
         <p className="text-xs mb-4">副業迷子から抜け出すための設計講座</p>
         <div className="flex justify-center gap-6 text-xs mb-4">
+          <a href="/tokushoho" className="hover:text-white transition-colors">特定商取引法</a>
           <a href="/privacy" className="hover:text-white transition-colors">プライバシーポリシー</a>
-          <a href="/terms" className="hover:text-white transition-colors">特定商取引法</a>
+          <a href="/contact" className="hover:text-white transition-colors">お問い合わせ</a>
           <a href="https://lin.ee/TJWaKcD" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">公式LINE</a>
         </div>
-        <p className="text-xs">© 2024 AI副業1時間化スタート講座 ｜ 本ページはアフィリエイト広告を含みます</p>
+        <p className="text-xs">© 2026 みお ｜ 本ページはアフィリエイト広告を含みます</p>
       </footer>
     </div>
   );

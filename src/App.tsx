@@ -54,6 +54,9 @@ import { LandingPageMiniCourse } from '@/pages/lp/LandingPageMiniCourse';
 import { LandingPageFreeGift } from '@/pages/lp/LandingPageFreeGift';
 import { LiffSeminar } from '@/pages/lp/LiffSeminar';
 import { PurchaseComplete } from '@/pages/lp/PurchaseComplete';
+import { Contact } from '@/pages/lp/Contact';
+import { Tokushoho } from '@/pages/lp/Tokushoho';
+import { Privacy } from '@/pages/lp/Privacy';
 
 function App() {
   useEffect(() => {
@@ -80,6 +83,9 @@ function App() {
         <Route path="/free-gift" element={<LandingPageFreeGift />} />
         <Route path="/seminar" element={<LiffSeminar />} />
         <Route path="/purchase-complete" element={<PurchaseComplete />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/tokushoho" element={<Tokushoho />} />
+        <Route path="/privacy" element={<Privacy />} />
 
         {/* ========================================
             アフィリエイター向けページ

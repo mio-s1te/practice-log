@@ -412,12 +412,12 @@ export function LandingPageAffiliateCourse() {
 
       {/* フッター */}
       <footer className="bg-gray-950 text-gray-500 py-8 px-4 text-center text-xs">
-        <p>© 2024 AIアフィリエイト実践講座</p>
+        <p>© 2026 みお</p>
         <p className="mt-1">本ページはアフィリエイト広告を含む場合があります</p>
         <div className="mt-3 flex justify-center gap-4">
-          <a href="#" className="hover:text-gray-300">特定商取引法に基づく表記</a>
-          <a href="#" className="hover:text-gray-300">プライバシーポリシー</a>
-          <a href="#" className="hover:text-gray-300">利用規約</a>
+          <a href="/tokushoho" className="hover:text-gray-300">特定商取引法に基づく表記</a>
+          <a href="/privacy" className="hover:text-gray-300">プライバシーポリシー</a>
+          <a href="/contact" className="hover:text-gray-300">お問い合わせ</a>
         </div>
       </footer>
     </div>

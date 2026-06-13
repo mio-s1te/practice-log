@@ -83,8 +83,13 @@ export function LandingPageMiniCourse() {
       </section>
 
       <footer className="bg-gray-900 text-gray-400 py-8 px-4 text-center text-sm">
-        <p>© 2024 アフィリエイト実践ミニ講座</p>
+        <p>© 2026 みお</p>
         <p className="mt-1 text-xs">本ページはアフィリエイト広告を含みます</p>
+        <div className="mt-2 flex justify-center gap-4 text-xs">
+          <a href="/tokushoho" className="hover:text-white">特定商取引法</a>
+          <a href="/privacy" className="hover:text-white">プライバシーポリシー</a>
+          <a href="/contact" className="hover:text-white">お問い合わせ</a>
+        </div>
       </footer>
     </div>
   );
@@ -181,7 +186,12 @@ export function LandingPageFreeGift() {
       </section>
 
       <footer className="bg-gray-900 text-gray-400 py-8 px-4 text-center text-sm">
-        <p>© 2024 AI副業スターターキット</p>
+        <p>© 2026 みお</p>
+        <div className="mt-2 flex justify-center gap-4 text-xs">
+          <a href="/tokushoho" className="hover:text-white">特定商取引法</a>
+          <a href="/privacy" className="hover:text-white">プライバシーポリシー</a>
+          <a href="/contact" className="hover:text-white">お問い合わせ</a>
+        </div>
       </footer>
     </div>
   );
