@@ -138,13 +138,50 @@ SNS投稿 → 公式LINE登録 → 無料教材配布（LINE）
 ## 🚀 セットアップ手順
 
 ### 1. 環境変数（Netlify Environment Variables）
+
+#### サーバー側（Functions）— Netlify ダッシュボード > Site settings > Environment variables
 ```
+# Supabase
 SUPABASE_URL=https://xxxx.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# Stripe
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-ADMIN_PASSWORD=（任意の強力なパスワード）
+
+# 管理者認証（フロントに持たない）
+ADMIN_EMAILS=admin@example.com,sub@example.com   # カンマ区切りで複数可
+ADMIN_PASSWORD=（強力なパスワード）
+ADMIN_SECRET_TOKEN=（ランダム64文字以上の文字列）
+
+# サイトURL
+SITE_URL=https://your-app.netlify.app
+
+# LINE
+LINE_SEMINAR_CHANNEL_SECRET=...
+LINE_SEMINAR_CHANNEL_ACCESS_TOKEN=...
+LINE_BUYER_CHANNEL_SECRET=...
+LINE_BUYER_CHANNEL_ACCESS_TOKEN=...
+
+# メール送信（Resend） — 設定しなくてもログのみで動作する
+# 無料: 100通/日、有料: 月$20で50,000通/月
+RESEND_API_KEY=re_...
+EMAIL_FROM=noreply@yourdomain.com   # Resendで送信元認証したドメイン
 ```
+
+#### フロント側（VITE_ プレフィックス）— ビルド時に埋め込まれる
+```
+VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+VITE_SITE_URL=https://your-app.netlify.app
+VITE_LINE_LIFF_ID=（セミナーLINEのLIFF ID）
+VITE_LINE_BUYER_LIFF_ID=（購入者LINEのLIFF ID）
+VITE_LINE_BUYER_ADD_URL=https://lin.ee/...
+```
+
+> **⚠️ 削除済み環境変数**  
+> `VITE_ADMIN_PASSWORD`・`VITE_ADMIN_EMAILS` はフロントJSに埋め込まれセキュリティリスクがあったため削除。  
+> 代替: `ADMIN_PASSWORD`（サーバー側のみ）を設定してください。
 
 ### 2. Supabase マイグレーション実行手順
 1. Supabase ダッシュボード → SQL Editor

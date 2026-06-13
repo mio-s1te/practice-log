@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'admin123';
+// パスワード・メールリストはフロントに持たない
+// → /api/admin-api/login でサーバー側検証し ADMIN_SECRET_TOKEN を受け取る
 
 export function AdminLogin() {
   const navigate = useNavigate();
@@ -17,18 +18,23 @@ export function AdminLogin() {
     setError('');
 
     try {
-      const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || '').split(',');
-      
-      if (adminEmails.includes(email) && password === ADMIN_PASSWORD) {
-        const token = btoa(`${email}:${Date.now()}`);
+      const res = await fetch('/api/admin-api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (res.ok) {
+        const { token } = await res.json();
         sessionStorage.setItem('admin_token', token);
         sessionStorage.setItem('admin_email', email);
         navigate('/admin/dashboard');
       } else {
-        setError('メールアドレスまたはパスワードが正しくありません');
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'メールアドレスまたはパスワードが正しくありません');
       }
     } catch {
-      setError('ログインに失敗しました');
+      setError('ログインに失敗しました。しばらくしてから再試行してください。');
     } finally {
       setLoading(false);
     }

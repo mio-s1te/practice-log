@@ -378,7 +378,7 @@ function LineDataModal({ onSave, onClose }: { onSave: (data: any) => void; onClo
 // メインコンポーネント
 // ============================================================
 export function AdminDashboard() {
-  const adminToken = localStorage.getItem('admin_token') || '';
+  const adminToken = sessionStorage.getItem('admin_token') || '';
   const [period, setPeriod] = useState<Period>('30d');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');

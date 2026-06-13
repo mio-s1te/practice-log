@@ -5,6 +5,53 @@ const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
+// ============================================================
+// メール送信ユーティリティ
+// 環境変数 RESEND_API_KEY が設定されていれば Resend で送信
+// 未設定の場合はコンソールログのみ（開発・移行期間用）
+// 将来的に別サービスへ切り替える場合は sendEmail() 内だけ修正
+// ============================================================
+async function sendEmail({ to, subject, html, text }) {
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const fromAddress = process.env.EMAIL_FROM || 'noreply@mio-affiliate.com';
+
+  if (!resendApiKey) {
+    // 開発環境 or 未設定: コンソールに出力するが本文は省略
+    console.log(`[sendEmail] RESEND_API_KEY not set. Would send to: ${to}, subject: ${subject}`);
+    return { ok: false, reason: 'no_api_key' };
+  }
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: fromAddress,
+        to: [to],
+        subject,
+        html,
+        text: text || html.replace(/<[^>]+>/g, ''),
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error(`[sendEmail] Resend error ${res.status}:`, err);
+      return { ok: false, reason: err };
+    }
+
+    const data = await res.json();
+    console.log(`[sendEmail] Sent to ${to}, id: ${data.id}`);
+    return { ok: true, id: data.id };
+  } catch (e) {
+    console.error('[sendEmail] fetch error:', e);
+    return { ok: false, reason: e.message };
+  }
+}
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -567,10 +614,29 @@ async function requestLoginLink(email, headers) {
     })
     .eq('id', affiliate.id);
 
-  // 実際のメール送信はメールサービスを使用
-  // ここではコンソールに出力（本番はメール送信）
   const loginUrl = `${process.env.SITE_URL}/affiliate/login?token=${token}`;
-  console.log(`Login link for ${email}: ${loginUrl}`);
+
+  // メール送信（Resend経由 or 未設定時はログのみ）
+  await sendEmail({
+    to: email,
+    subject: '【みお】アフィリエイター ログインリンク',
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+        <h2 style="color: #1e3a5f; margin-bottom: 8px;">ログインリンクをお送りします</h2>
+        <p style="color: #555;">以下のボタンからアフィリエイター画面にログインしてください。</p>
+        <p style="color: #888; font-size: 13px;">このリンクは30分間有効です。</p>
+        <div style="margin: 32px 0; text-align: center;">
+          <a href="${loginUrl}"
+             style="background: #2563eb; color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">
+            ログインする
+          </a>
+        </div>
+        <p style="color: #aaa; font-size: 12px;">このメールに心当たりがない場合は無視してください。</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+        <p style="color: #bbb; font-size: 11px;">みお アフィリエイト管理システム</p>
+      </div>
+    `,
+  });
 
   return {
     statusCode: 200,

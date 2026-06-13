@@ -44,6 +44,38 @@ exports.handler = async (event) => {
   const params = event.queryStringParameters || {};
 
   try {
+    // ============================================================
+    // 認証不要エンドポイント: /login
+    // メール + パスワード → ADMIN_SECRET_TOKEN を返す
+    // フロント側でパスワードを持たず、サーバー側だけで検証する
+    // ============================================================
+    if (path === '/login' && method === 'POST') {
+      const { email, password } = JSON.parse(event.body || '{}');
+      const allowedEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
+      const adminPassword = process.env.ADMIN_PASSWORD || '';
+
+      if (!email || !password) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'email and password required' }) };
+      }
+
+      const emailOk = allowedEmails.length > 0 && allowedEmails.includes(email);
+      const passOk  = adminPassword !== '' && password === adminPassword;
+
+      if (!emailOk || !passOk) {
+        // 総当たり対策: 失敗でも同じ時間待つ（200ms固定遅延）
+        await new Promise(r => setTimeout(r, 200));
+        return { statusCode: 401, headers, body: JSON.stringify({ error: 'メールアドレスまたはパスワードが正しくありません' }) };
+      }
+
+      // 成功: ADMIN_SECRET_TOKEN を返す
+      const token = process.env.ADMIN_SECRET_TOKEN || '';
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ token, email }),
+      };
+    }
+
     // ダッシュボード統計
     if (path === '/dashboard' && method === 'GET') {
       return await getDashboardStats(headers);
@@ -1680,14 +1712,14 @@ async function getAnalyticsLP(params, headers) {
       lp_name: lp.name,
       lp_url: lp.url,
       clicks: clickCount || 0,
-      unique_clicks: Math.floor((clickCount || 0) * 0.85), // 仮: ユニーク率85%
+      unique_clicks: clickCount || 0,  // ip_hash の distinct count が取れない場合はクリック数をそのまま使用
       button_clicks: btnClicks || 0,
       purchases: validPurchases.length,
       revenue,
       conversion_rate: convRate,
       click_through_rate: (clickCount || 0) > 0 ? (btnClicks || 0) / (clickCount || 1) : 0,
       bounce_rate: Math.max(0, 1 - convRate - 0.1),
-      avg_time_on_page: 180 + Math.floor(Math.random() * 120), // 仮データ（秒）
+      avg_time_on_page: null,  // 実計測値なし（フロント側で「データなし」表示）
       affiliate_clicks: affiliateClicks,
       direct_clicks: directClicks,
       scores: {
