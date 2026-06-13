@@ -506,6 +506,57 @@ exports.handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
+    // 個別権限付与（新規 or 再付与）
+    // POST /permissions/individual/grant
+    // body: { affiliate_id, product_id, is_explicitly_granted, granted_by, notes }
+    if (path === '/permissions/individual/grant' && method === 'POST') {
+      const {
+        affiliate_id, product_id, is_explicitly_granted = true,
+        granted_by, notes,
+      } = JSON.parse(event.body || '{}');
+
+      if (!affiliate_id || !product_id) {
+        return {
+          statusCode: 400, headers,
+          body: JSON.stringify({ error: 'affiliate_id と product_id は必須です' }),
+        };
+      }
+
+      const { data, error } = await supabase
+        .from('product_affiliate_permissions')
+        .upsert({
+          affiliate_id,
+          product_id,
+          access_level: 'requires_purchase', // 個別付与なので実質上書きされる
+          is_explicitly_granted,
+          granted_by: granted_by || 'admin',
+          granted_at: new Date().toISOString(),
+          revoked_at: null,
+          notes: notes || null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'product_id,affiliate_id' })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // 個別権限付与対象のアフィリエイター検索
+    // GET /permissions/search-affiliates?q=xxx
+    if (path === '/permissions/search-affiliates' && method === 'GET') {
+      const q = params.q || '';
+      const { data, error } = await supabase
+        .from('affiliates')
+        .select('id, name, email, affiliate_code, status')
+        .eq('status', 'active')
+        .or(`name.ilike.%${q}%,email.ilike.%${q}%,affiliate_code.ilike.%${q}%`)
+        .order('name', { ascending: true })
+        .limit(20);
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify(data || []) };
+    }
+
     // 商品一覧（status フィルタ対応）
     if (path === '/products' && method === 'GET') {
       let query = supabase.from('products').select('*').order('display_order', { ascending: true });
