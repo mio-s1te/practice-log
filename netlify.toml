@@ -18,4 +18,4 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["stripe"]
+  external_node_modules = ["stripe", "bcryptjs", "@supabase/supabase-js", "date-fns"]
