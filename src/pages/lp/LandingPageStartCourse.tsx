@@ -220,6 +220,15 @@ export function LandingPageStartCourse() {
         </div>
 
         <div className="relative max-w-3xl mx-auto text-center">
+          {/* サムネイル画像 */}
+          <div className="mb-6">
+            <img
+              src="/start-course-thumbnail.png"
+              alt="AI副業1時間化スタート講座"
+              className="w-full max-w-lg mx-auto rounded-2xl shadow-2xl"
+            />
+          </div>
+
           {/* バッジ */}
           <div className="inline-block bg-yellow-400 text-yellow-900 text-sm font-bold px-5 py-1.5 rounded-full mb-6 shadow">
             📣 副業迷子から抜け出すための設計講座
