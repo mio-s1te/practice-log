@@ -8,6 +8,11 @@ import type { ProductPriceInfo } from '@/types';
 
 const PRODUCT_ID = 'a0000000-0000-0000-0000-000000000001';
 
+// ── Stripe Payment Links ──────────────────────────
+// 29,800円：Stripeダッシュボードの既存リンク（create-checkout-session で動的生成）
+const STRIPE_LINK_49800 = 'https://buy.stripe.com/8x200i2M11X0b6A1Si3sI01';
+const STRIPE_LINK_99800 = 'https://buy.stripe.com/3cI9AS0DTgRU1w07cC3sI02';
+
 // ======================================================
 // 購入ボタン（共通）
 // ======================================================
@@ -95,6 +100,18 @@ export function LandingPageStartCourse() {
   }, [fetchPriceInfo]);
 
   const handlePurchase = async () => {
+    // 49,800円・99,800円はPayment Linkへ直接リダイレクト
+    const price = priceInfo?.current_price ?? 29800;
+    if (price >= 99800) {
+      window.location.href = STRIPE_LINK_99800;
+      return;
+    }
+    if (price >= 49800) {
+      window.location.href = STRIPE_LINK_49800;
+      return;
+    }
+
+    // 29,800円はcreate-checkout-session（アフィリエイト追跡付き）
     setCheckoutLoading(true);
     try {
       const tracking = getTrackingData();
