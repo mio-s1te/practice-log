@@ -10,6 +10,9 @@ export function AffiliateLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // アイドルタイムアウトによる自動ログアウト通知
+  const isIdleLogout = searchParams.get('reason') === 'idle';
+
   useEffect(() => {
     // トークン自動検証
     const token = searchParams.get('token');
@@ -93,6 +96,14 @@ export function AffiliateLogin() {
             <h1 className="text-2xl font-bold text-gray-900">紹介者ログイン</h1>
             <p className="text-gray-500 text-sm mt-1">アフィリエイトダッシュボード</p>
           </div>
+
+          {/* アイドルタイムアウト通知 */}
+          {isIdleLogout && (
+            <div className="mb-5 flex items-start gap-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm">
+              <span className="text-lg leading-none mt-0.5">⏰</span>
+              <span>15分間操作がなかったため、自動的にログアウトしました。再度ログインしてください。</span>
+            </div>
+          )}
 
           {sent ? (
             <div className="text-center space-y-4">

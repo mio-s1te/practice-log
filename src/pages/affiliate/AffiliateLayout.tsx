@@ -1,5 +1,5 @@
 // src/pages/affiliate/AffiliateLayout.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 
 const menuItems = [
@@ -8,16 +8,91 @@ const menuItems = [
   { path: '/affiliate/materials', icon: '📝', label: '紹介素材' },
 ];
 
+// アイドルタイムアウト：15分
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+// サーバーセッション延長：10分ごと（アクティブ中のみ）
+const SESSION_EXTEND_INTERVAL_MS = 10 * 60 * 1000;
+
 export function AffiliateLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showIdleWarning, setShowIdleWarning] = useState(false);
 
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const extendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ログアウト処理（アイドル・手動共通）
+  const handleLogout = useCallback((reason?: 'idle') => {
+    localStorage.removeItem('affiliate_session_token');
+    localStorage.removeItem('affiliate_id');
+    localStorage.removeItem('affiliate_name');
+    if (reason === 'idle') {
+      navigate('/affiliate/login?reason=idle');
+    } else {
+      navigate('/affiliate/login');
+    }
+  }, [navigate]);
+
+  // サーバー側セッション延長
+  const extendSession = useCallback(() => {
+    const token = localStorage.getItem('affiliate_session_token');
+    if (!token) return;
+    fetch('/api/affiliate-api/session/extend', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
+  }, []);
+
+  // アイドルタイマーリセット
+  const resetIdleTimer = useCallback(() => {
+    // 警告を非表示
+    setShowIdleWarning(false);
+
+    // 既存タイマークリア
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+
+    // 残り1分（14分後）に警告表示
+    warningTimerRef.current = setTimeout(() => {
+      setShowIdleWarning(true);
+    }, IDLE_TIMEOUT_MS - 60 * 1000);
+
+    // 15分後にログアウト
+    idleTimerRef.current = setTimeout(() => {
+      handleLogout('idle');
+    }, IDLE_TIMEOUT_MS);
+  }, [handleLogout]);
+
+  // アイドル検知イベント登録 & セッション延長インターバル
   useEffect(() => {
     const token = localStorage.getItem('affiliate_session_token');
     if (!token) { navigate('/affiliate/login'); return; }
-    // 未読通知取得
+
+    // 初回タイマー開始
+    resetIdleTimer();
+
+    // アクティビティイベント
+    const events = ['mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'pointerdown'];
+    events.forEach(ev => window.addEventListener(ev, resetIdleTimer, { passive: true }));
+
+    // サーバーセッション延長インターバル
+    extendIntervalRef.current = setInterval(extendSession, SESSION_EXTEND_INTERVAL_MS);
+
+    return () => {
+      events.forEach(ev => window.removeEventListener(ev, resetIdleTimer));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+      if (extendIntervalRef.current) clearInterval(extendIntervalRef.current);
+    };
+  }, [navigate, resetIdleTimer, extendSession]);
+
+  // 未読通知取得
+  useEffect(() => {
+    const token = localStorage.getItem('affiliate_session_token');
+    if (!token) return;
     fetch('/api/affiliate-api/notifications', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -26,13 +101,29 @@ export function AffiliateLayout() {
       .catch(() => {});
   }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('affiliate_session_token');
-    navigate('/affiliate/login');
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 flex">
+
+      {/* アイドルタイムアウト警告モーダル */}
+      {showIdleWarning && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 mx-4 max-w-sm w-full text-center">
+            <div className="text-4xl mb-3">⏰</div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">まもなく自動ログアウトします</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              操作がない状態が続いています。<br />
+              <span className="font-semibold text-orange-600">1分後</span>に自動的にログアウトします。
+            </p>
+            <button
+              onClick={resetIdleTimer}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+            >
+              続けて使用する
+            </button>
+          </div>
+        </div>
+      )}
+
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 lg:static lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="h-full flex flex-col">
           <div className="p-4 border-b border-gray-200">
