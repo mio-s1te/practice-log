@@ -125,7 +125,8 @@ export function LiffSeminar() {
           product_id: productId,
           line_user_id: lineUserId,
           click_id: clickId || tracking.clickId,
-          affiliate_id: null, // サーバー側でaffiliate_codeから取得
+          affiliate_code: ref || tracking.ref || null,  // affiliate_codeを渡す → サーバー側で解決
+          affiliate_id: null,
           campaign_id: campaignId || tracking.campaignId,
           lead_id: leadId,
         }),

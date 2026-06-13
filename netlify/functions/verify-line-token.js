@@ -179,23 +179,60 @@ exports.handler = async (event) => {
     }
 
     // アトリビューションイベント保存（LINE登録）
-    // 注意: LINE userIdと紹介者を固定で紐づけない
-    // 報酬判定は購入ごと、商品ごと、キャンペーンごとに行う
+    // - product_id が指定されている場合は商品別に保存（複数商品の混在を防ぐ）
+    // - product_id がない場合は汎用イベントとして保存（後続の checkout で product_id=null を参照）
+    // - 同じ line_user_id + affiliate_id + product_id の組み合わせは upsert で更新（expires_at を延長）
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    await supabase.from('attribution_events').insert({
-      lead_id: leadId,
-      line_user_id: lineUserId,
-      affiliate_id: affiliateId,
-      affiliate_code,
-      campaign_id: campaign_id || null,
-      product_id: product_id || null,
-      click_id: click_id || null,
-      source: source || 'liff',
-      medium: 'line',
-      event_type: 'line_register',
-      expires_at: expiresAt,
-    });
+    if (affiliateId) {
+      // affiliate あり: upsert で有効期限を延長しつつ最新の click_id を保持
+      await supabase.from('attribution_events').upsert({
+        lead_id: leadId,
+        line_user_id: lineUserId,
+        affiliate_id: affiliateId,
+        affiliate_code,
+        campaign_id: campaign_id || null,
+        product_id: product_id || null,
+        click_id: click_id || null,
+        source: source || 'liff',
+        medium: 'line',
+        event_type: 'line_register',
+        expires_at: expiresAt,
+      }, {
+        onConflict: 'line_user_id,affiliate_id,product_id',
+        ignoreDuplicates: false,
+      }).catch(async () => {
+        // upsert が失敗した場合（ユニーク制約なし等）は通常の insert にフォールバック
+        await supabase.from('attribution_events').insert({
+          lead_id: leadId,
+          line_user_id: lineUserId,
+          affiliate_id: affiliateId,
+          affiliate_code,
+          campaign_id: campaign_id || null,
+          product_id: product_id || null,
+          click_id: click_id || null,
+          source: source || 'liff',
+          medium: 'line',
+          event_type: 'line_register',
+          expires_at: expiresAt,
+        });
+      });
+    } else {
+      // affiliate なし（直接登録）: 直接購入として記録
+      await supabase.from('attribution_events').insert({
+        lead_id: leadId,
+        line_user_id: lineUserId,
+        affiliate_id: null,
+        affiliate_code: null,
+        campaign_id: campaign_id || null,
+        product_id: product_id || null,
+        click_id: click_id || null,
+        source: source || 'liff',
+        medium: 'line',
+        event_type: 'line_register',
+        expires_at: expiresAt,
+      });
+    }
 
     // デイリー統計更新（紹介者のLINE登録数）
     if (affiliateId) {

@@ -107,18 +107,19 @@ export function LandingPageStartCourse() {
       const stripePriceId = priceInfo?.current_stripe_price_id ?? null;
 
       // 全価格帯をcreate-checkout-session経由にしてアフィリエイト追跡を維持
-      // 49,800円・99,800円はstripe_price_idをセットして渡す
+      // affiliate_code を渡す → サーバー側で affiliate_id に解決
+      // line_user_id を渡す → サーバー側で attribution_events から自動復元
       const res = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_id: PRODUCT_ID,
           campaign_id: tracking.campaignId || searchParams.get('campaign'),
-          affiliate_id: null,
+          affiliate_code: tracking.ref || searchParams.get('ref') || null,
+          affiliate_id: null,  // サーバー側で affiliate_code から解決
           click_id: tracking.clickId,
           line_user_id: localStorage.getItem('line_user_id') || null,
           lead_id: localStorage.getItem('lead_id') || null,
-          // 49,800円・99,800円はPrice IDを明示的に渡して価格帯を指定
           current_price: price,
           current_stripe_price_id: stripePriceId,
         }),

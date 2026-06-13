@@ -37,12 +37,17 @@ exports.handler = async (event) => {
     const {
       product_id,
       line_user_id,
-      click_id,
-      affiliate_id,
-      affiliate_code,
-      campaign_id,
       lead_id,
     } = body;
+
+    // --------------------------------------------------------
+    // 追跡情報: フロントから受け取った値をletで保持
+    // 後続の「自動復元ブロック」で上書きされる可能性がある
+    // --------------------------------------------------------
+    let click_id     = body.click_id     || null;
+    let affiliate_id = body.affiliate_id || null;
+    let affiliate_code = body.affiliate_code || null;
+    let campaign_id  = body.campaign_id  || null;
 
     if (!product_id) {
       return {
@@ -70,6 +75,94 @@ exports.handler = async (event) => {
         statusCode: 400,
         body: JSON.stringify({ error: 'Product is not available' }),
       };
+    }
+
+    // ============================================================
+    // 【追跡情報の自動復元】
+    //
+    // 優先順位:
+    //   1. フロントから affiliate_id が渡されている → そのまま使用
+    //   2. フロントから affiliate_code が渡されている → DBでIDに解決
+    //   3. line_user_id + product_id で attribution_events を検索
+    //      → LINE経由・クロスデバイス・後日購入を全て補足
+    //   4. click_id がある → attribution_events を click_id で検索
+    //
+    // 商品別追跡: product_id を条件に加えることで
+    //   「A商品はBさん経由、C商品は直接」を正確に分離する
+    // ============================================================
+
+    // Step1: affiliate_code → affiliate_id 解決
+    if (!affiliate_id && affiliate_code) {
+      const { data: affByCode } = await supabase
+        .from('affiliates')
+        .select('id')
+        .eq('affiliate_code', affiliate_code)
+        .eq('status', 'active')
+        .single();
+      if (affByCode) {
+        affiliate_id = affByCode.id;
+        console.log(`[tracking] affiliate_code "${affiliate_code}" → affiliate_id "${affiliate_id}"`);
+      }
+    }
+
+    // Step2: line_user_id + product_id で attribution_events を検索
+    //   affiliate_id がまだない場合 or click_id がない場合に復元を試みる
+    if (line_user_id && (!affiliate_id || !click_id)) {
+      const attrQuery = supabase
+        .from('attribution_events')
+        .select('id, affiliate_id, affiliate_code, campaign_id, click_id, expires_at')
+        .eq('line_user_id', line_user_id)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false });
+
+      // 商品IDが指定されていれば商品別に絞る（複数商品の混在を防ぐ）
+      // product_idが一致するものを優先し、なければ商品指定なしのものを使う
+      const { data: attrEventsForProduct } = await attrQuery
+        .eq('product_id', product_id)
+        .limit(1);
+
+      const { data: attrEventsAny } = await supabase
+        .from('attribution_events')
+        .select('id, affiliate_id, affiliate_code, campaign_id, click_id, expires_at')
+        .eq('line_user_id', line_user_id)
+        .is('product_id', null)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      // 商品別 → 商品指定なし の優先順位で復元
+      const bestAttrEvent =
+        (attrEventsForProduct && attrEventsForProduct.length > 0 ? attrEventsForProduct[0] : null) ||
+        (attrEventsAny && attrEventsAny.length > 0 ? attrEventsAny[0] : null);
+
+      if (bestAttrEvent) {
+        if (!affiliate_id && bestAttrEvent.affiliate_id) {
+          affiliate_id   = bestAttrEvent.affiliate_id;
+          affiliate_code = bestAttrEvent.affiliate_code || affiliate_code;
+          campaign_id    = campaign_id || bestAttrEvent.campaign_id;
+          click_id       = click_id   || bestAttrEvent.click_id;
+          console.log(`[tracking] Restored from attribution_events (line_user_id): affiliate_id="${affiliate_id}", product="${product_id}"`);
+        } else if (!click_id && bestAttrEvent.click_id) {
+          click_id    = bestAttrEvent.click_id;
+          campaign_id = campaign_id || bestAttrEvent.campaign_id;
+          console.log(`[tracking] Restored click_id from attribution_events: click_id="${click_id}"`);
+        }
+      }
+    }
+
+    // Step3: click_id はあるが affiliate_id がない → clicks テーブルから復元
+    if (click_id && !affiliate_id) {
+      const { data: clickRecord } = await supabase
+        .from('clicks')
+        .select('affiliate_id, affiliate_code, campaign_id')
+        .eq('id', click_id)
+        .single();
+      if (clickRecord?.affiliate_id) {
+        affiliate_id   = clickRecord.affiliate_id;
+        affiliate_code = clickRecord.affiliate_code || affiliate_code;
+        campaign_id    = campaign_id || clickRecord.campaign_id;
+        console.log(`[tracking] Restored from clicks table: affiliate_id="${affiliate_id}", click_id="${click_id}"`);
+      }
     }
 
     // --------------------------------------------------------

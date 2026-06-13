@@ -22,6 +22,8 @@ export function LandingPageMiniCourse() {
         body: JSON.stringify({
           product_id: 'a0000000-0000-0000-0000-000000000002',
           campaign_id: tracking.campaignId,
+          affiliate_code: tracking.ref || null,
+          affiliate_id: null,  // サーバー側で affiliate_code から解決
           click_id: tracking.clickId,
           line_user_id: localStorage.getItem('line_user_id') || null,
           lead_id: localStorage.getItem('lead_id') || null,
