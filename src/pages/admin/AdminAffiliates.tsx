@@ -18,13 +18,22 @@ export function AdminAffiliates() {
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState(false);
 
+  // 管理者トークン取得
+  const getAdminToken = () => sessionStorage.getItem('admin_token') || '';
+  const adminHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${getAdminToken()}`,
+  });
+
   useEffect(() => {
     fetchAffiliates();
   }, []);
 
   const fetchAffiliates = async () => {
     try {
-      const res = await fetch('/api/admin-api/affiliates');
+      const res = await fetch('/api/admin-api/affiliates', {
+        headers: { 'Authorization': `Bearer ${getAdminToken()}` },
+      });
       if (res.ok) setAffiliates(await res.json());
       else setDemoData();
     } catch { setDemoData(); }
@@ -58,7 +67,7 @@ export function AdminAffiliates() {
     try {
       const res = await fetch(`/api/admin-api/affiliates/${pwTarget.id}/set-password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders(),
         body: JSON.stringify({ password: newPassword }),
       });
       if (res.ok) {
@@ -86,7 +95,7 @@ export function AdminAffiliates() {
       const method = editAffiliate.id ? 'PUT' : 'POST';
       await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders(),
         body: JSON.stringify(editAffiliate),
       });
       await fetchAffiliates();
@@ -189,7 +198,7 @@ export function AdminAffiliates() {
                         const newStatus = affiliate.status === 'suspended' ? 'active' : 'suspended';
                         await fetch(`/api/admin-api/affiliates/${affiliate.id}`, {
                           method: 'PUT',
-                          headers: { 'Content-Type': 'application/json' },
+                          headers: adminHeaders(),
                           body: JSON.stringify({ status: newStatus }),
                         });
                         fetchAffiliates();

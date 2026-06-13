@@ -1228,7 +1228,7 @@ exports.handler = async (event) => {
       if (!password || password.length < 8) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'パスワードは8文字以上にしてください' }) };
       }
-      const hash = await bcrypt.hash(password, 12);
+      const hash = await bcrypt.hash(password, 10);
       const { error } = await supabase
         .from('affiliates')
         .update({ password_hash: hash })

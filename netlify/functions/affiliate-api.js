@@ -796,7 +796,7 @@ async function changePassword(affiliate, currentPassword, newPassword, headers) 
     }
   }
 
-  const hash = await bcrypt.hash(newPassword, 12);
+  const hash = await bcrypt.hash(newPassword, 10);
   await supabase
     .from('affiliates')
     .update({ password_hash: hash })
