@@ -175,6 +175,8 @@ export function AdminProducts() {
   const [pageTab, setPageTab] = useState<'list' | 'analytics'>('list');
   const [analytics, setAnalytics] = useState<ProductAnalytics[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  // 分析タブ用検索
+  const [analyticsSearch, setAnalyticsSearch] = useState('');
 
   // 段階価格モーダル
   const [tierModalOpen, setTierModalOpen] = useState(false);
@@ -609,42 +611,69 @@ export function AdminProducts() {
             <LoadingSpinner size="lg" />
           ) : (
             <>
-              {/* サマリーカード */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  {
-                    label: '総売上',
-                    value: `¥${analytics.reduce((s, a) => s + a.total_revenue, 0).toLocaleString()}`,
-                    icon: '💰', color: 'bg-green-50 border-green-200 text-green-700',
-                  },
-                  {
-                    label: '総購入数',
-                    value: `${analytics.reduce((s, a) => s + a.total_purchases, 0).toLocaleString()} 件`,
-                    icon: '🛒', color: 'bg-blue-50 border-blue-200 text-blue-700',
-                  },
-                  {
-                    label: '総クリック数',
-                    value: `${analytics.reduce((s, a) => s + a.total_clicks, 0).toLocaleString()} 回`,
-                    icon: '👆', color: 'bg-purple-50 border-purple-200 text-purple-700',
-                  },
-                  {
-                    label: '平均成約率',
-                    value: analytics.length > 0
-                      ? `${(analytics.reduce((s, a) => s + a.conversion_rate, 0) / analytics.length).toFixed(1)}%`
-                      : '—',
-                    icon: '📈', color: 'bg-orange-50 border-orange-200 text-orange-700',
-                  },
-                ].map(card => (
-                  <div key={card.label} className={`border rounded-2xl p-4 ${card.color}`}>
-                    <p className="text-2xl mb-1">{card.icon}</p>
-                    <p className="text-xs font-medium opacity-70">{card.label}</p>
-                    <p className="text-lg font-bold">{card.value}</p>
+              {/* サマリーカード（検索フィルター適用後の値） */}
+              {(() => {
+                const filteredAnalytics = analytics.filter(a => {
+                  if (!analyticsSearch) return true;
+                  const p = products.find(p => p.id === a.product_id);
+                  return p?.name.toLowerCase().includes(analyticsSearch.toLowerCase());
+                });
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      {
+                        label: analyticsSearch ? '絞込み売上' : '総売上',
+                        value: `¥${filteredAnalytics.reduce((s, a) => s + a.total_revenue, 0).toLocaleString()}`,
+                        icon: '💰', color: 'bg-green-50 border-green-200 text-green-700',
+                      },
+                      {
+                        label: analyticsSearch ? '絞込み購入数' : '総購入数',
+                        value: `${filteredAnalytics.reduce((s, a) => s + a.total_purchases, 0).toLocaleString()} 件`,
+                        icon: '🛒', color: 'bg-blue-50 border-blue-200 text-blue-700',
+                      },
+                      {
+                        label: analyticsSearch ? '絞込みクリック' : '総クリック数',
+                        value: `${filteredAnalytics.reduce((s, a) => s + a.total_clicks, 0).toLocaleString()} 回`,
+                        icon: '👆', color: 'bg-purple-50 border-purple-200 text-purple-700',
+                      },
+                      {
+                        label: '平均成約率',
+                        value: filteredAnalytics.length > 0
+                          ? `${(filteredAnalytics.reduce((s, a) => s + a.conversion_rate, 0) / filteredAnalytics.length).toFixed(1)}%`
+                          : '—',
+                        icon: '📈', color: 'bg-orange-50 border-orange-200 text-orange-700',
+                      },
+                    ].map(card => (
+                      <div key={card.label} className={`border rounded-2xl p-4 ${card.color}`}>
+                        <p className="text-2xl mb-1">{card.icon}</p>
+                        <p className="text-xs font-medium opacity-70">{card.label}</p>
+                        <p className="text-lg font-bold">{card.value}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
 
               {/* 商品別分析テーブル */}
               <div className="table-container">
+                {/* 分析タブ内検索バー */}
+                <div className="p-3 border-b border-gray-100">
+                  <input
+                    type="text"
+                    value={analyticsSearch}
+                    onChange={e => setAnalyticsSearch(e.target.value)}
+                    placeholder="🔍 商品名で絞り込み"
+                    className="w-full md:w-72 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                  {analyticsSearch && (
+                    <button
+                      onClick={() => setAnalyticsSearch('')}
+                      className="ml-2 text-xs text-gray-400 hover:text-gray-600"
+                    >
+                      ✕ クリア
+                    </button>
+                  )}
+                </div>
                 <table className="table">
                   <thead className="table-header">
                     <tr>
@@ -658,7 +687,12 @@ export function AdminProducts() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {products.map(product => {
+                    {products
+                      .filter(p =>
+                        !analyticsSearch ||
+                        p.name.toLowerCase().includes(analyticsSearch.toLowerCase())
+                      )
+                      .map(product => {
                       const a = analytics.find(x => x.product_id === product.id);
                       return (
                         <tr key={product.id} className="table-row">
@@ -693,8 +727,13 @@ export function AdminProducts() {
                         </tr>
                       );
                     })}
-                    {products.length === 0 && (
-                      <tr><td colSpan={7} className="table-td text-center text-gray-400 py-8">商品がありません</td></tr>
+                    {products.filter(p =>
+                      !analyticsSearch ||
+                      p.name.toLowerCase().includes(analyticsSearch.toLowerCase())
+                    ).length === 0 && (
+                      <tr><td colSpan={7} className="table-td text-center text-gray-400 py-8">
+                        {analyticsSearch ? `"${analyticsSearch}" に一致する商品がありません` : '商品がありません'}
+                      </td></tr>
                     )}
                   </tbody>
                 </table>

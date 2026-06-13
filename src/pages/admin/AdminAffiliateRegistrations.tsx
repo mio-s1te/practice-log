@@ -135,7 +135,7 @@ export function AdminAffiliateRegistrations() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">アフィリエイター登録申請</h1>
-          <p className="text-sm text-gray-500 mt-0.5">スタート講座購入者からの申請を審査します</p>
+          <p className="text-sm text-gray-500 mt-0.5">講座購入者からの申請を確認します（購入済みは自動承認）</p>
         </div>
         {pendingCount > 0 && (
           <span className="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">
@@ -198,7 +198,7 @@ export function AdminAffiliateRegistrations() {
                 </p>
                 {reg.start_course_verified && (
                   <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded mt-1 inline-block">
-                    ✓ スタート講座確認済み
+                    ✓ 講座購入確認済み
                   </span>
                 )}
               </button>
@@ -227,17 +227,20 @@ export function AdminAffiliateRegistrations() {
 
               {/* 購入確認 */}
               <div className={`flex items-center gap-3 rounded-xl p-3 ${
-                selected.start_course_verified ? 'bg-green-50' : 'bg-red-50'
+                selected.start_course_verified ? 'bg-green-50' : 'bg-yellow-50'
               }`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  selected.start_course_verified ? 'bg-green-500' : 'bg-red-400'
+                  selected.start_course_verified ? 'bg-green-500' : 'bg-yellow-400'
                 }`}>
-                  <span className="text-white text-sm">{selected.start_course_verified ? '✓' : '✕'}</span>
+                  <span className="text-white text-sm">{selected.start_course_verified ? '✓' : '？'}</span>
                 </div>
                 <div>
-                  <p className={`text-sm font-semibold ${selected.start_course_verified ? 'text-green-800' : 'text-red-800'}`}>
-                    スタート講座購入: {selected.start_course_verified ? '確認済み' : '未確認'}
+                  <p className={`text-sm font-semibold ${selected.start_course_verified ? 'text-green-800' : 'text-yellow-800'}`}>
+                    スタート講座購入: {selected.start_course_verified ? '確認済み' : '未確認（アフィリエイト講座購入の可能性）'}
                   </p>
+                  {!selected.start_course_verified && (
+                    <p className="text-xs text-yellow-600 mt-0.5">アフィリエイト講座購入者でも申請可能です</p>
+                  )}
                 </div>
               </div>
 
