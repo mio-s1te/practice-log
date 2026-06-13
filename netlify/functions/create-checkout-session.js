@@ -3,6 +3,7 @@
 
 const Stripe = require('stripe');
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2023-10-16',
@@ -10,7 +11,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { realtime: { transport: ws } }
 );
 
 const SITE_URL = process.env.SITE_URL || 'https://localhost:3000';

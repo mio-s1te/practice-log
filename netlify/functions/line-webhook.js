@@ -15,10 +15,12 @@
 
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { realtime: { transport: ws } }
 );
 
 const SITE_URL = process.env.SITE_URL || 'https://localhost:3000';

@@ -6,10 +6,12 @@
 // 購入を確認した上でleadsテーブルに購入者LINE情報を紐づける
 
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { realtime: { transport: ws } }
 );
 
 // 購入者LINE の LIFF チャンネルID

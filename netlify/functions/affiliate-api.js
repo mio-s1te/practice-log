@@ -2,6 +2,7 @@
 // 紹介者API
 
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
@@ -54,7 +55,8 @@ async function sendEmail({ to, subject, html, text }) {
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { realtime: { transport: ws } }
 );
 
 // セッション有効期限 (秒)

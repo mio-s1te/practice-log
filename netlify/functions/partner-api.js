@@ -19,11 +19,13 @@
 //   GET  /partner-api/notices        購入者向けお知らせ履歴
 
 const { createClient } = require('@supabase/supabase-js');
+const ws = require('ws');
 const crypto = require('crypto');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  { realtime: { transport: ws } }
 );
 
 const CORS_HEADERS = {
