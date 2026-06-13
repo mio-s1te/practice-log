@@ -328,8 +328,8 @@ export function PartnerDashboard() {
           <h1 className="text-xl font-bold text-gray-900">ダッシュボード</h1>
           <p className="text-sm text-gray-500 mt-0.5">自分の商品データのみ表示されます</p>
         </div>
-        {/* 商品切り替え */}
-        {products.length > 1 && (
+        {/* 商品切り替え：1件でも常に表示 */}
+        {products.length > 0 && (
           <select
             value={selectedProductId}
             onChange={e => setSelectedProductId(e.target.value)}
@@ -432,24 +432,24 @@ export function PartnerDashboard() {
                   sub={`支払済: ${fmtMoney(kpi.paid_commission)}`} />
               </div>
 
-              {/* 財務サマリー */}
-              <SectionCard title="財務サマリー" icon="💰">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* 販売内訳サマリー */}
+              <SectionCard title="販売内訳" icon="📊">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="bg-green-50 rounded-xl p-3 text-center">
                     <p className="text-xs text-gray-500 mb-1">総売上</p>
                     <p className="text-base font-extrabold text-green-700">{fmtMoney(kpi.total_revenue)}</p>
                   </div>
-                  <div className="bg-red-50 rounded-xl p-3 text-center">
-                    <p className="text-xs text-gray-500 mb-1">Stripe手数料 (3.6%)</p>
-                    <p className="text-base font-extrabold text-red-600">-{fmtMoney(kpi.stripe_fee)}</p>
-                  </div>
                   <div className="bg-orange-50 rounded-xl p-3 text-center">
-                    <p className="text-xs text-gray-500 mb-1">報酬発生額</p>
-                    <p className="text-base font-extrabold text-orange-700">-{fmtMoney(kpi.total_commission)}</p>
+                    <p className="text-xs text-gray-500 mb-1">報酬発生額（累計）</p>
+                    <p className="text-base font-extrabold text-orange-700">{fmtMoney(kpi.total_commission)}</p>
                   </div>
-                  <div className="bg-purple-50 rounded-xl p-3 text-center border-2 border-purple-200">
-                    <p className="text-xs text-gray-500 mb-1">手元残り見込み</p>
-                    <p className="text-base font-extrabold text-purple-700">{fmtMoney(kpi.net_remaining)}</p>
+                  <div className="bg-blue-50 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500 mb-1">支払済み報酬</p>
+                    <p className="text-base font-extrabold text-blue-700">{fmtMoney(kpi.paid_commission)}</p>
+                  </div>
+                  <div className="bg-yellow-50 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500 mb-1">未払い報酬</p>
+                    <p className="text-base font-extrabold text-yellow-700">{fmtMoney(kpi.unconfirmed_commission)}</p>
                   </div>
                 </div>
               </SectionCard>
@@ -489,7 +489,6 @@ export function PartnerDashboard() {
                     { label: 'アフィリエイト経由売上', value: fmtMoney(productDetail.affiliate_revenue), color: 'bg-blue-50 text-blue-700' },
                     { label: '直接売上', value: fmtMoney(productDetail.direct_revenue), color: 'bg-indigo-50 text-indigo-700' },
                     { label: '報酬発生額', value: fmtMoney(productDetail.commission_amount), color: 'bg-orange-50 text-orange-700' },
-                    { label: '手元残り見込み', value: fmtMoney(productDetail.net_remaining), color: 'bg-purple-50 text-purple-700' },
                     { label: '紹介者数', value: `${productDetail.affiliates}人`, color: 'bg-pink-50 text-pink-700' },
                     { label: '返金率', value: productDetail.total_sales > 0 ? `${((productDetail.refunds / productDetail.total_sales) * 100).toFixed(1)}%` : '0%', color: 'bg-red-50 text-red-600' },
                   ].map(item => (
