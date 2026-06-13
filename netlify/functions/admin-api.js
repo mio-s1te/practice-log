@@ -2,6 +2,7 @@
 // 管理者API (CRUD操作)
 
 const { createClient } = require('@supabase/supabase-js');
+const bcrypt = require('bcryptjs');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -1168,6 +1169,33 @@ exports.handler = async (event) => {
       const { data, error } = await supabase.from('promo_assets').update(body).eq('id', id).select().single();
       if (error) throw error;
       return { statusCode: 200, headers, body: JSON.stringify(data) };
+    }
+
+    // ★ アフィリエイターのパスワード設定（管理者）
+    if (path.match(/^\/affiliates\/[^/]+\/set-password$/) && method === 'POST') {
+      const affiliateId = path.split('/')[2];
+      const { password } = JSON.parse(event.body || '{}');
+      if (!password || password.length < 8) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'パスワードは8文字以上にしてください' }) };
+      }
+      const hash = await bcrypt.hash(password, 12);
+      const { error } = await supabase
+        .from('affiliates')
+        .update({ password_hash: hash })
+        .eq('id', affiliateId);
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+    }
+
+    // ★ アフィリエイターのパスワードリセット（管理者：パスワード削除→Magic Linkのみに戻す）
+    if (path.match(/^\/affiliates\/[^/]+\/reset-password$/) && method === 'POST') {
+      const affiliateId = path.split('/')[2];
+      const { error } = await supabase
+        .from('affiliates')
+        .update({ password_hash: null })
+        .eq('id', affiliateId);
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
     return {

@@ -10,6 +10,13 @@ export function AdminAffiliates() {
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editAffiliate, setEditAffiliate] = useState<any>({});
+  // パスワード設定モーダル
+  const [pwModalOpen, setPwModalOpen] = useState(false);
+  const [pwTarget, setPwTarget] = useState<any>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState(false);
 
   useEffect(() => {
     fetchAffiliates();
@@ -41,6 +48,38 @@ export function AdminAffiliates() {
     a.affiliate_code?.includes(search)
   );
 
+  const handleSetPassword = async () => {
+    if (!newPassword || newPassword.length < 8) {
+      setPwError('パスワードは8文字以上にしてください');
+      return;
+    }
+    setPwLoading(true);
+    setPwError('');
+    try {
+      const res = await fetch(`/api/admin-api/affiliates/${pwTarget.id}/set-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      if (res.ok) {
+        setPwSuccess(true);
+        setTimeout(() => {
+          setPwModalOpen(false);
+          setPwSuccess(false);
+          setNewPassword('');
+          setPwTarget(null);
+        }, 1500);
+      } else {
+        const d = await res.json();
+        setPwError(d.error || '設定に失敗しました');
+      }
+    } catch {
+      setPwError('ネットワークエラーが発生しました');
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     try {
       const url = editAffiliate.id ? `/api/admin-api/affiliates/${editAffiliate.id}` : '/api/admin-api/affiliates';
@@ -54,8 +93,6 @@ export function AdminAffiliates() {
       setModalOpen(false);
     } catch {}
   };
-
-  if (loading) return <LoadingSpinner size="lg" />;
 
   return (
     <div className="space-y-4">
@@ -134,12 +171,18 @@ export function AdminAffiliates() {
                   {new Date(affiliate.registered_at).toLocaleDateString('ja-JP')}
                 </td>
                 <td className="table-td">
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 flex-wrap">
                     <button
                       onClick={() => { setEditAffiliate(affiliate); setModalOpen(true); }}
                       className="text-xs btn-secondary py-1 px-2"
                     >
                       編集
+                    </button>
+                    <button
+                      onClick={() => { setPwTarget(affiliate); setNewPassword(''); setPwError(''); setPwSuccess(false); setPwModalOpen(true); }}
+                      className="text-xs py-1 px-2 rounded-xl font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    >
+                      PW設定
                     </button>
                     <button
                       onClick={async () => {
@@ -224,6 +267,45 @@ export function AdminAffiliates() {
             <button onClick={() => setModalOpen(false)} className="btn-secondary flex-1">キャンセル</button>
             <button onClick={handleSave} className="btn-primary flex-1">保存</button>
           </div>
+        </div>
+      </Modal>
+
+      {/* パスワード設定モーダル */}
+      <Modal isOpen={pwModalOpen} onClose={() => { setPwModalOpen(false); setNewPassword(''); setPwError(''); setPwSuccess(false); }} title="パスワード設定">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            <span className="font-semibold text-gray-900">{pwTarget?.name}</span>（{pwTarget?.email}）のログインパスワードを設定します。
+          </p>
+          {pwSuccess ? (
+            <div className="flex items-center gap-2 bg-green-50 text-green-700 px-4 py-3 rounded-xl text-sm font-medium">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              パスワードを設定しました
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">新しいパスワード <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="input-field font-mono"
+                  placeholder="8文字以上"
+                  autoComplete="new-password"
+                />
+                <p className="text-xs text-gray-400 mt-1">設定後、アフィリエイターにパスワードをお知らせください</p>
+              </div>
+              {pwError && <div className="bg-red-50 text-red-700 px-3 py-2 rounded-xl text-sm">{pwError}</div>}
+              <div className="flex gap-2">
+                <button onClick={() => { setPwModalOpen(false); setNewPassword(''); setPwError(''); }} className="btn-secondary flex-1">キャンセル</button>
+                <button onClick={handleSetPassword} disabled={pwLoading} className="btn-primary flex-1">
+                  {pwLoading ? '設定中...' : '設定する'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </div>

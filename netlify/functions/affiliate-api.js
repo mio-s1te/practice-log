@@ -3,6 +3,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -46,6 +47,12 @@ exports.handler = async (event) => {
     if (path === '/login/verify' && method === 'POST') {
       const { token } = JSON.parse(event.body || '{}');
       return await verifyLoginToken(token, headers);
+    }
+
+    // ★ パスワードログイン
+    if (path === '/login/password' && method === 'POST') {
+      const { email, password } = JSON.parse(event.body || '{}');
+      return await loginWithPassword(email, password, headers);
     }
 
     // セッション延長
@@ -481,6 +488,12 @@ exports.handler = async (event) => {
       return await getProductDetail(affiliate, productId, headers);
     }
 
+    // ★ 自分のパスワード変更（ログイン中のアフィリエイター本人）
+    if (path === '/account/password' && method === 'POST') {
+      const { current_password, new_password } = JSON.parse(event.body || '{}');
+      return await changePassword(affiliate, current_password, new_password, headers);
+    }
+
     return {
       statusCode: 404,
       headers,
@@ -633,6 +646,89 @@ async function extendSession(token, headers) {
     .eq('id', affiliate.id);
 
   return { statusCode: 200, headers, body: JSON.stringify({ extended: true }) };
+}
+
+// ============================================================
+// ★ パスワードログイン
+// ============================================================
+async function loginWithPassword(email, password, headers) {
+  if (!email || !password) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'メールアドレスとパスワードを入力してください' }) };
+  }
+
+  const { data: affiliate } = await supabase
+    .from('affiliates')
+    .select('id, name, email, status, password_hash, affiliate_code')
+    .eq('email', email.toLowerCase().trim())
+    .single();
+
+  // セキュリティ：存在しない場合も同じエラーを返す
+  if (!affiliate || !affiliate.password_hash) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'メールアドレスまたはパスワードが正しくありません' }) };
+  }
+
+  if (affiliate.status === 'suspended') {
+    return { statusCode: 403, headers, body: JSON.stringify({ error: 'アカウントが停止されています' }) };
+  }
+
+  const match = await bcrypt.compare(password, affiliate.password_hash);
+  if (!match) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'メールアドレスまたはパスワードが正しくありません' }) };
+  }
+
+  // セッション発行
+  const sessionToken = crypto.randomBytes(48).toString('hex');
+  const sessionExpiresAt = new Date(Date.now() + SESSION_EXPIRE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const absoluteExpiresAt = new Date(Date.now() + SESSION_ABSOLUTE_EXPIRE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  await supabase
+    .from('affiliates')
+    .update({
+      session_token: sessionToken,
+      session_expires_at: sessionExpiresAt,
+      session_absolute_expires_at: absoluteExpiresAt,
+      last_login_at: new Date().toISOString(),
+    })
+    .eq('id', affiliate.id);
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      session_token: sessionToken,
+      affiliate_id: affiliate.id,
+      name: affiliate.name,
+      affiliate_code: affiliate.affiliate_code,
+    }),
+  };
+}
+
+// ============================================================
+// ★ 自分のパスワード変更（ログイン中の本人）
+// ============================================================
+async function changePassword(affiliate, currentPassword, newPassword, headers) {
+  if (!newPassword || newPassword.length < 8) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'パスワードは8文字以上にしてください' }) };
+  }
+
+  // 現在のパスワードが設定されている場合は照合
+  if (affiliate.password_hash) {
+    if (!currentPassword) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: '現在のパスワードを入力してください' }) };
+    }
+    const match = await bcrypt.compare(currentPassword, affiliate.password_hash);
+    if (!match) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: '現在のパスワードが正しくありません' }) };
+    }
+  }
+
+  const hash = await bcrypt.hash(newPassword, 12);
+  await supabase
+    .from('affiliates')
+    .update({ password_hash: hash })
+    .eq('id', affiliate.id);
+
+  return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
 }
 
 async function getDashboard(affiliate, headers) {
