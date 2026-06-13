@@ -979,7 +979,7 @@ async function handleAnalyticsDashboard(user, productId, params) {
   const netRemaining      = revenue - totalCommission - stripeFee;
 
   // 日別集計
-  const dailyMap: Record<string, { revenue: number; sales: number; commission: number }> = {};
+  const dailyMap = {};
   for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
     const key = d.toISOString().split('T')[0];
     dailyMap[key] = { revenue: 0, sales: 0, commission: 0 };
@@ -1035,7 +1035,7 @@ async function handleAnalyticsGraph(user, productId, params) {
   const completed = (purchases || []).filter(p => p.status === 'completed');
 
   // 週別
-  const weeklyMap: Record<string, { revenue: number; sales: number }> = {};
+  const weeklyMap = {};
   for (const p of completed) {
     const d = new Date(p.purchased_at);
     const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
@@ -1047,7 +1047,7 @@ async function handleAnalyticsGraph(user, productId, params) {
   const weekly_data = Object.entries(weeklyMap).sort(([a], [b]) => a.localeCompare(b)).map(([week, v]) => ({ week, ...v }));
 
   // 月別
-  const monthlyMap: Record<string, { revenue: number; sales: number }> = {};
+  const monthlyMap = {};
   for (const p of completed) {
     const key = p.purchased_at.slice(0, 7);
     if (!monthlyMap[key]) monthlyMap[key] = { revenue: 0, sales: 0 };
@@ -1090,7 +1090,7 @@ async function handleAnalyticsAffiliates(user, productId, params) {
     .lte('created_at', end + 'T23:59:59.999Z');
 
   // 紹介者IDでグループ化
-  const affMap: Record<string, any> = {};
+  const affMap = {};
   for (const p of (purchases || [])) {
     if (!p.affiliate_id) continue;
     if (!affMap[p.affiliate_id]) affMap[p.affiliate_id] = { affiliate_id: p.affiliate_id, affiliate_name: p.affiliate_name || '—', clicks: 0, conversions: 0, revenue: 0, commission: 0, refunds: 0 };
@@ -1106,10 +1106,10 @@ async function handleAnalyticsAffiliates(user, productId, params) {
     if (c.affiliate_id && affMap[c.affiliate_id]) affMap[c.affiliate_id].commission += c.amount || 0;
   }
 
-  const affiliates = Object.values(affMap).map((a: any) => ({
+  const affiliates = Object.values(affMap).map((a) => ({
     ...a,
     conversion_rate: a.clicks > 0 ? (a.conversions / a.clicks) : 0,
-  })).sort((a: any, b: any) => b.revenue - a.revenue);
+  })).sort((a, b) => b.revenue - a.revenue);
 
   return ok({ affiliates });
 }
