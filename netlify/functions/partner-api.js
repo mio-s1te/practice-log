@@ -128,6 +128,29 @@ exports.handler = async (event) => {
       return handleNotices(user, params);
     }
 
+    // ============================================================
+    // 分析系エンドポイント（AdminDashboard同等）
+    // ============================================================
+    const analyticsDashMatch = path.match(/^\/products\/([^/]+)\/analytics\/dashboard$/);
+    if (analyticsDashMatch && method === 'GET') {
+      return handleAnalyticsDashboard(user, analyticsDashMatch[1], params);
+    }
+
+    const analyticsGraphMatch = path.match(/^\/products\/([^/]+)\/analytics\/graph$/);
+    if (analyticsGraphMatch && method === 'GET') {
+      return handleAnalyticsGraph(user, analyticsGraphMatch[1], params);
+    }
+
+    const analyticsAffiliatesMatch = path.match(/^\/products\/([^/]+)\/analytics\/affiliates$/);
+    if (analyticsAffiliatesMatch && method === 'GET') {
+      return handleAnalyticsAffiliates(user, analyticsAffiliatesMatch[1], params);
+    }
+
+    const analyticsProductMatch = path.match(/^\/products\/([^/]+)\/analytics\/product$/);
+    if (analyticsProductMatch && method === 'GET') {
+      return handleAnalyticsProduct(user, analyticsProductMatch[1], params);
+    }
+
     return err('Not Found', 404);
   } catch (e) {
     console.error('partner-api error:', e);
@@ -881,4 +904,278 @@ async function getPermissions(userId, productId) {
     can_submit_price_request: false,
     can_submit_notice_request: false,
   };
+}
+
+// ============================================================
+// 分析: ダッシュボード KPI + 日別/週別/月別
+// ============================================================
+async function handleAnalyticsDashboard(user, productId, params) {
+  if (!await hasProductAccess(user.id, productId)) return err('Forbidden', 403);
+
+  const start = params.start || new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0];
+  const end   = params.end   || new Date().toISOString().split('T')[0];
+  const startISO = start + 'T00:00:00.000Z';
+  const endISO   = end   + 'T23:59:59.999Z';
+
+  // 全購入（期間内）
+  const { data: purchases } = await supabase
+    .from('purchases')
+    .select('id,status,amount_total,purchase_source,purchased_at,affiliate_id')
+    .eq('product_id', productId)
+    .gte('purchased_at', startISO)
+    .lte('purchased_at', endISO);
+
+  // 前期間（比較用）
+  const rangeDays = Math.ceil((new Date(end) - new Date(start)) / 86400000) + 1;
+  const prevEnd   = new Date(new Date(start) - 86400000).toISOString().split('T')[0];
+  const prevStart = new Date(new Date(start) - rangeDays * 86400000).toISOString().split('T')[0];
+  const { data: prevPurchases } = await supabase
+    .from('purchases')
+    .select('id,status,amount_total,purchase_source')
+    .eq('product_id', productId)
+    .gte('purchased_at', prevStart + 'T00:00:00.000Z')
+    .lte('purchased_at', prevEnd + 'T23:59:59.999Z');
+
+  // クリック数
+  const { count: clicks } = await supabase
+    .from('clicks')
+    .select('id', { count: 'exact', head: true })
+    .eq('product_id', productId)
+    .gte('created_at', startISO)
+    .lte('created_at', endISO);
+  const { count: prevClicks } = await supabase
+    .from('clicks')
+    .select('id', { count: 'exact', head: true })
+    .eq('product_id', productId)
+    .gte('created_at', prevStart + 'T00:00:00.000Z')
+    .lte('created_at', prevEnd + 'T23:59:59.999Z');
+
+  // コミッション
+  const { data: commissions } = await supabase
+    .from('commissions')
+    .select('amount,status')
+    .eq('product_id', productId)
+    .gte('created_at', startISO)
+    .lte('created_at', endISO);
+
+  const ps = purchases || [];
+  const prev = prevPurchases || [];
+
+  const completed     = ps.filter(p => p.status === 'completed');
+  const prevCompleted = prev.filter(p => p.status === 'completed');
+  const refunded      = ps.filter(p => p.status === 'refunded');
+
+  const revenue     = completed.reduce((s, p) => s + (p.amount_total || 0), 0);
+  const prevRevenue = prevCompleted.reduce((s, p) => s + (p.amount_total || 0), 0);
+  const sales       = completed.length;
+  const prevSales   = prevCompleted.length;
+  const convRate    = (clicks || 0) > 0 ? sales / (clicks || 1) : 0;
+  const prevConvRate = (prevClicks || 0) > 0 ? prevSales / (prevClicks || 1) : 0;
+
+  const totalCommission   = (commissions || []).reduce((s, c) => s + (c.amount || 0), 0);
+  const paidCommission    = (commissions || []).filter(c => c.status === 'paid').reduce((s, c) => s + (c.amount || 0), 0);
+  const pendingCommission = totalCommission - paidCommission;
+  const stripeFee         = Math.floor(revenue * 0.036);
+  const netRemaining      = revenue - totalCommission - stripeFee;
+
+  // 日別集計
+  const dailyMap: Record<string, { revenue: number; sales: number; commission: number }> = {};
+  for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
+    const key = d.toISOString().split('T')[0];
+    dailyMap[key] = { revenue: 0, sales: 0, commission: 0 };
+  }
+  for (const p of completed) {
+    const key = p.purchased_at.split('T')[0];
+    if (dailyMap[key]) { dailyMap[key].revenue += p.amount_total || 0; dailyMap[key].sales += 1; }
+  }
+  for (const c of (commissions || [])) {
+    const key = (c.created_at || '').split('T')[0];
+    if (dailyMap[key]) dailyMap[key].commission += c.amount || 0;
+  }
+  const daily_data = Object.entries(dailyMap).map(([date, v]) => ({ date, ...v }));
+
+  return ok({
+    kpi: {
+      total_revenue: revenue, prev_revenue: prevRevenue,
+      total_sales: sales, prev_sales: prevSales,
+      refunds: refunded.length, cancels: 0,
+      clicks: clicks || 0, prev_clicks: prevClicks || 0,
+      conversions: sales, prev_conversions: prevSales,
+      conversion_rate: convRate, prev_conversion_rate: prevConvRate,
+      total_commission: totalCommission, prev_total_commission: 0,
+      unconfirmed_commission: pendingCommission,
+      confirmed_commission: 0,
+      paid_commission: paidCommission,
+      stripe_fee: stripeFee,
+      affiliate_commission: totalCommission,
+      refund_reserve: Math.floor(revenue * 0.05),
+      net_remaining: netRemaining,
+      stripe_fee_pct: 0.036,
+    },
+    daily_data,
+  });
+}
+
+// ============================================================
+// 分析: グラフ（週別・月別）
+// ============================================================
+async function handleAnalyticsGraph(user, productId, params) {
+  if (!await hasProductAccess(user.id, productId)) return err('Forbidden', 403);
+
+  const start = params.start || new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0];
+  const end   = params.end   || new Date().toISOString().split('T')[0];
+
+  const { data: purchases } = await supabase
+    .from('purchases')
+    .select('id,status,amount_total,purchased_at')
+    .eq('product_id', productId)
+    .gte('purchased_at', start + 'T00:00:00.000Z')
+    .lte('purchased_at', end + 'T23:59:59.999Z');
+
+  const completed = (purchases || []).filter(p => p.status === 'completed');
+
+  // 週別
+  const weeklyMap: Record<string, { revenue: number; sales: number }> = {};
+  for (const p of completed) {
+    const d = new Date(p.purchased_at);
+    const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const key = mon.toISOString().split('T')[0];
+    if (!weeklyMap[key]) weeklyMap[key] = { revenue: 0, sales: 0 };
+    weeklyMap[key].revenue += p.amount_total || 0;
+    weeklyMap[key].sales += 1;
+  }
+  const weekly_data = Object.entries(weeklyMap).sort(([a], [b]) => a.localeCompare(b)).map(([week, v]) => ({ week, ...v }));
+
+  // 月別
+  const monthlyMap: Record<string, { revenue: number; sales: number }> = {};
+  for (const p of completed) {
+    const key = p.purchased_at.slice(0, 7);
+    if (!monthlyMap[key]) monthlyMap[key] = { revenue: 0, sales: 0 };
+    monthlyMap[key].revenue += p.amount_total || 0;
+    monthlyMap[key].sales += 1;
+  }
+  const monthly_data = Object.entries(monthlyMap).sort(([a], [b]) => a.localeCompare(b)).map(([month, v]) => ({ month, ...v }));
+
+  return ok({ weekly_data, monthly_data });
+}
+
+// ============================================================
+// 分析: 紹介者別（期間対応）
+// ============================================================
+async function handleAnalyticsAffiliates(user, productId, params) {
+  if (!await hasProductAccess(user.id, productId)) return err('Forbidden', 403);
+
+  const start = params.start || new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0];
+  const end   = params.end   || new Date().toISOString().split('T')[0];
+
+  const { data: purchases } = await supabase
+    .from('purchases')
+    .select('id,status,amount_total,affiliate_id,affiliate_name,purchased_at')
+    .eq('product_id', productId)
+    .gte('purchased_at', start + 'T00:00:00.000Z')
+    .lte('purchased_at', end + 'T23:59:59.999Z');
+
+  const { data: clicks } = await supabase
+    .from('clicks')
+    .select('affiliate_id,id')
+    .eq('product_id', productId)
+    .gte('created_at', start + 'T00:00:00.000Z')
+    .lte('created_at', end + 'T23:59:59.999Z');
+
+  const { data: commissions } = await supabase
+    .from('commissions')
+    .select('affiliate_id,amount,status')
+    .eq('product_id', productId)
+    .gte('created_at', start + 'T00:00:00.000Z')
+    .lte('created_at', end + 'T23:59:59.999Z');
+
+  // 紹介者IDでグループ化
+  const affMap: Record<string, any> = {};
+  for (const p of (purchases || [])) {
+    if (!p.affiliate_id) continue;
+    if (!affMap[p.affiliate_id]) affMap[p.affiliate_id] = { affiliate_id: p.affiliate_id, affiliate_name: p.affiliate_name || '—', clicks: 0, conversions: 0, revenue: 0, commission: 0, refunds: 0 };
+    if (p.status === 'completed') { affMap[p.affiliate_id].conversions++; affMap[p.affiliate_id].revenue += p.amount_total || 0; }
+    if (p.status === 'refunded') affMap[p.affiliate_id].refunds++;
+  }
+  for (const c of (clicks || [])) {
+    if (!c.affiliate_id) continue;
+    if (!affMap[c.affiliate_id]) affMap[c.affiliate_id] = { affiliate_id: c.affiliate_id, affiliate_name: '—', clicks: 0, conversions: 0, revenue: 0, commission: 0, refunds: 0 };
+    affMap[c.affiliate_id].clicks++;
+  }
+  for (const c of (commissions || [])) {
+    if (c.affiliate_id && affMap[c.affiliate_id]) affMap[c.affiliate_id].commission += c.amount || 0;
+  }
+
+  const affiliates = Object.values(affMap).map((a: any) => ({
+    ...a,
+    conversion_rate: a.clicks > 0 ? (a.conversions / a.clicks) : 0,
+  })).sort((a: any, b: any) => b.revenue - a.revenue);
+
+  return ok({ affiliates });
+}
+
+// ============================================================
+// 分析: 商品詳細（自商品の詳細指標）
+// ============================================================
+async function handleAnalyticsProduct(user, productId, params) {
+  if (!await hasProductAccess(user.id, productId)) return err('Forbidden', 403);
+
+  const start = params.start || new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0];
+  const end   = params.end   || new Date().toISOString().split('T')[0];
+  const startISO = start + 'T00:00:00.000Z';
+  const endISO   = end   + 'T23:59:59.999Z';
+
+  const { data: product } = await supabase.from('products').select('*').eq('id', productId).single();
+  const { data: purchases } = await supabase.from('purchases').select('id,status,amount_total,purchase_source,purchased_at,affiliate_id').eq('product_id', productId).gte('purchased_at', startISO).lte('purchased_at', endISO);
+  const { count: clicks } = await supabase.from('clicks').select('id', { count: 'exact', head: true }).eq('product_id', productId).gte('created_at', startISO).lte('created_at', endISO);
+  const { data: commissions } = await supabase.from('commissions').select('amount,status').eq('product_id', productId).gte('created_at', startISO).lte('created_at', endISO);
+  const { count: uniqueAffiliates } = await supabase.from('purchases').select('affiliate_id', { count: 'exact', head: true }).eq('product_id', productId).not('affiliate_id', 'is', null).eq('status', 'completed');
+
+  const ps = purchases || [];
+  const completed   = ps.filter(p => p.status === 'completed');
+  const refunded    = ps.filter(p => p.status === 'refunded');
+  const affSales    = completed.filter(p => p.purchase_source === 'affiliate');
+  const directSales = completed.filter(p => p.purchase_source !== 'affiliate');
+  const revenue         = completed.reduce((s, p) => s + (p.amount_total || 0), 0);
+  const affRevenue      = affSales.reduce((s, p) => s + (p.amount_total || 0), 0);
+  const directRevenue   = directSales.reduce((s, p) => s + (p.amount_total || 0), 0);
+  const commissionTotal = (commissions || []).reduce((s, c) => s + (c.amount || 0), 0);
+  const netRemaining    = revenue - commissionTotal - Math.floor(revenue * 0.036);
+  const convRate        = (clicks || 0) > 0 ? completed.length / (clicks || 1) : 0;
+
+  // スコア計算
+  const saleScore       = Math.min(100, (completed.length / 10) * 100);
+  const convScore       = Math.min(100, convRate * 100 * 10);
+  const affScore        = Math.min(100, ((uniqueAffiliates || 0) / 5) * 100);
+  const refundRisk      = refunded.length > 0 ? Math.max(0, 100 - (refunded.length / ps.length) * 1000) : 100;
+  const growthScore     = 50;
+
+  return ok({
+    product: {
+      product_id: productId,
+      product_name: product?.name || '',
+      lp_url: product?.lp_url || '',
+      price: product?.price || 0,
+      total_sales: ps.length,
+      valid_sales: completed.length,
+      refunds: refunded.length,
+      cancels: 0,
+      revenue,
+      net_remaining: netRemaining,
+      affiliate_revenue: affRevenue,
+      direct_revenue: directRevenue,
+      commission_amount: commissionTotal,
+      conversion_rate: convRate,
+      clicks: clicks || 0,
+      affiliates: uniqueAffiliates || 0,
+      active_affiliates: uniqueAffiliates || 0,
+      scores: {
+        sale_power: Math.round(saleScore),
+        conversion: Math.round(convScore),
+        affiliate_friendliness: Math.round(affScore),
+        refund_risk: Math.round(refundRisk),
+        growth_potential: growthScore,
+      },
+    },
+  });
 }
