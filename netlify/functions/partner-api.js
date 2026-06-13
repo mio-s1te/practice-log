@@ -193,12 +193,60 @@ async function handleLogin(event) {
     last_login_at: new Date().toISOString(),
   }).eq('id', user.id);
 
-  // 担当商品一覧も取得
+  // ============================================================
+  // 担当商品一覧を取得
+  // ① product_owners に紐づいた商品（管理者が手動で紐づけたもの）
+  // ② アフィリエイター紹介実績がある商品（紹介を始めたら自動表示）
+  //    ※ パートナーのメールアドレスとアフィリエイターのメールアドレスが一致する場合
+  // ============================================================
   const { data: ownedProducts } = await supabase
     .from('product_owners')
     .select('product_id, permission_level, status, products(id,name,price,status)')
     .eq('user_id', user.id)
     .eq('status', 'active');
+
+  // 紹介実績がある商品（affiliatesテーブルとcommissionsテーブルから）
+  const { data: affiliateRecord } = await supabase
+    .from('affiliates')
+    .select('id')
+    .eq('email', user.email)
+    .eq('status', 'active')
+    .single();
+
+  let referredProductIds = new Set((ownedProducts || []).map(p => p.product_id));
+  const referredProducts = [];
+
+  if (affiliateRecord) {
+    // このアフィリエイターが紹介した購入の商品を取得
+    const { data: referredPurchases } = await supabase
+      .from('purchases')
+      .select('product_id, products(id,name,price,status)')
+      .eq('affiliate_id', affiliateRecord.id)
+      .eq('status', 'completed')
+      .not('product_id', 'is', null);
+
+    for (const p of (referredPurchases || [])) {
+      if (!referredProductIds.has(p.product_id) && p.products) {
+        referredProductIds.add(p.product_id);
+        referredProducts.push({
+          product_id: p.product_id,
+          permission_level: 'viewer',  // 紹介実績ベースはviewerのみ
+          source: 'affiliate_activity', // 紹介実績由来
+          product: p.products,
+        });
+      }
+    }
+  }
+
+  const allProducts = [
+    ...(ownedProducts || []).map(p => ({
+      product_id: p.product_id,
+      permission_level: p.permission_level,
+      source: 'assigned',  // 管理者が手動紐づけ
+      product: p.products,
+    })),
+    ...referredProducts,
+  ];
 
   return ok({
     token: sessionToken,
@@ -209,11 +257,8 @@ async function handleLogin(event) {
       role: user.role,
       display_name: user.display_name,
     },
-    products: (ownedProducts || []).map(p => ({
-      product_id: p.product_id,
-      permission_level: p.permission_level,
-      product: p.products,
-    })),
+    products: allProducts,
+    has_products: allProducts.length > 0,
   });
 }
 
@@ -235,7 +280,39 @@ async function handleMe(user) {
     .eq('user_id', user.id)
     .eq('status', 'active');
 
-  return ok({ user, products: owned || [] });
+  // 紹介実績がある商品も追加
+  const { data: affiliateRecord } = await supabase
+    .from('affiliates')
+    .select('id')
+    .eq('email', user.email)
+    .eq('status', 'active')
+    .single();
+
+  const assignedIds = new Set((owned || []).map(o => o.product_id));
+  const referredProducts = [];
+
+  if (affiliateRecord) {
+    const { data: referredPurchases } = await supabase
+      .from('purchases')
+      .select('product_id, products(id,name,description,price,status,lp_url)')
+      .eq('affiliate_id', affiliateRecord.id)
+      .eq('status', 'completed')
+      .not('product_id', 'is', null);
+
+    for (const p of (referredPurchases || [])) {
+      if (!assignedIds.has(p.product_id) && p.products) {
+        assignedIds.add(p.product_id);
+        referredProducts.push({
+          product_id: p.product_id,
+          permission_level: 'viewer',
+          source: 'affiliate_activity',
+          products: p.products,
+        });
+      }
+    }
+  }
+
+  return ok({ user, products: [...(owned || []).map(o => ({ ...o, source: 'assigned' })), ...referredProducts] });
 }
 
 // ============================================================
@@ -731,14 +808,47 @@ async function handleNotices(user, params) {
 // ユーティリティ
 // ============================================================
 async function hasProductAccess(userId, productId) {
-  const { data } = await supabase
+  // ① 管理者が手動で紐づけた場合
+  const { data: assigned } = await supabase
     .from('product_owners')
     .select('id')
     .eq('user_id', userId)
     .eq('product_id', productId)
     .eq('status', 'active')
     .single();
-  return !!data;
+
+  if (assigned) return true;
+
+  // ② アフィリエイター紹介実績がある場合（同メールのアフィリエイターとして）
+  const { data: appUser } = await supabase
+    .from('app_users')
+    .select('email')
+    .eq('id', userId)
+    .single();
+
+  if (appUser?.email) {
+    const { data: affiliateRecord } = await supabase
+      .from('affiliates')
+      .select('id')
+      .eq('email', appUser.email)
+      .eq('status', 'active')
+      .single();
+
+    if (affiliateRecord) {
+      const { data: referredPurchase } = await supabase
+        .from('purchases')
+        .select('id')
+        .eq('affiliate_id', affiliateRecord.id)
+        .eq('product_id', productId)
+        .eq('status', 'completed')
+        .limit(1)
+        .single();
+
+      if (referredPurchase) return true;
+    }
+  }
+
+  return false;
 }
 
 async function getPermissions(userId, productId) {

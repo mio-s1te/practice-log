@@ -58,7 +58,7 @@ exports.handler = async (event) => {
     // アフィリエイター登録フロー（認証不要）
     // ======================================================
 
-    // スタート講座購入確認
+    // 購入確認（affiliate_enabled な全商品を動的に参照）
     if (path === '/register/verify-purchase' && method === 'POST') {
       const { email } = JSON.parse(event.body || '{}');
       if (!email) {
@@ -103,22 +103,19 @@ exports.handler = async (event) => {
         };
       }
 
-      // スタート講座 / アフィリエイト講座 どちらか購入済みかチェック
-      const START_COURSE_ID    = 'a0000000-0000-0000-0000-000000000001';
-      const AFFILIATE_COURSE_ID = 'a0000000-0000-0000-0000-000000000002';
+      // ============================================================
+      // affiliate_enabled = true の全商品を動的に取得
+      // → どれか1つでも購入済みなら申請可能
+      // ============================================================
+      const { data: affiliateProducts } = await supabase
+        .from('products')
+        .select('id, name')
+        .eq('affiliate_enabled', true)
+        .eq('status', 'active');
 
-      const { data: purchases } = await supabase
-        .from('purchases')
-        .select('id, buyer_line_display_name, product_id, status')
-        .eq('buyer_email', email)
-        .in('product_id', [START_COURSE_ID, AFFILIATE_COURSE_ID])
-        .eq('status', 'completed')
-        .order('purchased_at', { ascending: false });
+      const affiliateProductIds = (affiliateProducts || []).map(p => p.id);
 
-      const startPurchase     = (purchases || []).find(p => p.product_id === START_COURSE_ID);
-      const affiliatePurchase = (purchases || []).find(p => p.product_id === AFFILIATE_COURSE_ID);
-
-      if (!startPurchase && !affiliatePurchase) {
+      if (affiliateProductIds.length === 0) {
         return {
           statusCode: 200,
           headers,
@@ -126,8 +123,28 @@ exports.handler = async (event) => {
         };
       }
 
-      // 代表購入（名前取得用）: スタート講座優先
-      const repPurchase = startPurchase || affiliatePurchase;
+      // このメールで購入済みの対象商品を全取得
+      const { data: purchases } = await supabase
+        .from('purchases')
+        .select('id, buyer_line_display_name, product_id, status')
+        .eq('buyer_email', email)
+        .in('product_id', affiliateProductIds)
+        .eq('status', 'completed')
+        .order('purchased_at', { ascending: false });
+
+      if (!purchases || purchases.length === 0) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ verified: false }),
+        };
+      }
+
+      // 代表購入（最初の1件）
+      const repPurchase = purchases[0];
+
+      // 購入済み商品IDセット
+      const purchasedProductIds = purchases.map(p => p.product_id);
 
       return {
         statusCode: 200,
@@ -136,10 +153,12 @@ exports.handler = async (event) => {
           verified: true,
           purchase_id: repPurchase.id,
           buyer_name: repPurchase.buyer_line_display_name || '',
-          has_start_course: !!startPurchase,
-          has_affiliate_course: !!affiliatePurchase,
-          start_course_purchase_id: startPurchase?.id || null,
-          affiliate_course_purchase_id: affiliatePurchase?.id || null,
+          purchased_product_ids: purchasedProductIds,
+          // 後方互換（フロントが has_start_course を参照している場合用）
+          has_start_course: purchasedProductIds.includes('a0000000-0000-0000-0000-000000000001'),
+          has_affiliate_course: purchasedProductIds.includes('a0000000-0000-0000-0000-000000000002'),
+          start_course_purchase_id: purchases.find(p => p.product_id === 'a0000000-0000-0000-0000-000000000001')?.id || null,
+          affiliate_course_purchase_id: purchases.find(p => p.product_id === 'a0000000-0000-0000-0000-000000000002')?.id || null,
         }),
       };
     }
@@ -149,30 +168,41 @@ exports.handler = async (event) => {
       const {
         email, name, sns_url, promotion_channel, motivation,
         agreed_to_rules,
-        start_course_purchase_id, affiliate_course_purchase_id,
       } = JSON.parse(event.body || '{}');
 
       if (!email || !name || !promotion_channel || !motivation || !agreed_to_rules) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: '必須項目が不足しています' }) };
       }
 
-      // 購入を再確認（スタート講座・アフィリエイト講座どちらか）
-      const START_COURSE_ID     = 'a0000000-0000-0000-0000-000000000001';
-      const AFFILIATE_COURSE_ID = 'a0000000-0000-0000-0000-000000000002';
+      // ============================================================
+      // affiliate_enabled = true の全商品を動的に取得して購入を再確認
+      // ============================================================
+      const { data: affiliateProducts } = await supabase
+        .from('products')
+        .select('id, name')
+        .eq('affiliate_enabled', true)
+        .eq('status', 'active');
+
+      const affiliateProductIds = (affiliateProducts || []).map(p => p.id);
 
       const { data: purchases } = await supabase
         .from('purchases')
         .select('id, product_id')
         .eq('buyer_email', email)
-        .in('product_id', [START_COURSE_ID, AFFILIATE_COURSE_ID])
+        .in('product_id', affiliateProductIds)
         .eq('status', 'completed');
 
-      const hasStart     = (purchases || []).some(p => p.product_id === START_COURSE_ID);
-      const hasAffiliate = (purchases || []).some(p => p.product_id === AFFILIATE_COURSE_ID);
+      const purchasedProductIds = (purchases || []).map(p => p.product_id);
+      // ユニーク化（同一商品の重複購入対策）
+      const uniquePurchasedIds = [...new Set(purchasedProductIds)];
 
-      if (!hasStart && !hasAffiliate) {
+      if (uniquePurchasedIds.length === 0) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: '対象講座の購入が確認できませんでした' }) };
       }
+
+      // 後方互換フラグ
+      const hasStart     = uniquePurchasedIds.includes('a0000000-0000-0000-0000-000000000001');
+      const hasAffiliate = uniquePurchasedIds.includes('a0000000-0000-0000-0000-000000000002');
 
       // affiliate_registrations に記録（審査不要・自動承認）
       const { data: reg, error: regErr } = await supabase
@@ -184,7 +214,7 @@ exports.handler = async (event) => {
           promotion_channel,
           motivation,
           agreed_to_rules: true,
-          start_course_purchase_id: start_course_purchase_id || null,
+          start_course_purchase_id: purchases?.find(p => p.product_id === 'a0000000-0000-0000-0000-000000000001')?.id || null,
           start_course_verified: hasStart,
           status: 'approved', // 自動承認
         })
@@ -204,7 +234,7 @@ exports.handler = async (event) => {
           email,
           affiliate_code: affiliateCode,
           status: 'active',
-          approved_at: new Date().toISOString(), // 自動承認日時をセット
+          approved_at: new Date().toISOString(),
           sns_url: sns_url || null,
           promotion_channel,
           start_course_purchased: hasStart,
@@ -214,7 +244,6 @@ exports.handler = async (event) => {
         .single();
 
       if (affiliateErr) {
-        // affiliates 作成失敗時は registrations の status を pending に戻す（ロールバック相当）
         await supabase
           .from('affiliate_registrations')
           .update({ status: 'pending' })
@@ -223,40 +252,33 @@ exports.handler = async (event) => {
       }
 
       // ============================================================
-      // 購入済み商品に対して product_affiliate_permissions を自動登録
-      // スタート講座購入 → スタート講座の紹介を許可
-      // アフィリエイト講座購入 → アフィリエイト講座の紹介を許可
-      // 両方購入 → 両方を許可
+      // 購入済みの全商品に product_affiliate_permissions を自動登録
+      // ・購入した商品 → 必ず紹介を許可（is_explicitly_granted: true）
+      // ・その他の商品 → 管理者が個別 or デフォルトルールで制御
       // ============================================================
-      const permInserts = [];
-      if (hasStart) {
-        permInserts.push({
-          product_id: START_COURSE_ID,
+      const permInserts = uniquePurchasedIds.map(productId => {
+        const productName = (affiliateProducts || []).find(p => p.id === productId)?.name || productId;
+        return {
+          product_id: productId,
           affiliate_id: newAffiliate.id,
           access_level: 'requires_purchase',
           is_explicitly_granted: true,
           granted_by: 'auto_registration',
           granted_at: new Date().toISOString(),
-          notes: 'スタート講座購入による自動許可',
-        });
-      }
-      if (hasAffiliate) {
-        permInserts.push({
-          product_id: AFFILIATE_COURSE_ID,
-          affiliate_id: newAffiliate.id,
-          access_level: 'requires_purchase',
-          is_explicitly_granted: true,
-          granted_by: 'auto_registration',
-          granted_at: new Date().toISOString(),
-          notes: 'アフィリエイト講座購入による自動許可',
-        });
-      }
+          notes: `${productName}購入による自動許可`,
+        };
+      });
 
       if (permInserts.length > 0) {
         await supabase
           .from('product_affiliate_permissions')
           .upsert(permInserts, { onConflict: 'product_id,affiliate_id' });
       }
+
+      // 購入済み商品名リスト（レスポンス用）
+      const grantedProductNames = uniquePurchasedIds.map(id =>
+        (affiliateProducts || []).find(p => p.id === id)?.name || id
+      );
 
       return {
         statusCode: 201,
@@ -266,10 +288,7 @@ exports.handler = async (event) => {
           id: reg.id,
           affiliate_id: newAffiliate.id,
           affiliate_code: affiliateCode,
-          granted_products: [
-            ...(hasStart     ? ['スタート講座'] : []),
-            ...(hasAffiliate ? ['アフィリエイト講座'] : []),
-          ],
+          granted_products: grantedProductNames,
         }),
       };
     }

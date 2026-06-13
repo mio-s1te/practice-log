@@ -95,7 +95,7 @@ export function PartnerLogin() {
 
           <div className="mt-6 p-4 bg-purple-50 rounded-xl text-sm text-purple-700">
             <p className="font-medium mb-1">📋 パートナー管理画面について</p>
-            <p>自分に紐づいた商品のデータのみ閲覧できます。価格変更・報酬変更は申請制です。</p>
+            <p>自分に紐づいた商品・紹介実績がある商品のデータのみ閲覧できます。価格変更・報酬変更は申請制です。</p>
           </div>
         </div>
       </div>

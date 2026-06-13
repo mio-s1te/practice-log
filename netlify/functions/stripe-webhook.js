@@ -339,6 +339,55 @@ async function handleCheckoutCompleted(session) {
     await checkAndSwitchPriceTier(product_id, purchase.id);
   }
 
+  // ============================================================
+  // 既存アフィリエイターが新しい講座を購入した場合、
+  // product_affiliate_permissions に自動付与
+  // （affiliate_enabled = true の商品のみ対象）
+  // ============================================================
+  if (buyerEmail && product_id) {
+    try {
+      // 購入した商品がアフィリエイト対象か確認
+      const { data: boughtProduct } = await supabase
+        .from('products')
+        .select('id, name, affiliate_enabled')
+        .eq('id', product_id)
+        .eq('affiliate_enabled', true)
+        .single();
+
+      if (boughtProduct) {
+        // 購入者がアフィリエイター登録済みか確認
+        const { data: existingAffiliate } = await supabase
+          .from('affiliates')
+          .select('id')
+          .eq('email', buyerEmail)
+          .eq('status', 'active')
+          .single();
+
+        if (existingAffiliate) {
+          // 権限を自動付与（既に存在する場合はupsertで上書き）
+          await supabase
+            .from('product_affiliate_permissions')
+            .upsert({
+              product_id,
+              affiliate_id: existingAffiliate.id,
+              access_level: 'requires_purchase',
+              is_explicitly_granted: true,
+              granted_by: 'auto_purchase',
+              granted_at: new Date().toISOString(),
+              revoked_at: null,
+              notes: `${boughtProduct.name}購入による自動権限付与`,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'product_id,affiliate_id' });
+
+          console.log(`[stripe-webhook] auto-granted affiliate permission: affiliate=${existingAffiliate.id}, product=${product_id}`);
+        }
+      }
+    } catch (e) {
+      // 権限付与失敗は購入処理全体を止めない
+      console.error('[stripe-webhook] auto-grant permission error:', e);
+    }
+  }
+
   // デイリー統計更新
   if (affiliate_id && affiliate_id !== '') {
     const today = new Date().toISOString().split('T')[0];

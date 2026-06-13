@@ -144,8 +144,8 @@ export function PartnerDashboard() {
         )}
 
         {products.length === 0 && (
-          <div className="text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-xl">
-            表示できる商品がありません
+          <div className="text-sm text-gray-500 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl">
+            📦 まだ紹介実績がありません。紹介を開始すると、この商品のデータがここに表示されます。
           </div>
         )}
       </div>
@@ -154,7 +154,7 @@ export function PartnerDashboard() {
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-800">
         <p className="font-medium mb-1">🔒 表示範囲について</p>
         <p className="text-xs leading-relaxed">
-          このページには、<strong>あなたが担当する商品のデータのみ</strong>表示されます。<br />
+          このページには、<strong>あなたが担当する商品・紹介実績がある商品のデータのみ</strong>表示されます。<br />
           他の商品・全体売上・全アフィリエイター一覧・システム設定は表示されません。
         </p>
       </div>
