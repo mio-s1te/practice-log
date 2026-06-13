@@ -19,6 +19,7 @@ export function AffiliateLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showIdleWarning, setShowIdleWarning] = useState(false);
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
 
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,7 +90,7 @@ export function AffiliateLayout() {
     };
   }, [navigate, resetIdleTimer, extendSession]);
 
-  // 未読通知取得
+  // 未読通知 & パスワード設定状態取得
   useEffect(() => {
     const token = localStorage.getItem('affiliate_session_token');
     if (!token) return;
@@ -98,6 +99,14 @@ export function AffiliateLayout() {
     })
       .then(r => r.ok ? r.json() : { unreadCount: 0 })
       .then(data => setUnreadCount(data.unreadCount || 0))
+      .catch(() => {});
+
+    // パスワード未設定かどうかを確認
+    fetch('/api/affiliate-api/profile', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setHasPassword(!!data.has_password); })
       .catch(() => {});
   }, [navigate]);
 
@@ -121,6 +130,22 @@ export function AffiliateLayout() {
               続けて使用する
             </button>
           </div>
+        </div>
+      )}
+
+      {/* パスワード未設定バナー（プロフィールページ以外で表示） */}
+      {hasPassword === false && !location.pathname.includes('/affiliate/profile') && (
+        <div className="fixed top-0 left-0 right-0 z-[90] bg-amber-500 text-white px-4 py-2 flex items-center justify-between gap-2 text-sm">
+          <div className="flex items-center gap-2">
+            <span>🔑</span>
+            <span className="font-medium">パスワードが未設定です。設定しておくとメール＋パスワードでログインできます。</span>
+          </div>
+          <Link
+            to="/affiliate/profile"
+            className="shrink-0 bg-white text-amber-700 font-semibold text-xs px-3 py-1 rounded-lg hover:bg-amber-50 transition-colors"
+          >
+            今すぐ設定
+          </Link>
         </div>
       )}
 

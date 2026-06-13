@@ -366,7 +366,13 @@ exports.handler = async (event) => {
 
     // プロフィール取得
     if (path === '/profile' && method === 'GET') {
-      return { statusCode: 200, headers, body: JSON.stringify(affiliate) };
+      // password_hash は返さず has_password フラグのみ付与
+      const { password_hash, ...safeAffiliate } = affiliate;
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ ...safeAffiliate, has_password: !!password_hash }),
+      };
     }
 
     // 振込先更新（要再認証）
