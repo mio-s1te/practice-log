@@ -54,12 +54,22 @@ exports.handler = async (event) => {
       const allowedEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
       const adminPassword = process.env.ADMIN_PASSWORD || '';
 
+      // デバッグログ（パスワード・トークンは伏せる）
+      console.log('[login] attempt:', {
+        email,
+        allowedEmails,
+        adminPasswordSet: adminPassword !== '',
+        adminSecretTokenSet: (process.env.ADMIN_SECRET_TOKEN || '') !== '',
+      });
+
       if (!email || !password) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'email and password required' }) };
       }
 
       const emailOk = allowedEmails.length > 0 && allowedEmails.includes(email);
       const passOk  = adminPassword !== '' && password === adminPassword;
+
+      console.log('[login] check:', { emailOk, passOk });
 
       if (!emailOk || !passOk) {
         // 総当たり対策: 失敗でも同じ時間待つ（200ms固定遅延）
@@ -69,6 +79,10 @@ exports.handler = async (event) => {
 
       // 成功: ADMIN_SECRET_TOKEN を返す
       const token = process.env.ADMIN_SECRET_TOKEN || '';
+      if (!token) {
+        console.error('[login] ADMIN_SECRET_TOKEN is not set!');
+        return { statusCode: 500, headers, body: JSON.stringify({ error: 'サーバー設定エラー: ADMIN_SECRET_TOKEN が未設定です' }) };
+      }
       return {
         statusCode: 200,
         headers,
