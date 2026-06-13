@@ -56,7 +56,7 @@ export function AffiliateRegister() {
         setForm((f) => ({ ...f, name: data.buyer_name || '' }));
         setStep('form');
       } else {
-        setError('スタート講座の購入が確認できませんでした。購入時のメールアドレスをご確認ください。');
+        setError('いずれかの講座の購入が確認できませんでした。購入時のメールアドレスをご確認ください。');
       }
     } catch {
       setError('ネットワークエラーが発生しました。');
@@ -247,9 +247,12 @@ export function AffiliateRegister() {
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
                   {error}
                   {error.includes('確認できません') && (
-                    <div className="mt-2 text-xs">
-                      <Link to="/start-course" className="text-red-600 underline font-semibold">
-                        スタート講座はこちら
+                    <div className="mt-2 text-xs space-y-1">
+                      <Link to="/start-course" className="block text-red-600 underline font-semibold">
+                        AI副業1時間化スタート講座はこちら
+                      </Link>
+                      <Link to="/affiliate-course" className="block text-red-600 underline font-semibold">
+                        AIアフィリエイト実践講座はこちら
                       </Link>
                     </div>
                   )}
@@ -264,12 +267,13 @@ export function AffiliateRegister() {
               </button>
             </form>
 
-            <div className="mt-6 pt-4 border-t border-gray-100 text-center">
-              <p className="text-xs text-gray-500">
-                スタート講座をまだお持ちでない方は
-              </p>
-              <Link to="/start-course" className="text-sm text-blue-600 font-semibold hover:underline">
+            <div className="mt-6 pt-4 border-t border-gray-100 text-center space-y-1">
+              <p className="text-xs text-gray-500">講座をまだお持ちでない方は</p>
+              <Link to="/start-course" className="block text-sm text-blue-600 font-semibold hover:underline">
                 AI副業1時間化スタート講座を購入する →
+              </Link>
+              <Link to="/affiliate-course" className="block text-sm text-blue-600 font-semibold hover:underline">
+                AIアフィリエイト実践講座を購入する →
               </Link>
             </div>
           </div>
@@ -279,15 +283,25 @@ export function AffiliateRegister() {
         {step === 'form' && verifyResult && (
           <div className="bg-white rounded-2xl shadow-sm p-6">
             {/* 購入確認完了 */}
-            <div className="flex items-center gap-3 bg-green-50 rounded-xl p-3 mb-6">
-              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
+            <div className="bg-green-50 rounded-xl p-3 mb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-green-800">講座の購入を確認しました</p>
+                  <p className="text-xs text-green-600">{email}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-green-800">スタート講座の購入を確認しました</p>
-                <p className="text-xs text-green-600">{email}</p>
+              <div className="flex flex-wrap gap-2 ml-11">
+                {verifyResult?.has_start_course && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ スタート講座</span>
+                )}
+                {verifyResult?.has_affiliate_course && (
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">✓ アフィリエイト講座</span>
+                )}
               </div>
             </div>
 
