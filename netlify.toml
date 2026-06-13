@@ -4,7 +4,7 @@
   functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "20"
 
 [[redirects]]
   from = "/api/*"
@@ -18,4 +18,4 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["stripe", "bcryptjs", "@supabase/supabase-js", "date-fns"]
+  external_node_modules = ["stripe", "bcryptjs", "@supabase/supabase-js", "date-fns", "ws"]
