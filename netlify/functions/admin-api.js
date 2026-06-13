@@ -1224,16 +1224,33 @@ exports.handler = async (event) => {
     // ★ アフィリエイターのパスワード設定（管理者）
     if (path.match(/^\/affiliates\/[^/]+\/set-password$/) && method === 'POST') {
       const affiliateId = path.split('/')[2];
-      const { password } = JSON.parse(event.body || '{}');
+      console.log('[set-password] affiliateId:', affiliateId);
+      let body;
+      try {
+        body = JSON.parse(event.body || '{}');
+      } catch (parseErr) {
+        console.error('[set-password] body parse error:', parseErr.message);
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'リクエスト形式が不正です' }) };
+      }
+      const { password } = body;
+      console.log('[set-password] password length:', password ? password.length : 'none');
       if (!password || password.length < 8) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'パスワードは8文字以上にしてください' }) };
       }
+      console.log('[set-password] hashing...');
       const hash = await bcrypt.hash(password, 10);
-      const { error } = await supabase
+      console.log('[set-password] hash done, updating supabase...');
+      const { data: updData, error: updError } = await supabase
         .from('affiliates')
         .update({ password_hash: hash })
-        .eq('id', affiliateId);
-      if (error) throw error;
+        .eq('id', affiliateId)
+        .select('id');
+      console.log('[set-password] supabase result:', { updData, updError });
+      if (updError) throw updError;
+      if (!updData || updData.length === 0) {
+        console.warn('[set-password] no rows updated for id:', affiliateId);
+        return { statusCode: 404, headers, body: JSON.stringify({ error: '紹介者が見つかりません（ID: ' + affiliateId + '）' }) };
+      }
       return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 

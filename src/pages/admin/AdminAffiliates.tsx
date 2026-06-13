@@ -80,7 +80,7 @@ export function AdminAffiliates() {
         }, 1500);
       } else {
         const d = await res.json();
-        setPwError(d.error || '設定に失敗しました');
+        setPwError(d.error || d.message || `設定に失敗しました (status: ${res.status})`);
       }
     } catch {
       setPwError('ネットワークエラーが発生しました');
