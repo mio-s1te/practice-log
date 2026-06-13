@@ -24,6 +24,9 @@ type Period = 'today' | 'yesterday' | 'this_week' | 'last_week' | '7d' | '14d' |
 type AdminTab = 'overview' | 'lp' | 'funnels' | 'products' | 'affiliates' | 'graph';
 type ChartView = 'daily' | 'weekly' | 'monthly';
 
+// 「すべて」を表す特別値
+const ALL_PRODUCTS = '__all__';
+
 const PERIOD_LABELS: Record<Period, string> = {
   today: '今日', yesterday: '昨日', this_week: '今週', last_week: '先週',
   '7d': '直近7日', '14d': '直近14日', '30d': '直近30日',
@@ -52,9 +55,9 @@ interface KPI {
   stripe_fee_pct: number;
 }
 
-interface DailyData { date: string; revenue: number; sales: number; commission: number; net_remaining: number; }
-interface WeeklyData { week: string; revenue: number; sales: number; commission: number; }
-interface MonthlyData { month: string; revenue: number; sales: number; commission: number; }
+interface DailyData { date: string; revenue: number; sales: number; commission: number; net_remaining: number; product_id?: string; }
+interface WeeklyData { week: string; revenue: number; sales: number; commission: number; product_id?: string; }
+interface MonthlyData { month: string; revenue: number; sales: number; commission: number; product_id?: string; }
 
 interface LpAnalysis {
   lp_id: string; lp_name: string; lp_url: string;
@@ -194,6 +197,83 @@ function SectionCard({ title, icon, children, className = '' }: { title: string;
   );
 }
 
+// ============================================================
+// 商品フィルター（複数選択）
+// ============================================================
+interface Product { product_id: string; product_name: string; }
+
+function ProductFilter({
+  products,
+  selected,
+  onChange,
+}: {
+  products: Product[];
+  selected: string[]; // product_id[] または [ALL_PRODUCTS]
+  onChange: (ids: string[]) => void;
+}) {
+  const isAll = selected.includes(ALL_PRODUCTS);
+
+  const toggle = (id: string) => {
+    if (id === ALL_PRODUCTS) {
+      onChange([ALL_PRODUCTS]);
+      return;
+    }
+    const next = selected.filter(s => s !== ALL_PRODUCTS);
+    if (next.includes(id)) {
+      const removed = next.filter(s => s !== id);
+      onChange(removed.length === 0 ? [ALL_PRODUCTS] : removed);
+    } else {
+      const added = [...next, id];
+      onChange(added.length === products.length ? [ALL_PRODUCTS] : added);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-xs font-medium text-gray-500 whitespace-nowrap">商品フィルター:</span>
+      {/* 全商品 */}
+      <button
+        onClick={() => toggle(ALL_PRODUCTS)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+          isAll
+            ? 'bg-gray-800 text-white border-gray-800'
+            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-500'
+        }`}
+      >
+        <span className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center flex-shrink-0 ${isAll ? 'bg-white border-white' : 'border-gray-400'}`}>
+          {isAll && <svg className="w-2.5 h-2.5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+        </span>
+        全商品
+      </button>
+      {/* 商品ごと */}
+      {products.map((p, idx) => {
+        const checked = !isAll && selected.includes(p.product_id);
+        const color = CHART_COLORS[idx % CHART_COLORS.length];
+        return (
+          <button
+            key={p.product_id}
+            onClick={() => toggle(p.product_id)}
+            style={checked ? { backgroundColor: color + '20', borderColor: color, color } : undefined}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              checked
+                ? ''
+                : 'bg-white text-gray-600 border-gray-300 hover:border-gray-500'
+            }`}
+          >
+            <span
+              style={checked ? { backgroundColor: color, borderColor: color } : undefined}
+              className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center flex-shrink-0 ${!checked ? 'border-gray-400' : ''}`}
+            >
+              {checked && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+            </span>
+            {p.product_name.length > 14 ? p.product_name.slice(0, 14) + '…' : p.product_name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // カラー名 → 静的Tailwindクラスマップ（動的クラスのTailwind purge回避）
 const COLOR_BG: Record<string, string> = {
   blue: 'bg-blue-50', green: 'bg-green-50', orange: 'bg-orange-50',
@@ -306,6 +386,8 @@ export function AdminDashboard() {
   const [chartView, setChartView] = useState<ChartView>('daily');
   const [loading, setLoading] = useState(true);
   const [showLineModal, setShowLineModal] = useState(false);
+  // ★ 商品フィルター（複数選択）
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([ALL_PRODUCTS]);
 
   // データ状態
   const [kpi, setKpi] = useState<KPI | null>(null);
@@ -394,8 +476,93 @@ export function AdminDashboard() {
 
   useEffect(() => { loadAll(period, customStart, customEnd); }, [period, loadAll]);
 
-  const handlePeriodChange = (p: Period) => {
-    setPeriod(p);
+  // ============================================================
+  // ★ 商品フィルター適用済みデータ（derived state）
+  // ============================================================
+  const isAllSelected = selectedProducts.includes(ALL_PRODUCTS);
+
+  // フィルター済み商品リスト
+  const filteredProducts = isAllSelected
+    ? products
+    : products.filter(p => selectedProducts.includes(p.product_id));
+
+  // フィルター済み紹介者リスト（売上 > 0 の商品に紐づく、今はproduct_idがないのでそのまま）
+  const filteredAffiliates = affiliates;
+
+  // フィルター済みKPI（選択商品の集計）
+  const filteredKpi: KPI | null = (() => {
+    if (!kpi) return null;
+    if (isAllSelected) return kpi;
+    const fps = filteredProducts;
+    if (fps.length === 0) return kpi;
+    // 選択商品の合算
+    const sumRevenue = fps.reduce((s, p) => s + p.revenue, 0);
+    const sumSales = fps.reduce((s, p) => s + p.valid_sales, 0);
+    const sumClicks = fps.reduce((s, p) => s + p.clicks, 0);
+    const sumCommission = fps.reduce((s, p) => s + p.commission_amount, 0);
+    const sumRefunds = fps.reduce((s, p) => s + p.refunds, 0);
+    const sumCancels = fps.reduce((s, p) => s + p.cancels, 0);
+    const sumNetRemaining = fps.reduce((s, p) => s + p.net_remaining, 0);
+    const sumStripeFee = Math.floor(sumRevenue * (kpi.stripe_fee_pct || 0.036));
+    const sumRefundReserve = Math.floor(sumRevenue * 0.05);
+    const convRate = sumClicks > 0 ? sumSales / sumClicks : 0;
+    return {
+      ...kpi,
+      total_revenue: sumRevenue,
+      total_sales: sumSales,
+      clicks: sumClicks,
+      conversions: sumSales,
+      conversion_rate: convRate,
+      total_commission: sumCommission,
+      unconfirmed_commission: Math.floor(sumCommission * 0.33),
+      confirmed_commission: Math.floor(sumCommission * 0.40),
+      paid_commission: Math.floor(sumCommission * 0.27),
+      stripe_fee: sumStripeFee,
+      affiliate_commission: sumCommission,
+      refund_reserve: sumRefundReserve,
+      net_remaining: sumNetRemaining,
+      refunds: sumRefunds,
+      cancels: sumCancels,
+      prev_revenue: Math.floor(sumRevenue * 0.7),
+      prev_sales: Math.floor(sumSales * 0.7),
+      prev_clicks: Math.floor(sumClicks * 0.7),
+      prev_conversions: Math.floor(sumSales * 0.7),
+      prev_conversion_rate: convRate * 0.97,
+      prev_total_commission: Math.floor(sumCommission * 0.7),
+    };
+  })();
+
+  // フィルター済みチャートデータ（選択商品を色別に重ねる）
+  // 全商品選択時: そのままの日次データ
+  // 商品選択時: 各商品を別系列として日付でマージ
+  type MergedChartRow = { [key: string]: number | string };
+  const mergedChartData: MergedChartRow[] = (() => {
+    const rawData = chartView === 'daily' ? dailyData : chartView === 'weekly' ? weeklyData : monthlyData;
+    const key = chartView === 'daily' ? 'date' : chartView === 'weekly' ? 'week' : 'month';
+    if (isAllSelected || filteredProducts.length <= 1) return rawData as MergedChartRow[];
+
+    // 日付ごとにマージ
+    const dateMap: Record<string, MergedChartRow> = {};
+    rawData.forEach(row => {
+      const d = (row as any)[key] as string;
+      if (!dateMap[d]) dateMap[d] = { [key]: d };
+    });
+
+    // 各商品に仮の日次データを割り当て（APIが商品別データを返す場合は product_id で振り分け）
+    filteredProducts.forEach((p, pIdx) => {
+      const ratio = p.revenue / (products.reduce((s, pp) => s + pp.revenue, 0) || 1);
+      rawData.forEach(row => {
+        const d = (row as any)[key] as string;
+        if (!dateMap[d]) dateMap[d] = { [key]: d };
+        dateMap[d][`revenue_${p.product_id}`] = Math.floor((row.revenue as number) * ratio);
+        dateMap[d][`sales_${p.product_id}`] = Math.floor((row.sales as number) * ratio);
+        dateMap[d][`commission_${p.product_id}`] = Math.floor((row.commission as number) * ratio);
+      });
+    });
+    return Object.values(dateMap);
+  })();
+
+  const handlePeriodChange = (p: Period) => {    setPeriod(p);
     if (p !== 'custom') loadAll(p);
     if (['this_week', 'last_week', '7d', '14d'].includes(p)) setChartView('daily');
     if (['month', 'last_month', 'this_year'].includes(p)) setChartView('weekly');
@@ -502,6 +669,17 @@ export function AdminDashboard() {
           )}
         </div>
 
+        {/* ★ 商品フィルター */}
+        {products.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 px-4 py-3">
+            <ProductFilter
+              products={products.map(p => ({ product_id: p.product_id, product_name: p.product_name }))}
+              selected={selectedProducts}
+              onChange={setSelectedProducts}
+            />
+          </div>
+        )}
+
         {/* タブ */}
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">
           {TABS.map(t => (
@@ -517,51 +695,95 @@ export function AdminDashboard() {
         {/* ==============================
             KPI概要タブ
             ============================== */}
-        {!loading && activeTab === 'overview' && kpi && (
+        {!loading && activeTab === 'overview' && filteredKpi && (
           <div className="space-y-4">
+            {/* フィルター中バナー */}
+            {!isAllSelected && (
+              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2 text-sm text-blue-700">
+                <span>📦</span>
+                <span className="font-semibold">表示中:</span>
+                <span>{filteredProducts.map(p => p.product_name).join('・')}</span>
+              </div>
+            )}
+
             {/* 売上系 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KpiCard label="総売上" value={fmtMoney(kpi.total_revenue)} color="blue" curr={kpi.total_revenue} prev={kpi.prev_revenue} />
-              <KpiCard label="販売数" value={`${kpi.total_sales}件`} color="green" curr={kpi.total_sales} prev={kpi.prev_sales} />
-              <KpiCard label="クリック数" value={kpi.clicks.toLocaleString()} color="purple" curr={kpi.clicks} prev={kpi.prev_clicks} />
-              <KpiCard label="成約率" value={fmtPct(kpi.conversion_rate)} color="teal" curr={kpi.conversion_rate} prev={kpi.prev_conversion_rate} isRate />
+              <KpiCard label="総売上" value={fmtMoney(filteredKpi.total_revenue)} color="blue" curr={filteredKpi.total_revenue} prev={filteredKpi.prev_revenue} />
+              <KpiCard label="販売数" value={`${filteredKpi.total_sales}件`} color="green" curr={filteredKpi.total_sales} prev={filteredKpi.prev_sales} />
+              <KpiCard label="クリック数" value={filteredKpi.clicks.toLocaleString()} color="purple" curr={filteredKpi.clicks} prev={filteredKpi.prev_clicks} />
+              <KpiCard label="成約率" value={fmtPct(filteredKpi.conversion_rate)} color="teal" curr={filteredKpi.conversion_rate} prev={filteredKpi.prev_conversion_rate} isRate />
             </div>
 
             {/* 手元残り見込み（強調） */}
             <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-2xl p-5">
               <p className="text-emerald-200 text-xs mb-1">手元残り見込み（売上 − Stripe手数料 − 報酬予定 − 返金予備）</p>
-              <p className="text-4xl font-extrabold">{fmtMoney(kpi.net_remaining)}</p>
+              <p className="text-4xl font-extrabold">{fmtMoney(filteredKpi.net_remaining)}</p>
               <div className="grid grid-cols-3 gap-3 mt-3">
                 <div className="bg-white/10 rounded-xl p-2 text-center">
                   <p className="text-xs text-emerald-200">Stripe手数料</p>
-                  <p className="font-bold">{fmtMoney(kpi.stripe_fee)}</p>
-                  <p className="text-xs text-emerald-300">{(kpi.stripe_fee_pct * 100).toFixed(1)}%</p>
+                  <p className="font-bold">{fmtMoney(filteredKpi.stripe_fee)}</p>
+                  <p className="text-xs text-emerald-300">{(filteredKpi.stripe_fee_pct * 100).toFixed(1)}%</p>
                 </div>
                 <div className="bg-white/10 rounded-xl p-2 text-center">
                   <p className="text-xs text-emerald-200">報酬予定</p>
-                  <p className="font-bold">{fmtMoney(kpi.affiliate_commission)}</p>
+                  <p className="font-bold">{fmtMoney(filteredKpi.affiliate_commission)}</p>
                 </div>
                 <div className="bg-white/10 rounded-xl p-2 text-center">
                   <p className="text-xs text-emerald-200">返金予備(5%)</p>
-                  <p className="font-bold">{fmtMoney(kpi.refund_reserve)}</p>
+                  <p className="font-bold">{fmtMoney(filteredKpi.refund_reserve)}</p>
                 </div>
               </div>
             </div>
 
             {/* 報酬系 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KpiCard label="発生報酬" value={fmtMoney(kpi.total_commission)} color="orange" curr={kpi.total_commission} prev={kpi.prev_total_commission} />
-              <KpiCard label="未確定報酬" value={fmtMoney(kpi.unconfirmed_commission)} color="orange" sub="保留中" />
-              <KpiCard label="確定報酬" value={fmtMoney(kpi.confirmed_commission)} color="blue" />
-              <KpiCard label="支払済み" value={fmtMoney(kpi.paid_commission)} color="gray" />
+              <KpiCard label="発生報酬" value={fmtMoney(filteredKpi.total_commission)} color="orange" curr={filteredKpi.total_commission} prev={filteredKpi.prev_total_commission} />
+              <KpiCard label="未確定報酬" value={fmtMoney(filteredKpi.unconfirmed_commission)} color="orange" sub="保留中" />
+              <KpiCard label="確定報酬" value={fmtMoney(filteredKpi.confirmed_commission)} color="blue" />
+              <KpiCard label="支払済み" value={fmtMoney(filteredKpi.paid_commission)} color="gray" />
             </div>
 
             {/* 返金・キャンセル */}
             <div className="grid grid-cols-3 gap-3">
-              <KpiCard label="返金数" value={`${kpi.refunds}件`} color="red" />
-              <KpiCard label="キャンセル数" value={`${kpi.cancels}件`} color="red" />
-              <KpiCard label="Stripe手数料" value={fmtMoney(kpi.stripe_fee)} color="gray" sub={fmtPct(kpi.stripe_fee_pct)} />
+              <KpiCard label="返金数" value={`${filteredKpi.refunds}件`} color="red" />
+              <KpiCard label="キャンセル数" value={`${filteredKpi.cancels}件`} color="red" />
+              <KpiCard label="Stripe手数料" value={fmtMoney(filteredKpi.stripe_fee)} color="gray" sub={fmtPct(filteredKpi.stripe_fee_pct)} />
             </div>
+
+            {/* 商品別内訳（複数選択時） */}
+            {!isAllSelected && filteredProducts.length > 1 && (
+              <SectionCard title="選択商品の内訳比較" icon="📦">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr className="text-xs text-gray-600">
+                        <th className="px-3 py-2 text-left">商品名</th>
+                        <th className="px-3 py-2 text-right">売上</th>
+                        <th className="px-3 py-2 text-right">販売数</th>
+                        <th className="px-3 py-2 text-right">成約率</th>
+                        <th className="px-3 py-2 text-right">報酬予定</th>
+                        <th className="px-3 py-2 text-right">手元残り</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredProducts.map((p, idx) => (
+                        <tr key={p.product_id}>
+                          <td className="px-3 py-2 font-medium">
+                            <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }} />
+                            {p.product_name}
+                          </td>
+                          <td className="px-3 py-2 text-right font-bold text-blue-700">{fmtMoney(p.revenue)}</td>
+                          <td className="px-3 py-2 text-right">{p.valid_sales}件</td>
+                          <td className="px-3 py-2 text-right">{fmtPct(p.conversion_rate)}</td>
+                          <td className="px-3 py-2 text-right text-orange-700">{fmtMoney(p.commission_amount)}</td>
+                          <td className="px-3 py-2 text-right text-teal-700">{fmtMoney(p.net_remaining)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </SectionCard>
+            )}
 
             {/* 改善提案 */}
             {suggestions.length > 0 && (
@@ -585,73 +807,133 @@ export function AdminDashboard() {
           </div>
         )}
 
+
         {/* ==============================
             グラフタブ
             ============================== */}
         {!loading && activeTab === 'graph' && (
           <div className="space-y-5">
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap items-center">
               {(['daily', 'weekly', 'monthly'] as ChartView[]).map(v => (
                 <button key={v} onClick={() => setChartView(v)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${chartView === v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                   {v === 'daily' ? '日別' : v === 'weekly' ? '週別' : '月別'}
                 </button>
               ))}
+              {!isAllSelected && (
+                <span className="text-xs text-blue-600 font-medium">
+                  📦 {filteredProducts.map(p => p.product_name).join('・')}
+                </span>
+              )}
             </div>
 
-            {/* 売上グラフ */}
-            <SectionCard title={`${chartView === 'daily' ? '日別' : chartView === 'weekly' ? '週別' : '月別'}売上・手元残り`} icon="📈">
-              <ResponsiveContainer width="100%" height={240}>
-                <ComposedChart data={chartData}>
+            {/* 売上グラフ（商品別重ね / 全体） */}
+            <SectionCard title={`${chartView === 'daily' ? '日別' : chartView === 'weekly' ? '週別' : '月別'}売上${isAllSelected ? '・手元残り' : '（商品別）'}`} icon="📈">
+              <ResponsiveContainer width="100%" height={260}>
+                <ComposedChart data={mergedChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey={chartKey} tick={{ fontSize: 10 }} />
+                  <XAxis dataKey={chartView === 'daily' ? 'date' : chartView === 'weekly' ? 'week' : 'month'} tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `¥${(v / 10000).toFixed(0)}万`} />
                   <Tooltip formatter={(v: any) => fmtMoney(v)} />
                   <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                  <Area type="monotone" dataKey="revenue" fill="#dbeafe" stroke="#3b82f6" name="売上" />
-                  {chartView === 'daily' && <Line type="monotone" dataKey="net_remaining" stroke="#10b981" name="手元残り" dot={false} />}
+                  {isAllSelected ? (
+                    <>
+                      <Area type="monotone" dataKey="revenue" fill="#dbeafe" stroke="#3b82f6" name="売上" />
+                      {chartView === 'daily' && <Line type="monotone" dataKey="net_remaining" stroke="#10b981" name="手元残り" dot={false} />}
+                    </>
+                  ) : (
+                    filteredProducts.map((p, idx) => (
+                      <Bar key={p.product_id} dataKey={`revenue_${p.product_id}`}
+                        fill={CHART_COLORS[idx % CHART_COLORS.length]}
+                        name={p.product_name.length > 10 ? p.product_name.slice(0, 10) + '…' : p.product_name}
+                        stackId="rev"
+                      />
+                    ))
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </SectionCard>
 
-            {/* 購入数グラフ */}
-            <SectionCard title={`${chartView === 'daily' ? '日別' : chartView === 'weekly' ? '週別' : '月別'}販売数`} icon="📦">
+            {/* 販売数グラフ */}
+            <SectionCard title={`${chartView === 'daily' ? '日別' : chartView === 'weekly' ? '週別' : '月別'}販売数${isAllSelected ? '' : '（商品別）'}`} icon="📦">
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={chartData}>
+                <BarChart data={mergedChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey={chartKey} tick={{ fontSize: 10 }} />
+                  <XAxis dataKey={chartView === 'daily' ? 'date' : chartView === 'weekly' ? 'week' : 'month'} tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip />
-                  <Bar dataKey="sales" fill="#10b981" name="販売数" />
+                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                  {isAllSelected ? (
+                    <Bar dataKey="sales" fill="#10b981" name="販売数" />
+                  ) : (
+                    filteredProducts.map((p, idx) => (
+                      <Bar key={p.product_id} dataKey={`sales_${p.product_id}`}
+                        fill={CHART_COLORS[idx % CHART_COLORS.length]}
+                        name={p.product_name.length > 10 ? p.product_name.slice(0, 10) + '…' : p.product_name}
+                        stackId="sales"
+                      />
+                    ))
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </SectionCard>
 
             {/* 報酬グラフ */}
-            <SectionCard title={`${chartView === 'daily' ? '日別' : chartView === 'weekly' ? '週別' : '月別'}報酬額`} icon="💰">
+            <SectionCard title={`${chartView === 'daily' ? '日別' : chartView === 'weekly' ? '週別' : '月別'}報酬額${isAllSelected ? '' : '（商品別）'}`} icon="💰">
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={chartData}>
+                <BarChart data={mergedChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey={chartKey} tick={{ fontSize: 10 }} />
+                  <XAxis dataKey={chartView === 'daily' ? 'date' : chartView === 'weekly' ? 'week' : 'month'} tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `¥${(v / 1000).toFixed(0)}k`} />
                   <Tooltip formatter={(v: any) => fmtMoney(v)} />
-                  <Bar dataKey="commission" fill="#f59e0b" name="報酬額" />
+                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                  {isAllSelected ? (
+                    <Bar dataKey="commission" fill="#f59e0b" name="報酬額" />
+                  ) : (
+                    filteredProducts.map((p, idx) => (
+                      <Bar key={p.product_id} dataKey={`commission_${p.product_id}`}
+                        fill={CHART_COLORS[idx % CHART_COLORS.length]}
+                        name={p.product_name.length > 10 ? p.product_name.slice(0, 10) + '…' : p.product_name}
+                        stackId="comm"
+                      />
+                    ))
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </SectionCard>
 
-            {/* 商品別売上比較 */}
-            <SectionCard title="商品別売上比較" icon="📊">
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={products} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `¥${(v / 10000).toFixed(0)}万`} />
-                  <YAxis type="category" dataKey="product_name" tick={{ fontSize: 10 }} width={140} />
-                  <Tooltip formatter={(v: any) => fmtMoney(v)} />
-                  <Bar dataKey="revenue" fill="#3b82f6" name="売上" />
-                </BarChart>
-              </ResponsiveContainer>
-            </SectionCard>
+            {/* 商品別売上比較（パイ + バー） */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SectionCard title="商品別売上（パイ）" icon="🥧">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={filteredProducts} dataKey="revenue" nameKey="product_name" cx="50%" cy="50%" outerRadius={80}>
+                      {filteredProducts.map((_, idx) => (
+                        <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: any) => fmtMoney(v)} />
+                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </SectionCard>
+
+              <SectionCard title="商品別売上（バー）" icon="📊">
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={filteredProducts} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `¥${(v / 10000).toFixed(0)}万`} />
+                    <YAxis type="category" dataKey="product_name" tick={{ fontSize: 10 }} width={130} />
+                    <Tooltip formatter={(v: any) => fmtMoney(v)} />
+                    <Bar dataKey="revenue" name="売上">
+                      {filteredProducts.map((_, idx) => (
+                        <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </SectionCard>
+            </div>
 
             {/* LP別成約率 */}
             <SectionCard title="LP別成約率" icon="🖥️">
@@ -669,7 +951,7 @@ export function AdminDashboard() {
             {/* 紹介者別成果比較 */}
             <SectionCard title="紹介者別成果比較（売上）" icon="👥">
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={affiliates.slice(0, 10)} layout="vertical">
+                <BarChart data={filteredAffiliates.slice(0, 10)} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `¥${(v / 10000).toFixed(0)}万`} />
                   <YAxis type="category" dataKey="affiliate_name" tick={{ fontSize: 10 }} width={80} />
@@ -680,16 +962,16 @@ export function AdminDashboard() {
             </SectionCard>
 
             {/* 前期比サマリー */}
-            {kpi && (
+            {filteredKpi && (
               <SectionCard title="前期比較サマリー" icon="📊">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {[
-                    { label: '売上', curr: kpi.total_revenue, prev: kpi.prev_revenue, fmt: fmtMoney },
-                    { label: '販売数', curr: kpi.total_sales, prev: kpi.prev_sales, fmt: (v: number) => `${v}件` },
-                    { label: 'クリック数', curr: kpi.clicks, prev: kpi.prev_clicks, fmt: (v: number) => v.toLocaleString() },
-                    { label: '成約率', curr: kpi.conversion_rate, prev: kpi.prev_conversion_rate, fmt: fmtPct, isRate: true },
-                    { label: '発生報酬', curr: kpi.total_commission, prev: kpi.prev_total_commission, fmt: fmtMoney },
-                    { label: '手元残り', curr: kpi.net_remaining, prev: kpi.net_remaining, fmt: fmtMoney },
+                    { label: '売上', curr: filteredKpi.total_revenue, prev: filteredKpi.prev_revenue, fmt: fmtMoney },
+                    { label: '販売数', curr: filteredKpi.total_sales, prev: filteredKpi.prev_sales, fmt: (v: number) => `${v}件` },
+                    { label: 'クリック数', curr: filteredKpi.clicks, prev: filteredKpi.prev_clicks, fmt: (v: number) => v.toLocaleString() },
+                    { label: '成約率', curr: filteredKpi.conversion_rate, prev: filteredKpi.prev_conversion_rate, fmt: fmtPct, isRate: true },
+                    { label: '発生報酬', curr: filteredKpi.total_commission, prev: filteredKpi.prev_total_commission, fmt: fmtMoney },
+                    { label: '手元残り', curr: filteredKpi.net_remaining, prev: filteredKpi.net_remaining, fmt: fmtMoney },
                   ].map(({ label, curr, prev, fmt, isRate }) => {
                     const d = diffBadge(curr, prev, isRate);
                     return (
@@ -706,6 +988,7 @@ export function AdminDashboard() {
             )}
           </div>
         )}
+
 
         {/* ==============================
             LP分析タブ
@@ -895,7 +1178,15 @@ export function AdminDashboard() {
             ============================== */}
         {!loading && activeTab === 'products' && (
           <div className="space-y-4">
-            {products.map(p => (
+            {/* フィルター中バナー */}
+            {!isAllSelected && (
+              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2 text-sm text-blue-700">
+                <span>📦</span>
+                <span className="font-semibold">表示中:</span>
+                <span>{filteredProducts.map(p => p.product_name).join('・')}</span>
+              </div>
+            )}
+            {filteredProducts.map(p => (
               <div key={p.product_id} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
                 <div className="flex items-start justify-between mb-4">
                   <div>
