@@ -100,21 +100,14 @@ export function LandingPageStartCourse() {
   }, [fetchPriceInfo]);
 
   const handlePurchase = async () => {
-    // 49,800円・99,800円はPayment Linkへ直接リダイレクト
-    const price = priceInfo?.current_price ?? 29800;
-    if (price >= 99800) {
-      window.location.href = STRIPE_LINK_99800;
-      return;
-    }
-    if (price >= 49800) {
-      window.location.href = STRIPE_LINK_49800;
-      return;
-    }
-
-    // 29,800円はcreate-checkout-session（アフィリエイト追跡付き）
     setCheckoutLoading(true);
     try {
       const tracking = getTrackingData();
+      const price = priceInfo?.current_price ?? 29800;
+      const stripePriceId = priceInfo?.current_stripe_price_id ?? null;
+
+      // 全価格帯をcreate-checkout-session経由にしてアフィリエイト追跡を維持
+      // 49,800円・99,800円はstripe_price_idをセットして渡す
       const res = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -125,13 +118,24 @@ export function LandingPageStartCourse() {
           click_id: tracking.clickId,
           line_user_id: localStorage.getItem('line_user_id') || null,
           lead_id: localStorage.getItem('lead_id') || null,
+          // 49,800円・99,800円はPrice IDを明示的に渡して価格帯を指定
+          current_price: price,
+          current_stripe_price_id: stripePriceId,
         }),
       });
       if (res.ok) {
         const { url } = await res.json();
         window.location.href = url;
       } else {
-        alert('購入処理の開始に失敗しました。しばらくしてから再試行してください。');
+        // フォールバック：Price IDがない場合はPayment Linkへ
+        const fallbackUrl = price >= 99800 ? STRIPE_LINK_99800
+          : price >= 49800 ? STRIPE_LINK_49800
+          : null;
+        if (fallbackUrl) {
+          window.location.href = fallbackUrl;
+        } else {
+          alert('購入処理の開始に失敗しました。しばらくしてから再試行してください。');
+        }
       }
     } finally {
       setCheckoutLoading(false);
