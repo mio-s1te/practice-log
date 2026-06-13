@@ -200,9 +200,24 @@ exports.handler = async (event) => {
       if (!body.affiliate_code) {
         body.affiliate_code = generateAffiliateCode(body.name);
       }
+
+      // パスワードが渡された場合はハッシュ化してpassword_hashに格納
+      if (body.password) {
+        if (body.password.length < 8) {
+          return { statusCode: 400, headers, body: JSON.stringify({ error: 'パスワードは8文字以上にしてください' }) };
+        }
+        body.password_hash = await bcrypt.hash(body.password, 10);
+        delete body.password;
+        console.log('[affiliates/create] password hashed and stored');
+      }
       
+      console.log('[affiliates/create] inserting:', { name: body.name, email: body.email, code: body.affiliate_code });
       const { data, error } = await supabase.from('affiliates').insert(body).select().single();
-      if (error) throw error;
+      if (error) {
+        console.error('[affiliates/create] supabase error:', error);
+        throw error;
+      }
+      console.log('[affiliates/create] success, id:', data.id);
       return { statusCode: 201, headers, body: JSON.stringify(data) };
     }
 

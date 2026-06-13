@@ -10,6 +10,8 @@ export function AdminAffiliates() {
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editAffiliate, setEditAffiliate] = useState<any>({});
+  const [saveError, setSaveError] = useState('');
+  const [saveLoading, setSaveLoading] = useState(false);
   // パスワード設定モーダル
   const [pwModalOpen, setPwModalOpen] = useState(false);
   const [pwTarget, setPwTarget] = useState<any>(null);
@@ -90,17 +92,36 @@ export function AdminAffiliates() {
   };
 
   const handleSave = async () => {
+    setSaveError('');
+    // 必須チェック
+    if (!editAffiliate.name?.trim()) { setSaveError('名前は必須です'); return; }
+    if (!editAffiliate.email?.trim()) { setSaveError('メールは必須です'); return; }
+    // 新規登録時のパスワード長チェック
+    if (!editAffiliate.id && editAffiliate.password && editAffiliate.password.length < 8) {
+      setSaveError('パスワードは8文字以上にしてください'); return;
+    }
+    setSaveLoading(true);
     try {
       const url = editAffiliate.id ? `/api/admin-api/affiliates/${editAffiliate.id}` : '/api/admin-api/affiliates';
       const method = editAffiliate.id ? 'PUT' : 'POST';
-      await fetch(url, {
+      const res = await fetch(url, {
         method,
         headers: adminHeaders(),
         body: JSON.stringify(editAffiliate),
       });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setSaveError(d.error || d.message || `保存に失敗しました (status: ${res.status})`);
+        return;
+      }
       await fetchAffiliates();
       setModalOpen(false);
-    } catch {}
+      setSaveError('');
+    } catch (e: any) {
+      setSaveError('ネットワークエラーが発生しました');
+    } finally {
+      setSaveLoading(false);
+    }
   };
 
   return (
@@ -115,7 +136,7 @@ export function AdminAffiliates() {
             placeholder="名前・メール・コードで検索"
             className="input-field w-64"
           />
-          <button onClick={() => { setEditAffiliate({}); setModalOpen(true); }} className="btn-primary">
+          <button onClick={() => { setEditAffiliate({ status: 'active' }); setSaveError(''); setModalOpen(true); }} className="btn-primary">
             + 紹介者追加
           </button>
         </div>
@@ -220,25 +241,27 @@ export function AdminAffiliates() {
       </div>
 
       {/* 紹介者編集モーダル */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editAffiliate.id ? '紹介者編集' : '紹介者追加'}>
+      <Modal isOpen={modalOpen} onClose={() => { setModalOpen(false); setSaveError(''); }} title={editAffiliate.id ? '紹介者編集' : '紹介者追加'}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">名前 *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">名前 <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={editAffiliate.name || ''}
                 onChange={e => setEditAffiliate((p: any) => ({ ...p, name: e.target.value }))}
                 className="input-field"
+                placeholder="例: 山田太郎"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">メール *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">メール <span className="text-red-500">*</span></label>
               <input
                 type="email"
                 value={editAffiliate.email || ''}
                 onChange={e => setEditAffiliate((p: any) => ({ ...p, email: e.target.value }))}
                 className="input-field"
+                placeholder="example@email.com"
               />
             </div>
           </div>
@@ -249,18 +272,36 @@ export function AdminAffiliates() {
               value={editAffiliate.affiliate_code || ''}
               onChange={e => setEditAffiliate((p: any) => ({ ...p, affiliate_code: e.target.value }))}
               className="input-field"
-              placeholder="自動生成される場合は空欄"
+              placeholder="空欄なら自動生成"
             />
           </div>
+          {/* 新規登録時のみ初期パスワード欄を表示 */}
+          {!editAffiliate.id && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                ログインパスワード
+                <span className="text-xs text-gray-400 ml-2">（設定しない場合は後でPW設定ボタンから）</span>
+              </label>
+              <input
+                type="text"
+                value={editAffiliate.password || ''}
+                onChange={e => setEditAffiliate((p: any) => ({ ...p, password: e.target.value }))}
+                className="input-field font-mono"
+                placeholder="8文字以上（任意）"
+                autoComplete="new-password"
+              />
+              <p className="text-xs text-gray-400 mt-1">設定後、紹介者にメールアドレスとパスワードをお知らせください</p>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
             <select
-              value={editAffiliate.status || 'pending'}
+              value={editAffiliate.status || 'active'}
               onChange={e => setEditAffiliate((p: any) => ({ ...p, status: e.target.value }))}
               className="select-field"
             >
+              <option value="active">有効（すぐ利用可能）</option>
               <option value="pending">審査中</option>
-              <option value="active">有効</option>
               <option value="suspended">停止</option>
             </select>
           </div>
@@ -272,9 +313,16 @@ export function AdminAffiliates() {
               className="input-field h-20 resize-none"
             />
           </div>
+          {saveError && (
+            <div className="bg-red-50 border border-red-100 text-red-700 px-3 py-2 rounded-xl text-sm">
+              {saveError}
+            </div>
+          )}
           <div className="flex gap-3">
-            <button onClick={() => setModalOpen(false)} className="btn-secondary flex-1">キャンセル</button>
-            <button onClick={handleSave} className="btn-primary flex-1">保存</button>
+            <button onClick={() => { setModalOpen(false); setSaveError(''); }} className="btn-secondary flex-1">キャンセル</button>
+            <button onClick={handleSave} disabled={saveLoading} className="btn-primary flex-1">
+              {saveLoading ? '保存中...' : (editAffiliate.id ? '更新する' : '登録する')}
+            </button>
           </div>
         </div>
       </Modal>
