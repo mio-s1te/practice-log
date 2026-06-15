@@ -429,18 +429,37 @@ exports.handler = async (event) => {
       };
     }
 
-    // 振込先更新（要再認証）
+    // 振込先更新
     if (path === '/payout-account' && method === 'PUT') {
-      const { reauth_token, payout_account, payout_method } = JSON.parse(event.body || '{}');
-      // 本番では再認証チェック
+      const { payout_account, payout_method } = JSON.parse(event.body || '{}');
+      if (!payout_account || !payout_account.bank_name) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: '銀行名は必須です' }) };
+      }
       const { data, error } = await supabase
         .from('affiliates')
-        .update({ payout_account, payout_method })
+        .update({ payout_account, payout_method: payout_method || 'bank_transfer' })
         .eq('id', affiliate.id)
         .select()
         .single();
       if (error) throw error;
-      return { statusCode: 200, headers, body: JSON.stringify(data) };
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+    }
+
+    // プロフィール更新（電話番号等）
+    if (path === '/profile/update' && method === 'PUT') {
+      const body = JSON.parse(event.body || '{}');
+      // 更新可能なフィールドのみ許可
+      const allowedFields: Record<string, any> = {};
+      if (body.phone !== undefined) allowedFields.phone = body.phone;
+      if (Object.keys(allowedFields).length === 0) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: '更新するフィールドがありません' }) };
+      }
+      const { error } = await supabase
+        .from('affiliates')
+        .update(allowedFields)
+        .eq('id', affiliate.id);
+      if (error) throw error;
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
     }
 
     // 参加案件一覧（紹介権限チェック付き）

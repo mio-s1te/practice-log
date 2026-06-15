@@ -149,10 +149,9 @@ export function AdminAffiliates() {
               <th className="table-th">紹介者名</th>
               <th className="table-th">コード</th>
               <th className="table-th">ステータス</th>
-              <th className="table-th">LINE表示名</th>
+              <th className="table-th">LINE</th>
+              <th className="table-th">💳 振込先</th>
               <th className="table-th">総合スコア</th>
-              <th className="table-th">診断タイプ</th>
-              <th className="table-th">タグ</th>
               <th className="table-th">登録日</th>
               <th className="table-th">操作</th>
             </tr>
@@ -175,27 +174,31 @@ export function AdminAffiliates() {
                     <span className="ml-1 badge bg-red-100 text-red-700">⚠️ 疑い</span>
                   )}
                 </td>
-                <td className="table-td text-sm text-gray-600">{affiliate.line_display_name || '-'}</td>
+                <td className="table-td text-sm text-gray-600">
+                  <div>
+                    <p>{affiliate.line_display_name || '-'}</p>
+                    {affiliate.line_user_id && (
+                      <p className="text-xs text-green-600">✓ 連携済み</p>
+                    )}
+                  </div>
+                </td>
+                <td className="table-td text-xs">
+                  {affiliate.payout_account?.bank_name ? (
+                    <div className="text-gray-700">
+                      <p className="font-medium">{affiliate.payout_account.bank_name}</p>
+                      <p className="text-gray-500">{affiliate.payout_account.account_holder || ''}</p>
+                      <p className="text-gray-400">{affiliate.payout_account.account_number ? `****${String(affiliate.payout_account.account_number).slice(-4)}` : ''}</p>
+                    </div>
+                  ) : (
+                    <span className="text-red-400 font-medium">⚠️ 未登録</span>
+                  )}
+                </td>
                 <td className="table-td">
                   {affiliate.scores?.[0] ? (
                     <span className="font-semibold text-blue-600">
                       {Number(affiliate.scores[0].overall_score).toFixed(2)}
                     </span>
                   ) : '-'}
-                </td>
-                <td className="table-td">
-                  {affiliate.scores?.[0]?.diagnosis_type ? (
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-lg">
-                      {affiliate.scores[0].diagnosis_type}
-                    </span>
-                  ) : '-'}
-                </td>
-                <td className="table-td">
-                  <div className="flex flex-wrap gap-1">
-                    {(affiliate.tags || []).map((tag: string) => (
-                      <span key={tag} className="badge badge-blue text-xs">{tag}</span>
-                    ))}
-                  </div>
                 </td>
                 <td className="table-td text-xs text-gray-500">
                   {new Date(affiliate.registered_at).toLocaleDateString('ja-JP')}
@@ -242,77 +245,139 @@ export function AdminAffiliates() {
 
       {/* 紹介者編集モーダル */}
       <Modal isOpen={modalOpen} onClose={() => { setModalOpen(false); setSaveError(''); }} title={editAffiliate.id ? '紹介者編集' : '紹介者追加'}>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">名前 <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                value={editAffiliate.name || ''}
-                onChange={e => setEditAffiliate((p: any) => ({ ...p, name: e.target.value }))}
-                className="input-field"
-                placeholder="例: 山田太郎"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">メール <span className="text-red-500">*</span></label>
-              <input
-                type="email"
-                value={editAffiliate.email || ''}
-                onChange={e => setEditAffiliate((p: any) => ({ ...p, email: e.target.value }))}
-                className="input-field"
-                placeholder="example@email.com"
-              />
-            </div>
-          </div>
+        <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
+
+          {/* ── 基本情報 ── */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">紹介者コード</label>
-            <input
-              type="text"
-              value={editAffiliate.affiliate_code || ''}
-              onChange={e => setEditAffiliate((p: any) => ({ ...p, affiliate_code: e.target.value }))}
-              className="input-field"
-              placeholder="空欄なら自動生成"
-            />
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">基本情報</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">名前 <span className="text-red-500">*</span></label>
+                <input type="text" value={editAffiliate.name || ''}
+                  onChange={e => setEditAffiliate((p: any) => ({ ...p, name: e.target.value }))}
+                  className="input-field" placeholder="例: 山田太郎" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">メール <span className="text-red-500">*</span></label>
+                <input type="email" value={editAffiliate.email || ''}
+                  onChange={e => setEditAffiliate((p: any) => ({ ...p, email: e.target.value }))}
+                  className="input-field" placeholder="example@email.com" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">電話番号</label>
+              <input type="tel" value={editAffiliate.phone || ''}
+                onChange={e => setEditAffiliate((p: any) => ({ ...p, phone: e.target.value }))}
+                className="input-field" placeholder="090-1234-5678" />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">紹介者コード</label>
+                <input type="text" value={editAffiliate.affiliate_code || ''}
+                  onChange={e => setEditAffiliate((p: any) => ({ ...p, affiliate_code: e.target.value }))}
+                  className="input-field" placeholder="空欄なら自動生成" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
+                <select value={editAffiliate.status || 'active'}
+                  onChange={e => setEditAffiliate((p: any) => ({ ...p, status: e.target.value }))}
+                  className="select-field">
+                  <option value="active">有効</option>
+                  <option value="pending">審査中</option>
+                  <option value="suspended">停止</option>
+                </select>
+              </div>
+            </div>
           </div>
-          {/* 新規登録時のみ初期パスワード欄を表示 */}
+
+          {/* ── 新規登録時のみ: パスワード ── */}
           {!editAffiliate.id && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ログインパスワード
-                <span className="text-xs text-gray-400 ml-2">（設定しない場合は後でPW設定ボタンから）</span>
-              </label>
-              <input
-                type="text"
-                value={editAffiliate.password || ''}
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">ログインパスワード（任意）</p>
+              <input type="text" value={editAffiliate.password || ''}
                 onChange={e => setEditAffiliate((p: any) => ({ ...p, password: e.target.value }))}
-                className="input-field font-mono"
-                placeholder="8文字以上（任意）"
-                autoComplete="new-password"
-              />
+                className="input-field font-mono" placeholder="8文字以上（後でPW設定ボタンからも設定可）"
+                autoComplete="new-password" />
               <p className="text-xs text-gray-400 mt-1">設定後、紹介者にメールアドレスとパスワードをお知らせください</p>
             </div>
           )}
+
+          {/* ── LINE情報 ── */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
-            <select
-              value={editAffiliate.status || 'active'}
-              onChange={e => setEditAffiliate((p: any) => ({ ...p, status: e.target.value }))}
-              className="select-field"
-            >
-              <option value="active">有効（すぐ利用可能）</option>
-              <option value="pending">審査中</option>
-              <option value="suspended">停止</option>
-            </select>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">LINE情報</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">LINE表示名</label>
+                <input type="text" value={editAffiliate.line_display_name || ''}
+                  onChange={e => setEditAffiliate((p: any) => ({ ...p, line_display_name: e.target.value }))}
+                  className="input-field" placeholder="LINE上の名前" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">LINE User ID</label>
+                <input type="text" value={editAffiliate.line_user_id || ''}
+                  onChange={e => setEditAffiliate((p: any) => ({ ...p, line_user_id: e.target.value }))}
+                  className="input-field font-mono text-xs" placeholder="Uxxxxxxxx..." />
+              </div>
+            </div>
           </div>
+
+          {/* ── 振込先口座情報 ── */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">管理者メモ</label>
-            <textarea
-              value={editAffiliate.notes || ''}
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">💳 振込先口座情報</p>
+            <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">銀行名</label>
+                  <input type="text"
+                    value={editAffiliate.payout_account?.bank_name || ''}
+                    onChange={e => setEditAffiliate((p: any) => ({ ...p, payout_account: { ...p.payout_account, bank_name: e.target.value } }))}
+                    className="input-field" placeholder="例: 三菱UFJ銀行" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">支店名</label>
+                  <input type="text"
+                    value={editAffiliate.payout_account?.branch_name || ''}
+                    onChange={e => setEditAffiliate((p: any) => ({ ...p, payout_account: { ...p.payout_account, branch_name: e.target.value } }))}
+                    className="input-field" placeholder="例: 渋谷支店" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">口座種別</label>
+                  <select
+                    value={editAffiliate.payout_account?.account_type || '普通'}
+                    onChange={e => setEditAffiliate((p: any) => ({ ...p, payout_account: { ...p.payout_account, account_type: e.target.value } }))}
+                    className="select-field">
+                    <option value="普通">普通</option>
+                    <option value="当座">当座</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">口座番号</label>
+                  <input type="text"
+                    value={editAffiliate.payout_account?.account_number || ''}
+                    onChange={e => setEditAffiliate((p: any) => ({ ...p, payout_account: { ...p.payout_account, account_number: e.target.value } }))}
+                    className="input-field font-mono" placeholder="1234567" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">口座名義（カナ）</label>
+                <input type="text"
+                  value={editAffiliate.payout_account?.account_holder || ''}
+                  onChange={e => setEditAffiliate((p: any) => ({ ...p, payout_account: { ...p.payout_account, account_holder: e.target.value } }))}
+                  className="input-field" placeholder="ヤマダ タロウ" />
+              </div>
+            </div>
+          </div>
+
+          {/* ── 管理者メモ ── */}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">管理者メモ</p>
+            <textarea value={editAffiliate.notes || ''}
               onChange={e => setEditAffiliate((p: any) => ({ ...p, notes: e.target.value }))}
-              className="input-field h-20 resize-none"
-            />
+              className="input-field h-20 resize-none" placeholder="内部メモ（紹介者には見えません）" />
           </div>
+
           {saveError && (
             <div className="bg-red-50 border border-red-100 text-red-700 px-3 py-2 rounded-xl text-sm">
               {saveError}
