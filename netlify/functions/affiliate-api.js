@@ -82,8 +82,13 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
 
-  const path = event.path.replace('/.netlify/functions/affiliate-api', '');
+  const rawPath = event.path;
+  const path = rawPath
+    .replace('/.netlify/functions/affiliate-api', '')
+    .replace('/api/affiliate-api', '');
   const method = event.httpMethod;
+
+  console.log('[affiliate-api] rawPath:', rawPath, '| parsed path:', path, '| method:', method);
 
   try {
     // ログイン (メールリンク送信)
