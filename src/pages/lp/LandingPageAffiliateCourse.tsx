@@ -1,8 +1,8 @@
 // src/pages/lp/LandingPageAffiliateCourse.tsx
-// プロAIアフィリエイター養成講座 ランディングページ
+// プロAIアフィリエイター養成講座 ランディングページ（購入前LP）
 
 import { useEffect, useState, useCallback } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { initializeTracking, recordClick, getTrackingData } from '@/utils/tracking';
 
 const PRODUCT_ID = 'a0000000-0000-0000-0000-000000000003';
@@ -95,12 +95,12 @@ export function LandingPageAffiliateCourse() {
     size === 'lg' ? (
       <button onClick={handlePurchase} disabled={checkoutLoading || priceLoading}
         className="w-full bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-extrabold py-5 rounded-2xl text-lg transition-all shadow-lg shadow-orange-200 disabled:opacity-50">
-        {checkoutLoading ? '処理中...' : (label || 'プロジェクト限定価格で参加する')}
+        {checkoutLoading ? '処理中...' : (label || 'プロジェクト初期メンバー価格で参加する')}
       </button>
     ) : (
       <button onClick={handlePurchase} disabled={checkoutLoading || priceLoading}
         className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50">
-        {checkoutLoading ? '処理中...' : (label || '今すぐ申し込む')}
+        {checkoutLoading ? '処理中...' : (label || '4,980円で参加する')}
       </button>
     );
 
@@ -108,11 +108,11 @@ export function LandingPageAffiliateCourse() {
     <div className="min-h-screen" style={{ fontFamily: "'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif", backgroundColor: '#fffaf5' }}>
 
       {/* ── 固定ヘッダー ── */}
-      <header style={{ backgroundColor: 'rgba(255,250,245,0.95)', backdropFilter: 'blur(8px)' }}
+      <header style={{ backgroundColor: 'rgba(255,250,245,0.96)', backdropFilter: 'blur(8px)' }}
         className="sticky top-0 z-50 border-b border-orange-100 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <span className="text-xs font-bold text-gray-800 leading-tight">プロAIアフィリエイター<br className="sm:hidden" />養成講座</span>
-          <PurchaseBtn label="今すぐ申し込む" size="sm" />
+          <PurchaseBtn label="4,980円で参加する" size="sm" />
         </div>
       </header>
 
@@ -130,7 +130,7 @@ export function LandingPageAffiliateCourse() {
         className="py-14 px-4">
         <div className="max-w-2xl mx-auto">
 
-          {/* ラベル群 */}
+          {/* ラベル */}
           <div className="flex flex-wrap gap-2 justify-center mb-6">
             <span className="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full border border-orange-200">
               📌 スタート講座1,000部達成プロジェクト限定
@@ -138,25 +138,23 @@ export function LandingPageAffiliateCourse() {
             <span className="bg-red-100 text-red-600 text-xs font-bold px-3 py-1 rounded-full border border-red-200">
               先着30名 ¥4,980
             </span>
-            <span className="text-gray-400 text-xs font-medium px-3 py-1">通常価格 ¥99,800</span>
           </div>
 
           {/* メインコピー */}
           <h1 className="text-2xl md:text-3xl font-extrabold text-center text-gray-900 leading-snug mb-4">
-            成約しやすい案件を探して<br />
-            振り回される人から、<br />
-            <span style={{ color: '#ea6500' }}>成約される理由を作れる人へ。</span>
+            紹介リンクを貼るだけで終わらせない。<br />
+            <span style={{ color: '#ea6500' }}>成約される理由を作れる人になる。</span>
           </h1>
 
           {/* サブコピー */}
-          <p className="text-center text-gray-600 text-sm md:text-base mb-4 leading-relaxed">
-            ASP・楽天・コンテンツアフィリエイトを、AIと実践シートで学びながら、<br className="hidden md:block" />
-            2週間で収益導線の土台を作る講座。
+          <p className="text-center text-gray-600 text-sm md:text-base mb-3 leading-relaxed">
+            1日1時間、14日間。<br />
+            用意されたシートに記入しながら、<br className="hidden md:block" />
+            案件に振り回されない紹介導線を作ります。
           </p>
           <p className="text-center text-gray-500 text-xs md:text-sm mb-8 leading-relaxed max-w-lg mx-auto">
-            この講座は、紹介リンクを貼るだけの講座ではありません。<br />
-            売れる市場を見抜き、誰に何をどう届けるかを設計し、<br />
-            案件が変わっても収益化できる力を育てます。
+            売り込みではなく、必要な人に届く紹介へ。<br />
+            難しい作業を一気にやるのではなく、Dayごとに分けて進める講座です。
           </p>
 
           {/* 価格カード */}
@@ -165,7 +163,7 @@ export function LandingPageAffiliateCourse() {
               <div className="text-center py-4 text-orange-400 text-sm animate-pulse">価格を読み込み中...</div>
             ) : (
               <>
-                {/* 販売進捗バー（スタート講座） */}
+                {/* 販売進捗バー */}
                 {isCampaign && (
                   <div className="mb-5">
                     <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -183,27 +181,30 @@ export function LandingPageAffiliateCourse() {
                 )}
 
                 {/* 価格表示 */}
-                <div className="mb-2">
-                  <p className="text-xs text-gray-400 line-through text-center">通常価格 ¥{NORMAL_PRICE.toLocaleString()}</p>
+                <div className="mb-4">
+                  <p className="text-xs text-gray-400 line-through text-center mb-1">通常価格 ¥{NORMAL_PRICE.toLocaleString()}</p>
+                  <p className="text-center text-xs font-bold text-orange-600 mb-1">↓ プロジェクト初期メンバー価格</p>
                   <div className="flex items-end justify-center gap-2 my-1">
                     <span className="text-5xl font-extrabold" style={{ color: '#ea6500' }}>¥{currentPrice.toLocaleString()}</span>
                     <span className="text-sm text-gray-500 mb-2">（税込）</span>
                   </div>
-                  <p className="text-center text-xs font-bold text-red-500">先着30名かつプロジェクト期間中のみ</p>
+                  <p className="text-center text-xs font-bold text-red-500 mb-3">先着30名かつプロジェクト期間中のみ</p>
+
+                  {/* 価格移行表 */}
+                  <div className="bg-orange-50 rounded-xl p-3 mb-4 text-xs text-gray-600 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-orange-600">🟠 現在（先着30名）</span>
+                      <span className="font-extrabold text-orange-600 text-sm">¥4,980</span>
+                    </div>
+                    <div className="flex justify-between"><span className="text-gray-400">30名到達後</span><span>¥9,800</span></div>
+                    <div className="flex justify-between"><span className="text-gray-400">プロジェクト終了後</span><span>¥99,800</span></div>
+                  </div>
                 </div>
 
-                {/* 価格移行表 */}
-                <div className="bg-orange-50 rounded-xl p-3 mb-4 text-xs text-gray-600 space-y-1">
-                  <div className="flex justify-between"><span>🟠 現在（先着30名まで）</span><span className="font-bold text-orange-600">¥4,980</span></div>
-                  <div className="flex justify-between"><span>　31〜100名</span><span className="font-semibold">¥9,800</span></div>
-                  <div className="flex justify-between"><span>　101〜300名</span><span className="font-semibold">¥29,800</span></div>
-                  <div className="flex justify-between"><span>　プロジェクト終了後</span><span className="font-semibold">¥99,800</span></div>
-                </div>
-
-                <PurchaseBtn />
+                <PurchaseBtn label="4,980円でプロジェクト参加する" />
                 <p className="text-center text-xs text-gray-400 mt-2">Stripe 安全決済 ｜ クレジットカード対応</p>
                 <p className="text-center text-xs text-gray-400 mt-1">
-                  ※特別価格は、人数到達またはプロジェクト終了のどちらか早い時点で終了します
+                  ※先着30名に達した時点、またはプロジェクト終了のどちらか早い時点で価格が変わります
                 </p>
               </>
             )}
@@ -214,7 +215,7 @@ export function LandingPageAffiliateCourse() {
       {/* ══════════════════════════════════
           2. こんな悩みはありませんか？
       ══════════════════════════════════ */}
-      <section className="py-14 px-4" style={{ backgroundColor: '#fff' }}>
+      <section className="py-14 px-4 bg-white">
         <div className="max-w-2xl mx-auto">
           <p className="text-center text-xs font-bold text-orange-500 mb-2 tracking-widest">PROBLEMS</p>
           <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-8">
@@ -223,13 +224,13 @@ export function LandingPageAffiliateCourse() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { icon: '😵', text: 'アフィリエイトを始めたいけど、何から手をつければいいかわからない' },
-              { icon: '🤔', text: 'ASPに登録しても、どの案件を選べばいいかわからない' },
+              { icon: '🤔', text: 'どの案件を選べばいいかわからず、なんとなく紹介している' },
               { icon: '📱', text: 'SNSで発信しているのに、収益につながっていない' },
               { icon: '😅', text: '商品紹介が売り込みっぽくなってしまう' },
               { icon: '😔', text: '使っていない商品を紹介することに罪悪感がある' },
               { icon: '📉', text: '投稿してもクリックや登録につながらない' },
               { icon: '🤖', text: 'AIを使って効率化したいけど、何に使えばいいかわからない' },
-              { icon: '🔗', text: 'スタート講座を紹介したいけど、どう発信すればいいかわからない' },
+              { icon: '🔗', text: '紹介リンクを貼るだけで終わっていて、導線が作れていない' },
             ].map((item) => (
               <div key={item.text}
                 className="flex items-start gap-3 bg-orange-50 border border-orange-100 rounded-2xl p-4">
@@ -239,34 +240,40 @@ export function LandingPageAffiliateCourse() {
             ))}
           </div>
           <div className="mt-8 text-center">
-            <div className="inline-block bg-orange-100 rounded-2xl px-6 py-4">
+            <div className="inline-block bg-orange-100 rounded-2xl px-6 py-4 max-w-md">
               <p className="text-orange-700 font-bold text-sm">この講座は、その悩みに正面から向き合います。</p>
-              <p className="text-orange-600 text-xs mt-1">紹介リンクを貼るだけでなく、<br />「なぜ売れるのか」を設計できる人を育てます。</p>
+              <p className="text-orange-600 text-xs mt-1">
+                紹介リンクを貼るだけで終わらせず、<br />
+                案件に振り回されない紹介導線を一緒に作っていきます。
+              </p>
             </div>
           </div>
         </div>
       </section>
 
       {/* ══════════════════════════════════
-          3. この講座で作るもの
+          3. 講座で進めること
       ══════════════════════════════════ */}
       <section className="py-14 px-4" style={{ background: 'linear-gradient(135deg, #fff8f0, #fff3e0)' }}>
         <div className="max-w-2xl mx-auto">
-          <p className="text-center text-xs font-bold text-orange-500 mb-2 tracking-widest">DELIVERABLES</p>
+          <p className="text-center text-xs font-bold text-orange-500 mb-2 tracking-widest">WHAT YOU'LL DO</p>
           <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-2">
-            この講座で作るもの
+            講座で進めること
           </h2>
-          <p className="text-center text-gray-500 text-sm mb-8">ただ学ぶだけではなく、収益導線の土台を作ります。</p>
+          <p className="text-center text-gray-500 text-sm mb-8">
+            用意されたシートに記入しながら、Dayごとに順番に進みます。<br />
+            難しい作業を一気にやるのではなく、1日ずつ積み上げます。
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
-              { icon: '🅰️', title: 'ASP垢', desc: '比較・選び方・商品/サービス紹介で初報酬を狙うアカウント' },
-              { icon: '🅱️', title: 'ビジ垢', desc: '共感・教育・信頼・無料プレゼント・LINE導線でコンテンツ紹介につなげるアカウント' },
-              { icon: '📋', title: '案件管理シート', desc: '初報酬案件・本命案件・代替案件を整理するシート' },
-              { icon: '📝', title: '投稿管理シート', desc: '1投稿ごとの目的、CTA、反応、改善点を記録するシート' },
-              { icon: '📊', title: 'クリック管理シート', desc: '日別・導線別にクリックや登録を記録し、改善するシート' },
-              { icon: '🌐', title: 'NetlifyクッションLP', desc: 'SNSから案件LPへ自然につなげる紹介ページ' },
-              { icon: '🎁', title: '無料プレゼント', desc: 'ビジ垢でリストや信頼を積み上げるための配布物' },
-              { icon: '🗓️', title: '次の14日計画', desc: '講座終了後も動ける投稿・改善計画' },
+              { icon: '🅰️', title: 'ASP垢を作る', desc: '比較・選び方・紹介で初報酬を狙うアカウントを設計します' },
+              { icon: '🅱️', title: 'ビジ垢を作る', desc: '共感・信頼・無料プレゼント・自然な案内でコンテンツ紹介につなげるアカウントを設計します' },
+              { icon: '📋', title: '案件を整理する', desc: '用意されたシートに、初報酬案件・本命案件・代替案件を整理します' },
+              { icon: '📝', title: '投稿を記録して改善する', desc: '投稿の目的・CTA・反応を記録して、次の投稿改善に使います' },
+              { icon: '📊', title: '導線の流れを確認する', desc: '日別・導線別にクリックや登録の流れを確認します' },
+              { icon: '🌐', title: '紹介ページを作る', desc: 'SNS投稿から案件ページへ自然につなげる紹介ページを作ります' },
+              { icon: '🎁', title: '無料プレゼントを作る', desc: '信頼を積み上げ、必要な人だけ次へ進める入口を準備します' },
+              { icon: '🗓️', title: '次の14日計画を作る', desc: '講座が終わった後も迷わず動ける投稿・改善計画を作ります' },
             ].map((item) => (
               <div key={item.title} className="bg-white rounded-2xl p-5 shadow-sm border border-orange-50">
                 <div className="flex items-center gap-2 mb-2">
@@ -287,21 +294,20 @@ export function LandingPageAffiliateCourse() {
         <div className="max-w-2xl mx-auto">
           <p className="text-center text-xs font-bold text-orange-500 mb-2 tracking-widest">HOW TO USE</p>
           <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-2">
-            動画を見るだけで終わらせない。<br />毎日1時間、手を動かす講座です。
+            動画を見るだけで終わらせない。<br />1日1時間、手を動かす講座です。
           </h2>
           <p className="text-center text-gray-500 text-sm mb-8">
-            動画は毎日ではなく、章ごとの要点だけ。<br />
-            Day1、2、4、8、10、13に動画を見て、その他の日は行動中心で進めます。
+            難しい作業を一気にやるのではなく、Dayごとに分けて進めます。<br />
+            動画は章ごとに見て、その他の日は行動中心で進めます。
           </p>
 
-          {/* フロー */}
           <div className="flex flex-col items-center gap-0 max-w-xs mx-auto mb-8">
             {[
-              { icon: '🎬', label: '動画を見る' },
-              { icon: '🤖', label: 'GPTsを使う' },
-              { icon: '📊', label: 'スプレッドシートに記入' },
-              { icon: '✍️', label: '投稿・LP・導線を作る' },
-              { icon: '📈', label: '数字を見て改善する' },
+              { icon: '🎬', label: '動画を見る（章ごと）' },
+              { icon: '📋', label: '用意されたシートに記入する' },
+              { icon: '🤖', label: 'GPTsを使いながら作業を進める' },
+              { icon: '✍️', label: '投稿・紹介ページ・導線を整える' },
+              { icon: '📈', label: '数字を見て次の行動を決める' },
             ].map((step, i) => (
               <div key={i} className="flex flex-col items-center">
                 <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl px-8 py-3 text-center">
@@ -315,9 +321,9 @@ export function LandingPageAffiliateCourse() {
 
           <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5 text-sm text-gray-700 leading-relaxed">
             <p className="font-bold text-orange-700 mb-2">🎯 この講座のスタンス</p>
-            <p>「導線を整えてから売る」のではなく、<br />
-            「<strong>報酬発生を狙いながら、導線も整える</strong>」講座です。</p>
-            <p className="mt-2">試行錯誤はDay3から開始し、<strong>Day5で初報酬を本気で狙います。</strong></p>
+            <p>「導線を完成させてから売る」ではなく、<br />
+            「<strong>初報酬を狙いながら、同時に導線も整える</strong>」講座です。</p>
+            <p className="mt-2">Day3から実際に動き始め、<strong>Day5で初報酬を本気で狙います。</strong></p>
           </div>
         </div>
       </section>
@@ -331,12 +337,12 @@ export function LandingPageAffiliateCourse() {
           <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-8">5章構成</h2>
           <div className="space-y-3">
             {[
-              { ch: '第0章', title: '使い方と準備', desc: '講座の進め方、必要なもの、GPTsとシートの使い方を確認します。' },
-              { ch: '第1章', title: '市場と2アカウント設計', desc: 'ジャンルを仮決めし、ASP垢とビジ垢を作ります。' },
-              { ch: '第2章', title: '初報酬チャレンジ導線', desc: 'ASP登録、案件提携、リンク取得、NetlifyクッションLP作成、Day5の初報酬チャレンジを進めます。' },
-              { ch: '第3章', title: 'コンテンツアフィリエイト導線', desc: '無料プレゼント、必要な人だけLINE公式、教育文3通、ビジ垢投稿を作ります。' },
-              { ch: '第4章', title: '本命案件と雪だるま導線', desc: '本命案件・代替案件・特典付き紹介導線を作り、案件停止に強い導線へ整えます。' },
-              { ch: '第5章', title: '改善分析と次の14日計画', desc: '投稿・クリック・LP・LINE登録を見て改善し、次の14日間の行動計画を作ります。' },
+              { ch: '第0章', title: '使い方と準備', desc: '講座の進め方、必要なもの、シートとGPTsの使い方を確認します。' },
+              { ch: '第1章', title: '市場と2アカウント設計', desc: 'ジャンルを仮決めし、ASP垢とビジ垢を設計・作成します。' },
+              { ch: '第2章', title: '初報酬チャレンジ導線', desc: 'ASP登録、案件提携、リンク取得、紹介LP作成、Day5の初報酬チャレンジを進めます。' },
+              { ch: '第3章', title: 'ビジ垢と信頼の入口', desc: '無料プレゼント、ビジ垢投稿、必要な人だけ次へ進む入口を作ります。' },
+              { ch: '第4章', title: '本命案件と安定した導線', desc: '本命案件・代替案件・あなたから申し込む理由を作り、案件が変わっても動ける導線へ整えます。' },
+              { ch: '第5章', title: '改善分析と次の14日計画', desc: '投稿・クリック・紹介LP・CTAを見て改善し、講座後も迷わず動ける計画を作ります。' },
             ].map((item) => (
               <div key={item.ch} className="flex gap-4 bg-white rounded-2xl p-4 shadow-sm border border-orange-50">
                 <div className="flex-shrink-0">
@@ -358,26 +364,29 @@ export function LandingPageAffiliateCourse() {
       <section className="py-14 px-4 bg-white">
         <div className="max-w-2xl mx-auto">
           <p className="text-center text-xs font-bold text-orange-500 mb-2 tracking-widest">ROADMAP</p>
-          <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-8">14日ロードマップ</h2>
+          <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-2">14日ロードマップ</h2>
+          <p className="text-center text-gray-500 text-sm mb-8">
+            順番があるから、進められる。<br />今日やることがはっきりしているから、迷いません。
+          </p>
           <div className="relative pl-8">
             <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-orange-100" />
             {[
-              { day: 'Day 1', time: '60分', title: '第0章動画を見る', desc: 'ジャンル候補3つ＋初報酬案件候補3つを選ぶ', highlight: false },
-              { day: 'Day 2', time: '60分', title: '第1章動画を見る', desc: 'ASP垢・ビジ垢の設計＆作成', highlight: false },
-              { day: 'Day 3', time: '60分', title: '試行錯誤スタート', desc: 'ASP登録＋案件候補整理＋見込み客分析＋両アカウント初投稿', highlight: false, badge: '🚀 ここから試行錯誤開始' },
-              { day: 'Day 4', time: '60分', title: '第2章動画を見る', desc: '案件提携・リンク取得・NetlifyクッションLP作成', highlight: false },
+              { day: 'Day 1', time: '60分', title: '売れる市場の入口を決める', desc: 'ジャンル候補3つ・初報酬案件候補3つを選ぶ', highlight: false },
+              { day: 'Day 2', time: '60分', title: '2つの発信アカウントを作る', desc: 'ASP垢・ビジ垢の設計と作成', highlight: false },
+              { day: 'Day 3', time: '60分', title: '最初の発信を始める', desc: 'ASP登録・案件整理・見込み客分析・両アカウント初投稿', highlight: false, badge: '🚀 ここから動き出す' },
+              { day: 'Day 4', time: '60分', title: '紹介ページを作る', desc: '案件提携・リンク取得・紹介LP作成', highlight: false },
               { day: 'Day 5', time: '60分', title: '初報酬チャレンジ', desc: 'ASP垢で投稿・コメント・CTA改善', highlight: true, badge: '🔥 初報酬を狙う日' },
-              { day: 'Day 6', time: '45〜60分', title: '反応分析', desc: '反応分析＋導線タイプ決定', highlight: false },
-              { day: 'Day 7', time: '60分', title: 'ASP垢本格強化', desc: '比較表・LP改善・投稿', highlight: false },
-              { day: 'Day 8', time: '60分', title: '第3章動画を見る', desc: '無料プレゼント作成', highlight: false },
-              { day: 'Day 9', time: '60分', title: 'LINE公式整備', desc: 'LINE公式＋教育文3通＋ビジ垢投稿', highlight: false },
-              { day: 'Day 10', time: '60分', title: '第4章動画を見る', desc: '本命案件・代替案件を選ぶ', highlight: false },
-              { day: 'Day 11', time: '60分', title: '特典付き紹介導線', desc: '特典付き紹介導線を作る', highlight: false },
-              { day: 'Day 12', time: '45〜60分', title: '雪だるま導線整備', desc: '案件停止に強い雪だるま導線へ整える', highlight: false },
-              { day: 'Day 13', time: '60分', title: '第5章動画を見る', desc: '改善分析', highlight: false },
-              { day: 'Day 14', time: '45〜60分', title: '次の計画策定', desc: '次の14日計画を作る', highlight: false },
+              { day: 'Day 6', time: '45〜60分', title: '反応から導線タイプを決める', desc: '投稿反応・クリック・プロフィール導線を確認', highlight: false },
+              { day: 'Day 7', time: '60分', title: 'ASP垢の成約導線を強くする', desc: '比較表・紹介LP改善・投稿', highlight: false },
+              { day: 'Day 8', time: '60分', title: 'ビジ垢の入口を作る', desc: '無料プレゼント作成', highlight: false },
+              { day: 'Day 9', time: '60分', title: 'ビジ垢から信頼導線を作る', desc: '無料プレゼント・初回メッセージ・ビジ垢投稿', highlight: false },
+              { day: 'Day 10', time: '60分', title: '収益の柱を広げる', desc: '本命案件・代替案件を選ぶ', highlight: false },
+              { day: 'Day 11', time: '60分', title: 'あなたから申し込む理由を作る', desc: '特典・不安Q&A・向いている人/向いていない人を整理', highlight: false },
+              { day: 'Day 12', time: '45〜60分', title: '案件停止に強い導線へ整える', desc: '1案件依存から抜ける導線チェック', highlight: false },
+              { day: 'Day 13', time: '60分', title: '数字を見て改善する', desc: '投稿・クリック・紹介LP・CTAの見直し', highlight: false },
+              { day: 'Day 14', time: '45〜60分', title: '次の14日計画を作る', desc: '講座後も迷わず動ける投稿・改善計画', highlight: false },
             ].map((item, i) => (
-              <div key={i} className={`relative mb-4 ${item.highlight ? 'ml-[-4px]' : ''}`}>
+              <div key={i} className="relative mb-4">
                 <div className={`absolute -left-8 top-3 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold z-10 ${item.highlight ? 'bg-red-500 text-white scale-125' : 'bg-orange-400 text-white'}`}>
                   {i + 1}
                 </div>
@@ -396,7 +405,7 @@ export function LandingPageAffiliateCourse() {
                   <h3 className={`font-bold text-sm ${item.highlight ? 'text-red-700' : 'text-gray-900'}`}>{item.title}</h3>
                   <p className="text-xs text-gray-600 mt-0.5">{item.desc}</p>
                   {item.highlight && (
-                    <p className="text-xs text-red-600 font-bold mt-1">報酬発生を狙いながら、導線も整える日です。</p>
+                    <p className="text-xs text-red-600 font-bold mt-1">初報酬を狙いながら、同時に導線も整える日です。</p>
                   )}
                 </div>
               </div>
@@ -432,70 +441,88 @@ export function LandingPageAffiliateCourse() {
             ))}
           </div>
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-800">
-            <p className="font-bold mb-1">⚠️ 注意</p>
-            <p>案件が1つしかないジャンルは危険です。この講座では、初報酬案件リストを使いながら、最初の一歩を選びやすくします。<br />
-            ただし案件は停止・変更されることがあるため、最終確認は各ASP管理画面で行います。</p>
+            <p className="font-bold mb-1">⚠️ 案件が1つだけのジャンルには注意</p>
+            <p>案件は停止・変更されることがあります。この講座では、初報酬案件リストを使いながら最初の一歩を選びやすくします。最終確認は各ASP管理画面で行います。</p>
           </div>
         </div>
       </section>
 
       {/* ══════════════════════════════════
-          8. 本当に効く実践視点
+          8. 実践で迷わない視点
       ══════════════════════════════════ */}
       <section className="py-14 px-4 bg-white">
         <div className="max-w-2xl mx-auto">
           <p className="text-center text-xs font-bold text-orange-500 mb-2 tracking-widest">PRACTICAL INSIGHTS</p>
           <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-2">
-            派手な裏技ではなく、<br />本当に成約に近づく実践視点を学びます。
+            ただのノウハウではなく、<br />実践で迷わない視点まで学べます。
           </h2>
-          <p className="text-center text-gray-500 text-sm mb-8">
-            本人もまだ気づいていない悩みを言い当て、改善された未来を見せ、<br />
-            ぼんやりした興味を行動に変えるための視点。
+          <p className="text-center text-gray-500 text-sm mb-8 max-w-lg mx-auto">
+            この講座では、案件の選び方や投稿文だけでなく、<br />
+            実際に手を動かしたときに迷いやすいポイントも扱います。
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 mb-6">
             {[
-              { num: '01', icon: '⭐', title: '低評価レビューを読む', desc: '売れる訴求は公式LPだけでなく、低評価レビューにもあります。期待・不満・不安・買う前に知りたかったことを拾って、「買う前に知っておくべきこと」として投稿やLPに活かすことで、信頼される紹介になります。' },
-              { num: '02', icon: '🔬', title: '競合の売れている投稿を分解する', desc: '丸パクリはしません。見るのは構造です。1行目・悩みの切り取り方・比較対象・コメント欄・CTA・プロフィール導線を分析し、伸びた理由をAIに分析させて自分の投稿に置き換えます。' },
-              { num: '03', icon: '🎯', title: '商品名を最初から出さない', desc: '初心者はすぐ商品名を出します。売れる導線では最初に出すのは商品名ではなく、悩み・失敗・損失・理想の未来・判断基準です。商品名は最後でいい。' },
-              { num: '04', icon: '✋', title: '向いていない人を書く', desc: 'あえて「この人には向かない」「こういう人は買わない方がいい」「別の選択肢がいい」と書くことで信頼が増えます。全員におすすめすると怪しく見えます。' },
-              { num: '05', icon: '🎁', title: '無料プレゼント名を商品名より強くする', desc: '無料プレゼントは中身だけでなく、名前で受け取られるかが決まります。「副業チェックシート」より「副業で3ヶ月売上0の人が最初に直すべき7項目」が強い理由を学びます。' },
-              { num: '06', icon: '🛡️', title: '案件停止を前提に作る', desc: '最初から「この案件が消えたら何を売るか」を決めておきます。だからアカウント名やプロフィールに特定商品名を入れません。商品ではなく、市場・悩み・未来で設計します。' },
-              { num: '07', icon: '📚', title: '成約記事は1記事で終わらせない', desc: '選び方・比較・レビュー・失敗回避・特典の最低5つを作ります。SNSならこれを投稿に分解します。1記事だけで売ろうとしません。' },
-              { num: '08', icon: '🗣️', title: '自分の言葉を混ぜる', desc: 'AI文章そのままだと売れません。自分の失敗・感情・判断基準・誰に勧めるか・誰に勧めないかを入れます。ここが信頼になります。' },
+              '投稿が思うように反応されないとき、どこを見直すのか',
+              '1投稿に頼らず、導線全体で収益化に近づける考え方',
+              '商品を売り込まず、自然に必要性を高める紹介の順番',
+              '案件が変わっても慌てないための市場と導線の見方',
+              'AIに文章を書かせるだけで終わらせない使い方',
             ].map((item) => (
-              <div key={item.num} className="bg-orange-50 rounded-2xl p-5 border border-orange-100">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold text-orange-400">{item.num}</span>
-                  <span className="text-xl">{item.icon}</span>
-                  <h3 className="font-bold text-gray-900 text-sm">{item.title}</h3>
-                </div>
-                <p className="text-gray-600 text-xs leading-relaxed">{item.desc}</p>
+              <div key={item} className="flex items-start gap-3 bg-orange-50 rounded-2xl p-4 border border-orange-100">
+                <span className="text-orange-400 font-extrabold text-base flex-shrink-0 mt-0.5">✓</span>
+                <p className="text-gray-700 text-sm">{item}</p>
               </div>
             ))}
+          </div>
+          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 text-center">
+            <p className="text-sm text-gray-700 leading-relaxed">
+              売り込みではなく、<strong>必要な人に届く紹介へ。</strong><br />
+              そのための視点と実践の順番を、この講座で身につけます。
+            </p>
           </div>
         </div>
       </section>
 
       {/* ══════════════════════════════════
-          9. バズらなくても大丈夫な導線設計
+          9. バズるかどうかに振り回されない導線
       ══════════════════════════════════ */}
       <section className="py-14 px-4" style={{ background: 'linear-gradient(135deg, #fff8f0, #fff3e0)' }}>
         <div className="max-w-2xl mx-auto">
           <p className="text-center text-xs font-bold text-orange-500 mb-2 tracking-widest">FUNNEL DESIGN</p>
-          <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-2">
-            投稿が伸びるかは運。<br />でも、導線は設計できます。
+          <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-4">
+            バズるかどうかに<br />振り回されない導線を作る。
           </h2>
-          <p className="text-center text-gray-500 text-sm mb-8">
-            1投稿のバズに頼らず、複数の導線を組み合わせて収益に近づきます。
-          </p>
+
+          <div className="bg-white rounded-2xl p-6 border border-orange-100 shadow-sm mb-6">
+            <p className="text-sm text-gray-700 leading-relaxed mb-4">
+              SNSでは、1つの投稿が大きく伸びるかどうかだけで判断しません。
+            </p>
+            <p className="text-sm font-bold text-gray-800 mb-3">大事なのは、投稿を見た人が、</p>
+            <div className="space-y-2 mb-4">
+              {[
+                '「これ私のことかも」',
+                '「もう少し詳しく知りたい」',
+                '「この人の紹介なら見てみたい」',
+              ].map((text) => (
+                <div key={text} className="flex items-center gap-2 bg-orange-50 rounded-xl px-4 py-2">
+                  <span className="text-orange-400 font-bold">💭</span>
+                  <p className="text-sm font-bold text-gray-700">{text}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              と思える流れを作ることです。<br /><br />
+              この講座では、投稿、プロフィール、固定投稿、紹介ページ、無料プレゼントを組み合わせて、必要な人が自然に次へ進める導線を整えていきます。
+            </p>
+          </div>
+
           <div className="space-y-3">
             {[
-              { icon: '📌', text: '1投稿で売ろうとしない' },
-              { icon: '🔗', text: '複数投稿で、悩みの言語化・失敗回避・選び方・比較・不安つぶし・CTAにつなげる' },
-              { icon: '👤', text: '投稿が伸びなくても、プロフィールアクセスやクリックにつながる導線を作る' },
-              { icon: '📍', text: '固定投稿とプロフィールで、次に見る場所を迷わせない' },
-              { icon: '📊', text: 'クリックされない時はCTAだけでなく、前提教育が足りているかを見る' },
-              { icon: '💡', text: '数字が少ない時は、分析ではなく仮説を作って改善する' },
+              { icon: '📌', text: '1投稿で当てにいくのではなく、導線全体で収益化に近づける' },
+              { icon: '🔗', text: '複数の投稿で、悩みの言語化・選び方・紹介の流れを整える' },
+              { icon: '👤', text: 'プロフィールと固定投稿で、次に見る場所を迷わせない' },
+              { icon: '📍', text: '紹介ページで、SNSから案件へ自然につなぐ' },
+              { icon: '💡', text: 'クリックされないときは、導線のどこが弱いかを仮説で改善する' },
             ].map((item) => (
               <div key={item.text} className="flex items-start gap-3 bg-white rounded-2xl p-4 border border-orange-100 shadow-sm">
                 <span className="text-xl flex-shrink-0">{item.icon}</span>
@@ -528,12 +555,15 @@ export function LandingPageAffiliateCourse() {
             {/* シート類 */}
             <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5">
               <h3 className="font-bold text-orange-700 text-sm mb-3">📋 実践シート（14種）</h3>
+              <p className="text-xs text-gray-500 mb-2">作るのではなく、記入して進めます</p>
               <ul className="space-y-1.5">
                 {[
-                  'Day1〜14進行シート', '案件管理シート', '投稿管理シート', 'クリック管理シート',
-                  'SNSアカウント設計シート', 'ASP登録チェックシート', '案件審査チェックシート',
-                  'LP管理シート', '無料プレゼント管理シート', 'LINE導線管理シート',
-                  '特典管理シート', '次の14日計画シート',
+                  'Day1〜14進行シート（今日やることをチェックしながら進める）',
+                  '案件管理シート',
+                  '投稿管理シート',
+                  'クリック管理シート',
+                  'SNSアカウント設計シート',
+                  'LP管理シート、LINE導線管理シート 他',
                 ].map(item => (
                   <li key={item} className="flex items-start gap-2 text-xs text-gray-700">
                     <span className="text-orange-400 font-bold mt-0.5">✓</span>{item}
@@ -546,8 +576,12 @@ export function LandingPageAffiliateCourse() {
               <h3 className="font-bold text-orange-700 text-sm mb-3">🤖 GPTs（6種）</h3>
               <ul className="space-y-1.5">
                 {[
-                  'ジャンル診断GPTs', '案件チェックGPTs', 'アカウント設計GPTs',
-                  '投稿作成GPTs', 'LP生成GPTs', '改善分析GPTs',
+                  'ジャンル診断GPTs',
+                  '案件チェックGPTs',
+                  'アカウント設計GPTs',
+                  '投稿作成GPTs',
+                  'LP生成GPTs',
+                  '改善分析GPTs',
                 ].map(item => (
                   <li key={item} className="flex items-start gap-2 text-xs text-gray-700">
                     <span className="text-orange-400 font-bold mt-0.5">✓</span>{item}
@@ -555,13 +589,12 @@ export function LandingPageAffiliateCourse() {
                 ))}
               </ul>
             </div>
-            {/* 補講・特典 */}
+            {/* 補講 */}
             <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5">
-              <h3 className="font-bold text-orange-700 text-sm mb-3">🎁 補講・特典</h3>
+              <h3 className="font-bold text-orange-700 text-sm mb-3">🎁 補講</h3>
               <ul className="space-y-1.5">
                 {[
                   '補講：スタート講座をコンテンツアフィリエイトする方法',
-                  '感想投稿特典：裏ルート実践パック〜Day15以降、私ならこう伸ばす〜',
                 ].map(item => (
                   <li key={item} className="flex items-start gap-2 text-xs text-gray-700">
                     <span className="text-orange-400 font-bold mt-0.5">✓</span>{item}
@@ -574,52 +607,34 @@ export function LandingPageAffiliateCourse() {
       </section>
 
       {/* ══════════════════════════════════
-          11. 感想投稿特典
+          11. 購入者限定追加コンテンツ
       ══════════════════════════════════ */}
       <section className="py-14 px-4" style={{ background: 'linear-gradient(135deg, #fff8f0, #fff3e0)' }}>
         <div className="max-w-2xl mx-auto">
           <div className="bg-white rounded-3xl shadow-md border border-orange-100 p-6 md:p-8">
-            <p className="text-xs font-bold text-orange-500 mb-1 tracking-widest">BONUS</p>
+            <p className="text-xs font-bold text-orange-500 mb-1 tracking-widest">BONUS CONTENTS</p>
             <h2 className="text-lg md:text-xl font-extrabold text-gray-900 mb-1">
-              🎁 感想投稿特典：裏ルート実践パック
+              購入者限定追加コンテンツ
             </h2>
-            <p className="text-sm text-orange-600 font-bold mb-4">Day15以降、私ならこう伸ばす。</p>
+            <p className="text-sm text-orange-600 font-bold mb-4">裏ルート実践パック｜Day15以降、私ならこう伸ばす。</p>
             <p className="text-sm text-gray-600 mb-5 leading-relaxed">
-              講座の感想を投稿してくださった方に、講座本編を一通り進めたあとにさらに導線を伸ばすための特典をお渡しします。
+              講座本編を一通り進めたあと、さらに導線を伸ばしたい方向けに、購入者限定の追加コンテンツも用意しています。
             </p>
-            <div className="bg-orange-50 rounded-2xl p-4 mb-5">
-              <p className="text-xs font-bold text-orange-700 mb-2">特典内容</p>
+            <div className="bg-orange-50 rounded-2xl p-4">
+              <p className="text-xs font-bold text-orange-700 mb-2">こんな視点が学べます</p>
               <ul className="space-y-1">
                 {[
-                  'Day15〜60 実践ロードマップ',
-                  'GPTs裏活用集',
-                  'バズらなくても大丈夫な導線設計',
-                  '低評価レビュー、競合投稿、コメント欄の分析テンプレ',
-                  '私ならこう直す改善チェックリスト',
+                  'Day15以降の実践ロードマップ',
+                  'GPTsの応用活用',
+                  'バズに頼らない導線設計',
+                  '投稿・紹介LP・導線の改善視点',
+                  '本編に入りきらなかった実践のコツ',
                 ].map(item => (
                   <li key={item} className="flex items-start gap-2 text-xs text-gray-700">
                     <span className="text-orange-400 font-bold">✓</span>{item}
                   </li>
                 ))}
               </ul>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-700 mb-2">受け取り条件</p>
-              <ol className="space-y-1.5">
-                {[
-                  '講座の感想をXまたはThreadsで引用ポスト',
-                  '元投稿にいいね',
-                  '元投稿をリポスト',
-                  'いいね・リポスト・引用ポストがわかるスクショを撮る',
-                  '購入者LINEにスクショを送る',
-                  '合言葉「養成」と送信する',
-                ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
-                    <span className="bg-orange-400 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
-                    {item}
-                  </li>
-                ))}
-              </ol>
             </div>
           </div>
         </div>
@@ -646,7 +661,7 @@ export function LandingPageAffiliateCourse() {
               <p className="text-xs font-bold text-orange-500 mb-1">プロAIアフィリエイター養成講座</p>
               <h3 className="font-bold text-gray-800 text-sm mb-2">市場と案件を攻略して、他人の商品を売れるようになる講座</h3>
               <p className="text-xs text-gray-600 leading-relaxed">
-                市場選定、案件ポートフォリオ、見込み客心理、反論処理、無料プレゼント、比較記事、特典設計、成約導線、改善分析が中心。
+                市場選定、案件ポートフォリオ、見込み客心理、紹介導線、改善分析が中心。
               </p>
             </div>
           </div>
@@ -673,19 +688,19 @@ export function LandingPageAffiliateCourse() {
               この講座では、ASPや楽天だけでなく、コンテンツアフィリエイトの実践例として、スタート講座を紹介する方法も補講で扱います。
             </p>
             <div className="space-y-2 mb-4">
-              <div className="flex items-start gap-2 text-sm text-gray-700">
-                <span className="text-orange-400 font-bold">▷</span>
-                <span>補講：実践用案件としてスタート講座を紹介する場合</span>
-              </div>
-              <div className="flex items-start gap-2 text-sm text-gray-700">
-                <span className="text-orange-400 font-bold">▷</span>
-                <span>補講：紹介リンク・禁止表現・素材・報酬条件</span>
-              </div>
+              {[
+                '補講：実践用案件としてスタート講座を紹介する場合',
+                '補講：紹介リンク・禁止表現・素材・報酬条件',
+              ].map(item => (
+                <div key={item} className="flex items-start gap-2 text-sm text-gray-700">
+                  <span className="text-orange-400 font-bold">▷</span>
+                  <span>{item}</span>
+                </div>
+              ))}
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
               <p><strong>参加条件：</strong>スタート講座購入者のみ</p>
               <p><strong>制度：</strong>スタート講座の販売が1,000部に到達するまでの限定制度</p>
-              <p><strong>報酬：</strong>商品購入が発生した場合</p>
             </div>
           </div>
           <p className="text-xs text-gray-500 text-center">
@@ -707,8 +722,8 @@ export function LandingPageAffiliateCourse() {
           <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
             <p className="text-xs font-bold text-gray-400 mb-2 tracking-widest">NEXT STEP（予告）</p>
             <p className="text-sm text-gray-700 leading-relaxed">
-              この講座では、まず初報酬を狙う導線、ASP垢とビジ垢の土台作り、案件が変わっても使える雪だるま式導線を作ります。<br /><br />
-              オプチャ運営、LINE自動化、YouTube本格運用、SEOブログ、クローズドASP、特単交渉、外注化などは<strong>中級編で扱う予定</strong>です。
+              この講座では、まず初報酬を狙う導線、2アカウントの土台作り、案件が変わっても使える安定した導線を作ります。<br /><br />
+              オプチャ運営、YouTube本格運用、SEOブログ、クローズドASP、特単交渉、外注化などは<strong>中級編で扱う予定</strong>です。
             </p>
           </div>
         </div>
@@ -720,13 +735,14 @@ export function LandingPageAffiliateCourse() {
       <section className="py-14 px-4" style={{ background: 'linear-gradient(135deg, #fff8f0, #fff3e0)' }}>
         <div className="max-w-2xl mx-auto">
           <p className="text-center text-xs font-bold text-orange-500 mb-2 tracking-widest">PRICING</p>
-          <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-6">プロジェクト限定価格</h2>
+          <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-6">プロジェクト初期メンバー価格</h2>
           <div className="bg-white rounded-3xl shadow-lg border border-orange-100 p-6 md:p-8 mb-6">
             <p className="text-sm text-gray-700 leading-relaxed mb-5">
               プロAIアフィリエイター養成講座の通常価格は<strong>¥99,800</strong>です。<br /><br />
-              ただし現在は、スタート講座1,000部達成プロジェクトの初期メンバー募集として、プロジェクト期間中のみ特別価格で公開しています。<br /><br />
-              これは未完成だから安いのではありません。講座として学べる形は整っていますが、今回はスタート講座を紹介できる実践者を増やし、アフィリエイト実践者の成功事例を一緒に作っていくための特別価格です。
+              現在は、スタート講座1,000部達成プロジェクトの初期メンバー募集として、プロジェクト期間中のみ特別価格で公開しています。<br /><br />
+              未完成だから安いのではなく、スタート講座を紹介できる実践者を増やし、アフィリエイト実践者の成功事例を一緒に作っていくための特別価格です。
             </p>
+
             {/* 価格表 */}
             <div className="rounded-2xl overflow-hidden border border-orange-100 mb-5">
               <div className="bg-orange-500 text-white px-4 py-2 text-xs font-bold text-center">価格移行スケジュール</div>
@@ -738,13 +754,13 @@ export function LandingPageAffiliateCourse() {
                 { range: 'プロジェクト終了後', price: '¥99,800', current: false },
               ].map((row) => (
                 <div key={row.range} className={`flex justify-between items-center px-4 py-3 text-sm border-b border-orange-50 last:border-b-0 ${row.current ? 'bg-orange-50 font-bold' : ''}`}>
-                  <span className={row.current ? 'text-orange-700' : 'text-gray-600'}>{row.current && '🟠 '}{row.range}</span>
-                  <span className={row.current ? 'text-orange-600 text-lg' : 'text-gray-700'}>{row.price}</span>
+                  <span className={row.current ? 'text-orange-700' : 'text-gray-500 text-xs'}>{row.current && '🟠 '}{row.range}</span>
+                  <span className={row.current ? 'text-orange-600 text-lg font-extrabold' : 'text-gray-600'}>{row.price}</span>
                 </div>
               ))}
             </div>
             <p className="text-xs text-gray-500 mb-5">
-              ※各価格帯は、人数到達またはプロジェクト終了のどちらか早い時点で終了します。プロジェクト終了後は、その時点の価格に関わらず通常価格¥99,800へ移行します。
+              ※各価格帯は、人数到達またはプロジェクト終了のどちらか早い時点で終了します。
             </p>
 
             {/* 販売進捗 */}
@@ -764,7 +780,7 @@ export function LandingPageAffiliateCourse() {
               </div>
             )}
 
-            <PurchaseBtn label="プロジェクト限定価格で参加する" />
+            <PurchaseBtn label="4,980円でプロジェクト参加する" />
             <p className="text-center text-xs text-gray-400 mt-2">Stripe 安全決済 ｜ クレジットカード対応</p>
           </div>
         </div>
@@ -776,18 +792,17 @@ export function LandingPageAffiliateCourse() {
       <section className="py-14 px-4 bg-white">
         <div className="max-w-2xl mx-auto">
           <p className="text-center text-xs font-bold text-orange-500 mb-2 tracking-widest">AFTER PURCHASE</p>
-          <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-8">購入後の流れ</h2>
-          <p className="text-center text-sm text-gray-600 mb-6">
-            購入後は、購入者限定公式LINEから講座を受け取ります。
+          <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-4">購入後の流れ</h2>
+          <p className="text-center text-sm text-gray-600 mb-8">
+            購入後は、購入後ページにて講座の受け取り方法を案内します。
           </p>
-          <div className="space-y-3 max-w-sm mx-auto">
+          <div className="space-y-3 max-w-sm mx-auto mb-6">
             {[
-              { step: '1', text: '決済完了後、購入後ページへ移動' },
-              { step: '2', text: 'メールアドレスを登録' },
-              { step: '3', text: '購入者限定LINEを追加' },
-              { step: '4', text: 'LINEで合言葉を送信' },
-              { step: '5', text: '購入時メールアドレスと照合' },
-              { step: '6', text: '確認後、講座URLを案内' },
+              { step: '1', text: '決済完了' },
+              { step: '2', text: '購入後ページへ移動' },
+              { step: '3', text: 'メールアドレスを登録' },
+              { step: '4', text: '購入者限定LINEの案内を確認' },
+              { step: '5', text: '購入者確認後、講座URLを受け取り' },
             ].map((item) => (
               <div key={item.step} className="flex items-center gap-4 bg-orange-50 rounded-2xl px-5 py-3.5 border border-orange-100">
                 <span className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">{item.step}</span>
@@ -795,15 +810,10 @@ export function LandingPageAffiliateCourse() {
               </div>
             ))}
           </div>
-          <div className="mt-6 bg-orange-50 border border-orange-200 rounded-2xl p-5 text-center">
-            <p className="text-sm font-bold text-orange-700 mb-3">購入者限定LINE</p>
-            <a href="https://lin.ee/n8hWvOf" target="_blank" rel="noopener noreferrer"
-              className="inline-block bg-green-500 hover:bg-green-600 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all">
-              📲 購入者限定LINEを追加する
-            </a>
-            <p className="text-xs text-gray-500 mt-3">合言葉：<strong>本気でプロアフィリエイター</strong></p>
-            <p className="text-xs text-gray-400 mt-2">
-              ※講座URLの受け取りには、購入時メールアドレスの登録が必要です。
+          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 text-center">
+            <p className="text-xs text-gray-500">
+              講座URLの受け取りには、購入時メールアドレスの登録が必要です。<br />
+              詳しい受け取り方法は購入後ページで案内します。
             </p>
           </div>
         </div>
@@ -818,14 +828,38 @@ export function LandingPageAffiliateCourse() {
           <h2 className="text-xl md:text-2xl font-extrabold text-center text-gray-900 mb-8">よくある質問</h2>
           <div className="space-y-3">
             {[
-              { q: 'アフィリエイト初心者でも大丈夫ですか？', a: 'はい。ASP登録、案件選び、投稿作成、LP作成、改善まで、Day1〜14の流れで進められるようにしています。' },
-              { q: 'この講座だけで必ず稼げますか？', a: '成果を保証するものではありません。ただし、紹介リンクを貼るだけではなく、案件選定・投稿・LP・導線・改善まで実践できる形にしています。' },
-              { q: 'スタート講座とどう違いますか？', a: 'スタート講座は「自分に合う副業・収益ルートを見つける講座」です。この講座は、アフィリエイトに特化して、ASP・楽天・コンテンツ紹介の導線を作る講座です。' },
-              { q: 'スタート講座を買わないと、この講座は受けられませんか？', a: 'この講座自体は受講できます。ただし、補講で扱うスタート講座の紹介制度に参加するには、スタート講座の購入が必要です。' },
-              { q: 'アフィリエイター登録は誰でもできますか？', a: 'スタート講座を紹介するアフィリエイター登録は、スタート講座購入者限定です。メールアドレスで購入情報を照合します。' },
-              { q: '特別価格はいつまでですか？', a: '人数到達またはスタート講座1,000部達成プロジェクト終了のどちらか早い時点で終了します。' },
-              { q: '購入後すぐに講座を受け取れますか？', a: '購入後ページでメールアドレスを登録し、購入者限定LINEに合言葉を送ることで、講座URLを受け取れます。' },
-              { q: '投稿がバズらないと意味がないですか？', a: 'いいえ。この講座では、投稿のバズだけに頼らず、プロフィール、固定投稿、LP、無料プレゼント、必要な人だけLINE公式を組み合わせて導線を作ります。' },
+              {
+                q: 'アフィリエイト初心者でも大丈夫ですか？',
+                a: 'はい。ASP登録、案件選び、投稿作成、紹介LP作成、改善まで、Day1〜14の流れで進められるようにしています。用意されたシートに記入しながら進めるので、何から始めればいいかで迷いません。',
+              },
+              {
+                q: 'シートやGPTsを使うのが難しそうで不安です。',
+                a: '難しい操作はありません。用意されたシートに記入して進める形になっています。GPTsも、どう使うかを動画で説明するので、初めての方でも問題なく進められます。',
+              },
+              {
+                q: '1日どのくらい時間がかかりますか？',
+                a: '基本的に1日1時間を目安にしています。動画を見る日（Day1・2・4・8・10・13）と、行動中心の日に分かれています。',
+              },
+              {
+                q: 'この講座だけで必ず稼げますか？',
+                a: '成果を保証するものではありません。ただし、紹介リンクを貼るだけではなく、案件選定・投稿・紹介LP・導線・改善まで実践できる形にしています。',
+              },
+              {
+                q: 'スタート講座とどう違いますか？',
+                a: 'スタート講座は「自分に合う副業・収益ルートを見つける講座」です。この講座は、アフィリエイトに特化して、ASP・楽天・コンテンツ紹介の導線を作る講座です。',
+              },
+              {
+                q: 'スタート講座を買わないと、この講座は受けられませんか？',
+                a: 'この講座自体は受講できます。ただし、補講で扱うスタート講座の紹介制度に参加するには、スタート講座の購入が必要です。',
+              },
+              {
+                q: '特別価格はいつまでですか？',
+                a: '先着30名に達した時点、またはスタート講座1,000部達成プロジェクト終了のどちらか早い時点で終了します。終了後は¥99,800に戻ります。',
+              },
+              {
+                q: '購入後すぐに講座を受け取れますか？',
+                a: '購入後ページにて、メールアドレス登録と購入者限定LINEの案内を確認していただきます。確認後に講座URLをご案内します。',
+              },
             ].map((item, idx) => (
               <div key={idx} className="bg-white rounded-2xl border border-orange-100 overflow-hidden shadow-sm">
                 <button
@@ -853,16 +887,16 @@ export function LandingPageAffiliateCourse() {
         <div className="max-w-lg mx-auto text-center">
           <p className="text-xs font-bold text-orange-600 mb-3 tracking-widest">JOIN NOW</p>
           <h2 className="text-xl md:text-2xl font-extrabold text-gray-900 mb-4 leading-snug">
-            成約しやすい案件を探す側から、<br />
-            <span style={{ color: '#ea6500' }}>成約される理由を作る側へ。</span>
+            紹介リンクを貼るだけで終わらせない。<br />
+            <span style={{ color: '#ea6500' }}>成約される理由を作れる人になる。</span>
           </h2>
           <p className="text-sm text-gray-700 leading-relaxed mb-8">
-            アフィリエイトは、紹介リンクを貼るだけでは続きません。<br />
-            誰の悩みを解決するのか。<br />
-            どんな言葉で届けるのか。<br />
-            どんな導線なら自然に進めるのか。<br /><br />
-            そこまで作れるようになることで、<br />
-            案件が変わっても収益化できる土台ができます。
+            1日1時間、14日間。<br />
+            用意されたシートに記入しながら、<br />
+            1投稿に頼らず導線全体で収益化に近づける考え方を学びます。<br /><br />
+            今は通常¥99,800の講座を、<br />
+            プロジェクト初期メンバー価格でご案内しています。<br />
+            このタイミングを逃すと、同じ条件では入れません。
           </p>
 
           <div className="bg-white rounded-3xl shadow-lg border border-orange-200 p-6 mb-6">
@@ -886,16 +920,17 @@ export function LandingPageAffiliateCourse() {
                   </div>
                 )}
                 <p className="text-xs text-gray-400 line-through mb-1 text-center">通常価格 ¥{NORMAL_PRICE.toLocaleString()}</p>
+                <p className="text-xs font-bold text-orange-600 text-center mb-1">↓ プロジェクト初期メンバー価格</p>
                 <div className="text-5xl font-extrabold mb-1 text-center" style={{ color: '#ea6500' }}>
                   ¥{currentPrice.toLocaleString()}
                 </div>
                 <p className="text-xs text-red-500 font-bold text-center mb-4">先着30名限定 ｜ プロジェクト期間中のみ</p>
-                <PurchaseBtn label="プロジェクト限定価格で参加する" />
+                <PurchaseBtn label="4,980円でプロジェクト参加する" />
                 <p className="text-center text-xs text-gray-400 mt-2">Stripe 安全決済 ｜ クレジットカード対応</p>
               </>
             )}
           </div>
-          <p className="text-xs text-gray-500">ご不明な点は購入者限定LINEよりお問い合わせください</p>
+          <p className="text-xs text-gray-500">ご不明な点はページ下部のお問い合わせよりご連絡ください</p>
         </div>
       </section>
 
