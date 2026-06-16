@@ -333,7 +333,7 @@ export function AffiliateTop() {
             {[
               {
                 name: 'AI副業1時間化\nスタート講座',
-                price: '¥4,980〜',
+                price: '¥29,800〜',
                 color: 'from-orange-400 to-amber-400',
                 note: '〜1,000部:29,800円 / 1,001〜10,000部:49,800円 / 10,001部〜:99,800円',
                 icon: '📘',
@@ -400,7 +400,7 @@ export function AffiliateTop() {
             <ol className="space-y-1 text-xs text-gray-500 list-decimal list-inside">
               <li>「紹介者登録する」ボタンをタップ</li>
               <li>購入時に使ったメールアドレスを入力（購入確認に使用）</li>
-              <li>名前・SNS・動機などを入力して送信</li>
+              <li>名前・パスワードを設定して送信</li>
               <li>即時承認 → ダッシュボードで紹介URLを取得！</li>
             </ol>
           </div>
