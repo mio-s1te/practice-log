@@ -997,11 +997,8 @@ async function sendPurchaseCompletedEmail({ to, productId, productName, purchase
             <td style="padding:32px;">
 
               <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.8;">
-                この度は <strong>${label}</strong> をご購入いただき、本当にありがとうございます。
-              </p>
-              <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.8;">
-                一緒にやっていきましょう！<br>
-                ひとつひとつ積み上げながら、あなたのペースで進んでいきましょう。応援しています。
+                この度は <strong>${label}</strong> をご購入いただき、本当にありがとうございます！<br>
+                一緒に頑張っていきましょう。応援しています！
               </p>
 
               <!-- 購入コード -->
@@ -1041,8 +1038,8 @@ async function sendPurchaseCompletedEmail({ to, productId, productName, purchase
                                 <span style="color:#fff;font-size:13px;font-weight:900;">2</span>
                               </td>
                               <td style="padding-left:12px;font-size:14px;color:#374151;">
-                                合言葉を送ってください：
-                                <strong style="color:#15803d;font-size:15px;"> 「${keyword}」</strong>
+                                合言葉と購入コードを送ってください：<br>
+                                <strong style="color:#15803d;font-size:15px;">「${keyword}」＋ 購入コード</strong>
                               </td>
                             </tr>
                           </table>
@@ -1075,13 +1072,7 @@ async function sendPurchaseCompletedEmail({ to, productId, productName, purchase
                     </a>
                   </td>
                 </tr>
-                <tr>
-                  <td align="center" style="padding-top:8px;">
-                    <p style="margin:0;font-size:12px;color:#9ca3af;">
-                      ${COURSE_LINE_URL}
-                    </p>
-                  </td>
-                </tr>
+
               </table>
 
               <!-- 注意書き -->
@@ -1115,7 +1106,7 @@ async function sendPurchaseCompletedEmail({ to, productId, productName, purchase
 【購入完了】${label}
 
 この度はご購入いただきありがとうございます！
-一緒にやっていきましょう！
+一緒に頑張っていきましょう。応援しています！
 
 ■ 購入コード
 ${purchaseCode}
@@ -1124,7 +1115,7 @@ ${purchaseCode}
 1. 公式LINEを友だち追加してください
    ${COURSE_LINE_URL}
 
-2. 合言葉「${keyword}」を送ってください
+2. 合言葉「${keyword}」＋ 購入コードを送ってください
 
 3. 購入確認後に講座URLをお届けします
 
