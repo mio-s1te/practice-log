@@ -333,12 +333,15 @@ exports.handler = async (event) => {
     // 登録申請送信
     if (path === '/register/submit' && method === 'POST') {
       const {
-        email, name, sns_url, promotion_channel, motivation,
+        email, name, password,
         agreed_to_rules,
       } = JSON.parse(event.body || '{}');
 
-      if (!email || !name || !promotion_channel || !motivation || !agreed_to_rules) {
+      if (!email || !name || !password || !agreed_to_rules) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: '必須項目が不足しています' }) };
+      }
+      if (password.length < 8) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'パスワードは8文字以上で設定してください' }) };
       }
 
       // ============================================================
@@ -377,9 +380,6 @@ exports.handler = async (event) => {
         .insert({
           name,
           email,
-          sns_url: sns_url || null,
-          promotion_channel,
-          motivation,
           agreed_to_rules: true,
           start_course_purchase_id: purchases?.find(p => p.product_id === 'a0000000-0000-0000-0000-000000000001')?.id || null,
           start_course_verified: hasStart,
@@ -402,8 +402,7 @@ exports.handler = async (event) => {
           affiliate_code: affiliateCode,
           status: 'active',
           approved_at: new Date().toISOString(),
-          sns_url: sns_url || null,
-          promotion_channel,
+          password_hash: await bcrypt.hash(password, 10),
           start_course_purchased: hasStart,
           notes: `自動承認 registration_id:${reg.id}`,
         })

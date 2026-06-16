@@ -34,10 +34,10 @@ function Mio({ size = 80, balloon, balloonDir = 'right', className = '' }:
 }
 
 // スクリーンショット画像URL（実際のダッシュボード）
-const SS_KPI     = 'https://www.genspark.ai/api/files/s/mGtoWazF';
-const SS_GRAPH   = 'https://www.genspark.ai/api/files/s/NYuHlT4z';
-const SS_RADAR   = 'https://www.genspark.ai/api/files/s/QCj6gOYX';
-const SS_RANKING = 'https://www.genspark.ai/api/files/s/cSPMgpPe';
+const SS_KPI     = '/dashboard-kpi.png';
+const SS_GRAPH   = '/dashboard-graph.png';
+const SS_RADAR   = '/dashboard-radar.png';
+const SS_RANKING = '/dashboard-ranking.png';
 
 // ─────────────────────────────────────────
 // ダッシュボードモックアップ（実スクリーンショット使用）
@@ -214,14 +214,14 @@ export function AffiliateTop() {
                 AIと一緒に手に入れよう。
               </h1>
               <p className="text-gray-500 text-sm sm:text-base leading-relaxed mb-8 max-w-md mx-auto lg:mx-0">
-                みおの講座を紹介するだけ。あなたのURLから誰かが購入すると<span className="font-bold text-orange-500">高還元報酬</span>が入ります。
+                みおの講座を紹介するだけ。あなたのURLから誰かが購入すると<span className="font-bold text-orange-500">報酬</span>が入ります。
                 スタート講座・養成講座どちらかの購入者なら今すぐ登録できます。
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
                 <Link to="/affiliate/register"
                   className="inline-flex items-center justify-center gap-2 bg-orange-400 hover:bg-orange-500 text-white font-black px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition-all text-base">
-                  🎉 パートナー登録する（無料）
+                  🎉 紹介者登録する（無料）
                 </Link>
                 <Link to="/affiliate/login"
                   className="inline-flex items-center justify-center gap-2 bg-white hover:bg-orange-50 text-gray-600 font-medium px-8 py-4 rounded-full shadow border border-orange-200 transition-all text-base">
@@ -360,7 +360,7 @@ export function AffiliateTop() {
                   </div>
                   <div className="flex justify-between items-center mt-1">
                     <span className="text-sm opacity-90">あなたの報酬</span>
-                    <span className="font-black text-base">高還元報酬💰</span>
+                    <span className="font-black text-base">ダッシュボードで確認</span>
                   </div>
                 </div>
                 <p className="text-xs opacity-80 leading-relaxed">💡 {p.note}</p>
@@ -402,7 +402,7 @@ export function AffiliateTop() {
           <div className="bg-white rounded-2xl border border-orange-100 p-5 text-sm text-gray-600 shadow-sm">
             <p className="font-bold text-gray-700 mb-2">📋 登録の流れ</p>
             <ol className="space-y-1 text-xs text-gray-500 list-decimal list-inside">
-              <li>「パートナー登録する」ボタンをタップ</li>
+              <li>「紹介者登録する」ボタンをタップ</li>
               <li>購入時に使ったメールアドレスを入力（購入確認に使用）</li>
               <li>名前・SNS・動機などを入力して送信</li>
               <li>即時承認 → ダッシュボードで紹介URLを取得！</li>
@@ -472,7 +472,7 @@ export function AffiliateTop() {
           </p>
           <Link to="/affiliate/register"
             className="inline-flex items-center justify-center gap-2 bg-white text-orange-500 font-black px-10 py-5 rounded-full shadow-2xl hover:scale-105 transition-transform text-lg">
-            🎉 無料でパートナー登録する
+            🎉 無料で紹介者登録する
           </Link>
           <div className="mt-5">
             <Link to="/affiliate/login" className="text-orange-100 text-sm underline hover:text-white">
