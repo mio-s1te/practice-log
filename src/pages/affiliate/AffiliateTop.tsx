@@ -1,74 +1,220 @@
 // src/pages/affiliate/AffiliateTop.tsx
 // mio-affiliate トップページ（アフィリエイターパートナーHP）
+// テーマ：薄オレンジ・可愛い・みおキャラ活用
 
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
 const MIO_ICON = 'https://www.genspark.ai/api/files/s/CJ9px1sS';
 
-// みおキャラの表情パターン
-type MioMood = 'normal' | 'happy' | 'wink' | 'excited';
-
-function MioCharacter({ mood = 'normal', size = 80, className = '' }: { mood?: MioMood; size?: number; className?: string }) {
-  // 気分によってアニメーションclass変える
-  const animClass = {
-    normal: 'animate-bounce-slow',
-    happy:  'animate-spin-slow',
-    wink:   'animate-wiggle',
-    excited:'animate-jump',
-  }[mood];
-
+// ─────────────────────────────────────────
+// みおキャラ（吹き出し付き）
+// ─────────────────────────────────────────
+function Mio({ size = 80, balloon, balloonDir = 'right', className = '' }:
+  { size?: number; balloon?: string; balloonDir?: 'right' | 'left' | 'top'; className?: string }) {
   return (
-    <img
-      src={MIO_ICON}
-      alt="みお"
-      width={size}
-      height={size}
-      className={`rounded-full ${animClass} ${className}`}
-      style={{ imageRendering: 'auto' }}
-    />
+    <div className={`relative inline-flex flex-col items-center ${className}`}>
+      <img src={MIO_ICON} alt="みお" width={size} height={size}
+        className="rounded-full border-4 border-white shadow-lg object-cover" />
+      {balloon && (
+        <div className={`absolute z-10 bg-white border-2 border-orange-200 rounded-2xl px-3 py-2
+          text-xs font-bold text-gray-700 shadow-md whitespace-nowrap
+          ${balloonDir === 'right' ? '-right-2 top-0 translate-x-full' :
+            balloonDir === 'left'  ? '-left-2 top-0 -translate-x-full' :
+            'bottom-full mb-2'}`}>
+          {balloon}
+          <div className={`absolute w-2 h-2 bg-white border-orange-200 rotate-45
+            ${balloonDir === 'right' ? 'border-b-2 border-l-2 -left-1 top-3' :
+              balloonDir === 'left'  ? 'border-b-2 border-r-2 -right-1 top-3' :
+              'border-b-2 border-r-2 left-4 -bottom-1'}`} />
+        </div>
+      )}
+    </div>
   );
 }
 
-// 報酬ステップカード
-function StepCard({ step, icon, title, desc }: { step: number; icon: string; title: string; desc: string }) {
+// ─────────────────────────────────────────
+// ダッシュボードモックアップ
+// ─────────────────────────────────────────
+function DashboardMockup() {
   return (
-    <div className="relative bg-white rounded-2xl shadow-md p-6 border border-pink-100 hover:shadow-lg transition-shadow">
-      <div className="absolute -top-4 -left-2 w-9 h-9 bg-pink-400 text-white rounded-full flex items-center justify-center font-bold text-sm shadow">
-        {step}
+    <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-orange-100 text-left">
+      {/* ブラウザバー風 */}
+      <div className="bg-gray-100 px-4 py-2 flex items-center gap-2 border-b border-gray-200">
+        <div className="flex gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-red-400" />
+          <div className="w-3 h-3 rounded-full bg-yellow-400" />
+          <div className="w-3 h-3 rounded-full bg-green-400" />
+        </div>
+        <div className="flex-1 bg-white rounded-full px-3 py-1 text-xs text-gray-400 ml-2">
+          mio-affiliate.netlify.app/affiliate/dashboard
+        </div>
       </div>
-      <div className="text-3xl mb-3 mt-1">{icon}</div>
-      <h3 className="font-bold text-gray-800 mb-1">{title}</h3>
-      <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
+      {/* ダッシュボード本体 */}
+      <div className="p-4 bg-orange-50">
+        {/* ヘッダー行 */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <img src={MIO_ICON} alt="みお" className="w-7 h-7 rounded-full" />
+            <span className="text-sm font-bold text-gray-700">みおアフィリエイト</span>
+          </div>
+          <div className="text-xs text-orange-500 bg-orange-100 px-2 py-1 rounded-full font-medium">
+            📊 ダッシュボード
+          </div>
+        </div>
+
+        {/* KPIカード */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {[
+            { label: 'クリック数', value: '128', icon: '👆', color: 'bg-blue-50 border-blue-100' },
+            { label: '成約数', value: '7', icon: '🎉', color: 'bg-green-50 border-green-100' },
+            { label: '獲得報酬', value: '¥34,860', icon: '💰', color: 'bg-orange-50 border-orange-200' },
+          ].map(k => (
+            <div key={k.label} className={`rounded-xl p-3 border ${k.color}`}>
+              <div className="text-lg mb-0.5">{k.icon}</div>
+              <div className="text-sm font-black text-gray-800">{k.value}</div>
+              <div className="text-xs text-gray-400">{k.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* グラフ風バー */}
+        <div className="bg-white rounded-xl p-3 mb-3 border border-orange-100">
+          <div className="text-xs font-bold text-gray-500 mb-2">直近7日間のクリック数</div>
+          <div className="flex items-end gap-1 h-12">
+            {[30, 45, 28, 60, 42, 78, 55].map((h, i) => (
+              <div key={i} className="flex-1 bg-orange-300 rounded-t-sm opacity-80"
+                style={{ height: `${(h / 78) * 100}%` }} />
+            ))}
+          </div>
+          <div className="flex justify-between mt-1">
+            {['月','火','水','木','金','土','日'].map(d => (
+              <div key={d} className="flex-1 text-center text-xs text-gray-300">{d}</div>
+            ))}
+          </div>
+        </div>
+
+        {/* 紹介URLエリア */}
+        <div className="bg-white rounded-xl p-3 border border-orange-100">
+          <div className="text-xs font-bold text-gray-500 mb-2">🔗 あなたの紹介URL</div>
+          <div className="flex gap-2 items-center">
+            <div className="flex-1 bg-gray-50 rounded-lg px-3 py-1.5 text-xs text-gray-400 truncate border border-gray-100">
+              mio-mainsite.netlify.app/?ref=mio_xxxx
+            </div>
+            <div className="bg-orange-400 text-white text-xs px-3 py-1.5 rounded-lg font-bold whitespace-nowrap">
+              コピー
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-// 報酬体系カード
-function RewardCard({ label, percent, amount, color }: { label: string; percent: string; amount: string; color: string }) {
+// ─────────────────────────────────────────
+// 報酬シミュレーターモックアップ
+// ─────────────────────────────────────────
+function RewardSimMockup() {
   return (
-    <div className={`rounded-2xl p-5 text-white shadow-md ${color}`}>
-      <p className="text-sm font-medium opacity-90 mb-1">{label}</p>
-      <p className="text-4xl font-black">{percent}</p>
-      <p className="text-sm opacity-80 mt-1">{amount}</p>
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-orange-100 text-left">
+      <div className="bg-orange-400 px-4 py-3">
+        <p className="text-white font-bold text-sm">💰 報酬シミュレーター</p>
+      </div>
+      <div className="p-4 space-y-3">
+        <div>
+          <p className="text-xs text-gray-400 mb-1">月間紹介人数</p>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-2 bg-orange-100 rounded-full">
+              <div className="w-2/3 h-2 bg-orange-400 rounded-full" />
+            </div>
+            <span className="text-sm font-bold text-gray-700">10人</span>
+          </div>
+        </div>
+        <div className="border-t border-orange-50 pt-3 space-y-2">
+          {[
+            { label: 'スタート講座（¥4,980）× 6人', reward: '¥8,964' },
+            { label: '養成講座（¥4,980）× 4人', reward: '¥5,976' },
+          ].map(r => (
+            <div key={r.label} className="flex justify-between items-center">
+              <span className="text-xs text-gray-500">{r.label}</span>
+              <span className="text-sm font-bold text-orange-500">{r.reward}</span>
+            </div>
+          ))}
+        </div>
+        <div className="bg-orange-50 rounded-xl p-3 text-center border border-orange-200">
+          <p className="text-xs text-gray-500">月間報酬合計</p>
+          <p className="text-2xl font-black text-orange-500">¥14,940</p>
+          <p className="text-xs text-gray-400">（報酬率30%）</p>
+        </div>
+      </div>
     </div>
   );
 }
 
+// ─────────────────────────────────────────
+// ランキングモックアップ
+// ─────────────────────────────────────────
+function RankingMockup() {
+  const data = [
+    { rank: 1, name: 'さくらさん', count: 12, medal: '🥇' },
+    { rank: 2, name: 'ゆいさん', count: 9,  medal: '🥈' },
+    { rank: 3, name: 'はるさん', count: 7,  medal: '🥉' },
+    { rank: 4, name: 'あなた',   count: 5,  medal: '4位', me: true },
+  ];
+  return (
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-orange-100 text-left">
+      <div className="bg-gradient-to-r from-orange-400 to-pink-400 px-4 py-3">
+        <p className="text-white font-bold text-sm">🏆 今月のランキング</p>
+      </div>
+      <div className="p-3 space-y-2">
+        {data.map(d => (
+          <div key={d.rank}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl ${d.me ? 'bg-orange-50 border-2 border-orange-300' : 'bg-gray-50'}`}>
+            <span className="text-base w-6 text-center">{d.medal}</span>
+            <span className={`flex-1 text-sm font-medium ${d.me ? 'text-orange-600 font-bold' : 'text-gray-600'}`}>
+              {d.name}{d.me && ' ← あなた'}
+            </span>
+            <span className={`text-sm font-black ${d.me ? 'text-orange-500' : 'text-gray-700'}`}>
+              {d.count}件
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// ステップカード
+// ─────────────────────────────────────────
+function StepCard({ no, icon, title, desc, color }:
+  { no: number; icon: string; title: string; desc: string; color: string }) {
+  return (
+    <div className="relative bg-white rounded-2xl p-6 shadow-sm border border-orange-100 hover:shadow-md transition-shadow">
+      <div className={`absolute -top-3 left-5 w-8 h-8 ${color} text-white rounded-full flex items-center justify-center font-black text-sm shadow`}>
+        {no}
+      </div>
+      <div className="text-3xl mb-3 mt-2">{icon}</div>
+      <h3 className="font-bold text-gray-800 mb-1 text-sm">{title}</h3>
+      <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
 // FAQアイテム
-function FaqItem({ q, a }: { q: string; a: string }) {
+// ─────────────────────────────────────────
+function Faq({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border border-pink-100 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full text-left px-5 py-4 flex justify-between items-center bg-white hover:bg-pink-50 transition-colors"
-      >
-        <span className="font-medium text-gray-700 text-sm">{q}</span>
-        <span className="text-pink-400 font-bold text-lg ml-2">{open ? '−' : '+'}</span>
+    <div className="border border-orange-100 rounded-2xl overflow-hidden">
+      <button onClick={() => setOpen(!open)}
+        className="w-full text-left px-5 py-4 flex justify-between items-center bg-white hover:bg-orange-50 transition-colors">
+        <span className="font-medium text-gray-700 text-sm pr-4">{q}</span>
+        <span className={`text-orange-400 font-black text-xl transition-transform ${open ? 'rotate-45' : ''}`}>+</span>
       </button>
       {open && (
-        <div className="px-5 py-4 bg-pink-50 text-sm text-gray-600 leading-relaxed border-t border-pink-100">
+        <div className="px-5 py-4 bg-orange-50 text-sm text-gray-600 leading-relaxed border-t border-orange-100">
           {a}
         </div>
       )}
@@ -76,10 +222,13 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
+// ─────────────────────────────────────────
+// メインコンポーネント
+// ─────────────────────────────────────────
 export function AffiliateTop() {
   const [salesCount, setSalesCount] = useState<number | null>(null);
+  const remaining = salesCount !== null ? Math.max(0, 1000 - salesCount) : null;
 
-  // 現在の販売数を取得（アフィリエイト課への訴求）
   useEffect(() => {
     fetch('/api/get-product-price?product_id=a0000000-0000-0000-0000-000000000001')
       .then(r => r.json())
@@ -88,284 +237,331 @@ export function AffiliateTop() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-pink-50 via-white to-orange-50 font-sans">
+    <div className="min-h-screen bg-orange-50 font-sans">
 
-      {/* ===== ヘッダー ===== */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-pink-100 shadow-sm">
+      {/* ==============================
+          ヘッダー
+      ============================== */}
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-orange-100 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src={MIO_ICON} alt="みお" className="w-8 h-8 rounded-full" />
-            <span className="font-bold text-gray-700 text-sm">みおアフィリエイトパートナー</span>
+            <img src={MIO_ICON} alt="みお" className="w-8 h-8 rounded-full border-2 border-orange-200" />
+            <div>
+              <span className="font-black text-gray-800 text-sm">みおアフィリエイト</span>
+              <span className="ml-2 text-xs text-orange-400 font-medium hidden sm:inline">パートナープログラム</span>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Link
-              to="/affiliate/login"
-              className="text-sm px-4 py-1.5 rounded-full border border-pink-300 text-pink-500 hover:bg-pink-50 transition-colors font-medium"
-            >
+          <nav className="flex items-center gap-2">
+            <Link to="/affiliate/login"
+              className="text-sm px-4 py-1.5 rounded-full border border-orange-300 text-orange-500 hover:bg-orange-50 transition-colors font-medium">
               ログイン
             </Link>
-            <Link
-              to="/affiliate/register"
-              className="text-sm px-4 py-1.5 rounded-full bg-pink-400 text-white hover:bg-pink-500 transition-colors font-medium shadow-sm"
-            >
+            <Link to="/affiliate/register"
+              className="text-sm px-4 py-1.5 rounded-full bg-orange-400 text-white hover:bg-orange-500 transition-colors font-bold shadow-sm">
               新規登録
             </Link>
-          </div>
+          </nav>
         </div>
       </header>
 
-      {/* ===== ヒーローセクション ===== */}
-      <section className="relative overflow-hidden pt-16 pb-20 px-4">
+      {/* ==============================
+          ヒーロー
+      ============================== */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 pt-16 pb-20 px-4">
         {/* 背景デコ */}
-        <div className="absolute top-10 right-0 w-64 h-64 bg-pink-100 rounded-full blur-3xl opacity-50 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-100 rounded-full blur-3xl opacity-50 pointer-events-none" />
+        <div className="absolute top-0 right-0 w-80 h-80 bg-orange-100 rounded-full blur-3xl opacity-60 -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-yellow-100 rounded-full blur-3xl opacity-60 translate-y-1/3 -translate-x-1/4 pointer-events-none" />
 
-        <div className="max-w-2xl mx-auto text-center relative">
-          {/* みおキャラ */}
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              <img
-                src={MIO_ICON}
-                alt="みお"
-                className="w-28 h-28 rounded-full shadow-lg border-4 border-white"
-                style={{ filter: 'drop-shadow(0 4px 12px rgba(244,114,182,0.3))' }}
-              />
-              {/* 吹き出し */}
-              <div className="absolute -top-2 -right-4 bg-yellow-300 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full shadow rotate-6 whitespace-nowrap">
-                いっしょに稼ごう！
+        <div className="max-w-5xl mx-auto relative">
+          <div className="flex flex-col lg:flex-row items-center gap-12">
+            {/* テキスト */}
+            <div className="flex-1 text-center lg:text-left">
+              {/* バッジ */}
+              {remaining !== null && (
+                <div className="inline-flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 text-xs font-bold px-3 py-1.5 rounded-full mb-5 shadow-sm">
+                  🔥 スタート講座 残り<span className="text-base">{remaining}</span>部でプロジェクト完了！
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 justify-center lg:justify-start mb-5">
+                <Mio size={72} balloon="いっしょに稼ごう🐱" balloonDir="right" />
               </div>
+
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-gray-800 leading-tight mb-4">
+                AIで副業する人を<br />
+                <span className="text-orange-500">増やしながら</span><br />
+                自分も稼ごう
+              </h1>
+              <p className="text-gray-500 text-sm sm:text-base leading-relaxed mb-8 max-w-md mx-auto lg:mx-0">
+                みおの講座を紹介するだけ。あなたのURLから誰かが購入すると<span className="font-bold text-orange-500">報酬30%</span>が入ります。
+                スタート講座・養成講座どちらかの購入者なら今すぐ登録できます。
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+                <Link to="/affiliate/register"
+                  className="inline-flex items-center justify-center gap-2 bg-orange-400 hover:bg-orange-500 text-white font-black px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition-all text-base">
+                  🎉 パートナー登録する（無料）
+                </Link>
+                <Link to="/affiliate/login"
+                  className="inline-flex items-center justify-center gap-2 bg-white hover:bg-orange-50 text-gray-600 font-medium px-8 py-4 rounded-full shadow border border-orange-200 transition-all text-base">
+                  ログインはこちら →
+                </Link>
+              </div>
+
+              <p className="text-xs text-gray-400 mt-4">
+                ※ スタート講座 or 養成講座購入者のみ登録可
+              </p>
             </div>
-          </div>
 
-          <h1 className="text-3xl sm:text-4xl font-black text-gray-800 leading-tight mb-4">
-            AIで副業する人を増やす<br />
-            <span className="text-pink-500">アフィリエイトパートナー</span>募集中
-          </h1>
-          <p className="text-gray-500 text-sm sm:text-base leading-relaxed mb-8 max-w-md mx-auto">
-            スタート講座・養成講座を紹介して報酬GET。<br />
-            あなたが紹介した人が成功すれば、あなたにも報酬が入る。<br />
-            一緒にスタート講座1,000部を達成しよう🎯
-          </p>
-
-          {/* CTAボタン */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link
-              to="/affiliate/register"
-              className="inline-flex items-center justify-center gap-2 bg-pink-500 hover:bg-pink-600 text-white font-bold px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition-all text-base"
-            >
-              🎉 パートナー登録する
-            </Link>
-            <Link
-              to="/affiliate/login"
-              className="inline-flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-600 font-medium px-8 py-4 rounded-full shadow border border-gray-200 transition-all text-base"
-            >
-              ログインはこちら
-            </Link>
-          </div>
-
-          {/* 現在の販売数バッジ */}
-          {salesCount !== null && (
-            <div className="mt-6 inline-flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 text-sm px-4 py-2 rounded-full">
-              🔥 現在のスタート講座販売数：<span className="font-bold">{salesCount}部</span>　残り<span className="font-bold text-red-500">{Math.max(0, 1000 - salesCount)}部</span>でプロジェクト完了！
+            {/* ダッシュボードモックアップ */}
+            <div className="w-full lg:w-96 flex-shrink-0">
+              <DashboardMockup />
             </div>
-          )}
-        </div>
-      </section>
-
-      {/* ===== 登録条件 ===== */}
-      <section className="py-14 px-4 bg-white">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex justify-center mb-3">
-            <MioCharacter mood="wink" size={56} />
-          </div>
-          <h2 className="text-xl sm:text-2xl font-black text-center text-gray-800 mb-2">
-            登録できるのはこんな人
-          </h2>
-          <p className="text-center text-sm text-gray-400 mb-8">どちらか1つでOK！</p>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-2xl p-6 border border-pink-200 text-center">
-              <div className="text-4xl mb-3">📘</div>
-              <h3 className="font-bold text-gray-700 mb-2">AI副業1時間化<br />スタート講座 購入者</h3>
-              <p className="text-xs text-gray-500">講座を受け取ったら<br />すぐに登録できます</p>
-            </div>
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-6 border border-orange-200 text-center">
-              <div className="text-4xl mb-3">🎓</div>
-              <h3 className="font-bold text-gray-700 mb-2">プロAIアフィリエイター<br />養成講座 購入者</h3>
-              <p className="text-xs text-gray-500">養成講座には<br />紹介の実践が含まれます</p>
-            </div>
-          </div>
-
-          <p className="text-center text-xs text-gray-400 mt-4">
-            ※ 登録は購入時のメールアドレスで照合します
-          </p>
-        </div>
-      </section>
-
-      {/* ===== 仕組み（ステップ） ===== */}
-      <section className="py-14 px-4 bg-gradient-to-b from-white to-pink-50">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex justify-center mb-3">
-            <MioCharacter mood="happy" size={56} />
-          </div>
-          <h2 className="text-xl sm:text-2xl font-black text-center text-gray-800 mb-8">
-            報酬が発生する仕組み
-          </h2>
-
-          <div className="grid sm:grid-cols-3 gap-8">
-            <StepCard
-              step={1}
-              icon="🔗"
-              title="あなた専用URLを取得"
-              desc="登録後にダッシュボードから紹介URLをコピー。SNSやブログに貼るだけ！"
-            />
-            <StepCard
-              step={2}
-              icon="🛒"
-              title="紹介した人が購入"
-              desc="あなたのURLから誰かが講座を購入すると自動で記録されます"
-            />
-            <StepCard
-              step={3}
-              icon="💰"
-              title="報酬が確定"
-              desc="返金期間終了後に報酬が確定。振込申請で受け取れます！"
-            />
           </div>
         </div>
       </section>
 
-      {/* ===== 報酬体系 ===== */}
-      <section className="py-14 px-4 bg-white">
+      {/* ==============================
+          3ステップ
+      ============================== */}
+      <section className="py-16 px-4 bg-white">
         <div className="max-w-3xl mx-auto">
-          <div className="flex justify-center mb-3">
-            <MioCharacter mood="excited" size={56} />
+          <div className="flex flex-col items-center mb-10">
+            <Mio size={56} balloon="かんたん3ステップ！" balloonDir="top" />
+            <h2 className="text-xl sm:text-2xl font-black text-gray-800 mt-4">報酬が発生する仕組み</h2>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-center text-gray-800 mb-2">
-            報酬体系
-          </h2>
-          <p className="text-center text-sm text-gray-400 mb-8">紹介した商品の販売価格に対して報酬が発生します</p>
+          <div className="grid sm:grid-cols-3 gap-6">
+            <StepCard no={1} icon="✅" color="bg-orange-400"
+              title="登録してURLをもらう"
+              desc="購入時のメールアドレスで登録。ダッシュボードからあなた専用の紹介URLを取得できます。" />
+            <StepCard no={2} icon="📣" color="bg-amber-400"
+              title="SNS・ブログで紹介する"
+              desc="XやInstagram、LINEなどに紹介URLを貼るだけ。コンテンツに合わせた紹介素材もダッシュボードで確認できます。" />
+            <StepCard no={3} icon="💰" color="bg-yellow-500"
+              title="購入されたら報酬確定"
+              desc="あなたのURLから購入されると自動で記録。返金期間（14日）終了後に報酬が確定し、振込申請ができます。" />
+          </div>
+        </div>
+      </section>
+
+      {/* ==============================
+          ダッシュボード詳細紹介
+      ============================== */}
+      <section className="py-16 px-4 bg-orange-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <span className="inline-block bg-orange-100 text-orange-600 text-xs font-bold px-3 py-1 rounded-full mb-3">
+              📊 ダッシュボード機能
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black text-gray-800">
+              自分の成果をリアルタイムで管理
+            </h2>
+            <p className="text-sm text-gray-400 mt-2">登録後すぐに使えるパートナー専用ダッシュボード</p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-10 items-start">
+            {/* 左：機能リスト */}
+            <div className="space-y-4">
+              {[
+                { icon: '🔗', title: '専用紹介URLの管理', desc: '商品ごとにあなただけの紹介URLを発行。コピーして好きな場所に貼るだけ！' },
+                { icon: '📈', title: 'クリック数・成約数をグラフで確認', desc: '日別・週別・月別のグラフでトレンドが一目でわかります。前期比較もできます。' },
+                { icon: '💰', title: '報酬ステータスを一覧管理', desc: '未確定・確定済み・支払済みの報酬をひと目で確認。累計収益も表示されます。' },
+                { icon: '🏆', title: 'ランキングで他の紹介者と競える', desc: '今月のランキングを確認できます。上位を目指すモチベーションに！' },
+                { icon: '📣', title: '商品別の紹介素材を確認', desc: 'SNS投稿例文・禁止表現・セールスポイントなど紹介に役立つ素材が揃っています。' },
+                { icon: '📉', title: 'レーダーチャートで自分の強みを分析', desc: '集客力・成約力・継続力など5項目でスコアを表示。改善ポイントがわかります。' },
+              ].map(f => (
+                <div key={f.title} className="flex gap-4 bg-white rounded-2xl p-4 shadow-sm border border-orange-100 hover:shadow-md transition-shadow">
+                  <div className="text-2xl flex-shrink-0 mt-0.5">{f.icon}</div>
+                  <div>
+                    <h3 className="font-bold text-gray-700 text-sm mb-1">{f.title}</h3>
+                    <p className="text-xs text-gray-400 leading-relaxed">{f.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 右：モックアップ */}
+            <div className="space-y-4">
+              <RewardSimMockup />
+              <RankingMockup />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==============================
+          報酬体系
+      ============================== */}
+      <section className="py-16 px-4 bg-white">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex flex-col items-center mb-10">
+            <Mio size={56} balloon="報酬30%はかなり高いよ！" balloonDir="top" />
+            <h2 className="text-xl sm:text-2xl font-black text-gray-800 mt-4">報酬体系</h2>
+            <p className="text-sm text-gray-400 mt-1">紹介した講座の販売価格に対して30%の報酬</p>
+          </div>
 
           <div className="grid sm:grid-cols-2 gap-4 mb-6">
-            <RewardCard
-              label="AI副業1時間化スタート講座"
-              percent="30%"
-              amount="例）4,980円の販売 → 1,494円"
-              color="bg-gradient-to-br from-pink-400 to-pink-600"
-            />
-            <RewardCard
-              label="プロAIアフィリエイター養成講座"
-              percent="30%"
-              amount="例）4,980円の販売 → 1,494円"
-              color="bg-gradient-to-br from-orange-400 to-orange-600"
-            />
-          </div>
-
-          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-sm text-yellow-800 text-center">
-            💡 講座の価格は今後段階的に上がっていきます。<br />
-            早く紹介するほど、購入してもらいやすい価格帯です！
-          </div>
-        </div>
-      </section>
-
-      {/* ===== みおのメッセージ ===== */}
-      <section className="py-14 px-4 bg-gradient-to-b from-pink-50 to-white">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-3xl shadow-md p-8 border border-pink-100 relative">
-            {/* みおキャラ */}
-            <div className="flex justify-center mb-5">
-              <div className="relative">
-                <img
-                  src={MIO_ICON}
-                  alt="みお"
-                  className="w-20 h-20 rounded-full border-4 border-pink-200 shadow"
-                />
-                <div className="absolute -bottom-1 -right-1 text-xl">🐱</div>
+            {[
+              {
+                name: 'AI副業1時間化\nスタート講座',
+                price: '¥4,980〜',
+                reward: '¥1,494〜',
+                color: 'from-orange-400 to-amber-400',
+                note: '先着30名まで4,980円。その後段階的に値上がり',
+                icon: '📘',
+              },
+              {
+                name: 'プロAIアフィリエイター\n養成講座',
+                price: '¥4,980〜',
+                reward: '¥1,494〜',
+                color: 'from-pink-400 to-orange-400',
+                note: '先着30名まで4,980円。スタート講座1,000部達成後に99,800円へ',
+                icon: '🎓',
+              },
+            ].map(p => (
+              <div key={p.name} className={`bg-gradient-to-br ${p.color} text-white rounded-2xl p-6 shadow-md`}>
+                <div className="text-3xl mb-3">{p.icon}</div>
+                <h3 className="font-black text-base whitespace-pre-line mb-3">{p.name}</h3>
+                <div className="bg-white/20 rounded-xl p-3 mb-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm opacity-90">販売価格</span>
+                    <span className="font-black text-lg">{p.price}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-sm opacity-90">あなたの報酬</span>
+                    <span className="font-black text-xl">{p.reward}</span>
+                  </div>
+                </div>
+                <p className="text-xs opacity-80 leading-relaxed">💡 {p.note}</p>
               </div>
-            </div>
-            <h2 className="text-lg font-black text-center text-gray-800 mb-4">
-              みおからのメッセージ
-            </h2>
-            <div className="text-sm text-gray-600 leading-loose space-y-3">
-              <p>
-                このアフィリエイトプログラムは、ただ紹介リンクを貼るだけのものじゃありません。
-              </p>
-              <p>
-                <span className="font-bold text-pink-500">「AIを使った副業」を本当に必要としている人に届ける</span>、そのための仕組みです。
-              </p>
-              <p>
-                スタート講座1,000部達成というプロジェクトを、いっしょに達成したい。
-                あなたの紹介が、誰かの人生を変えるきっかけになると本気で思っています。
-              </p>
-              <p className="font-bold text-gray-700">
-                一緒に頑張りましょう！🎯
-              </p>
-            </div>
-            <p className="text-right text-sm text-gray-400 mt-4 font-medium">— みお 🐱</p>
+            ))}
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-sm text-amber-800">
+            <p className="font-bold mb-1">⚠️ 価格は段階的に上がります</p>
+            <p className="text-xs leading-relaxed text-amber-700">
+              両講座とも現在は初期実践者限定の特別価格です。販売数が増えるにつれて値上がりします。
+              価格が低い今の方が購入してもらいやすいので、<span className="font-bold">早く動くほど有利</span>です！
+            </p>
           </div>
         </div>
       </section>
 
-      {/* ===== FAQ ===== */}
-      <section className="py-14 px-4 bg-white">
+      {/* ==============================
+          登録条件
+      ============================== */}
+      <section className="py-16 px-4 bg-orange-50">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-xl sm:text-2xl font-black text-gray-800">登録できる方</h2>
+            <p className="text-sm text-gray-400 mt-1">どちらか1つ購入していれば登録できます</p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4 mb-8">
+            {[
+              { icon: '📘', title: 'スタート講座\n購入者', desc: '「AI副業1日1時間化スタート講座」を購入済みの方。購入後すぐ登録できます。', color: 'border-orange-300 bg-orange-50' },
+              { icon: '🎓', title: '養成講座\n購入者', desc: '「プロAIアフィリエイター養成講座」を購入済みの方。養成講座には紹介の実践が含まれます。', color: 'border-pink-300 bg-pink-50' },
+            ].map(c => (
+              <div key={c.title} className={`rounded-2xl border-2 ${c.color} p-6 text-center`}>
+                <div className="text-4xl mb-3">{c.icon}</div>
+                <h3 className="font-black text-gray-700 text-base whitespace-pre-line mb-2">{c.title}</h3>
+                <p className="text-xs text-gray-500 leading-relaxed">{c.desc}</p>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-2xl border border-orange-100 p-5 text-sm text-gray-600 shadow-sm">
+            <p className="font-bold text-gray-700 mb-2">📋 登録の流れ</p>
+            <ol className="space-y-1 text-xs text-gray-500 list-decimal list-inside">
+              <li>「パートナー登録する」ボタンをタップ</li>
+              <li>購入時に使ったメールアドレスを入力（購入確認に使用）</li>
+              <li>名前・SNS・動機などを入力して送信</li>
+              <li>即時承認 → ダッシュボードで紹介URLを取得！</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      {/* ==============================
+          みおからのメッセージ
+      ============================== */}
+      <section className="py-16 px-4 bg-white">
         <div className="max-w-2xl mx-auto">
-          <h2 className="text-xl font-black text-center text-gray-800 mb-8">
-            よくある質問
-          </h2>
-          <div className="space-y-3">
-            <FaqItem
-              q="登録に費用はかかりますか？"
-              a="完全無料です。講座を購入済みであれば、いつでも無料で登録できます。"
-            />
-            <FaqItem
-              q="スタート講座と養成講座、どちらを購入すれば登録できますか？"
-              a="どちらか1つでOKです。両方購入している場合ももちろん登録できます。"
-            />
-            <FaqItem
-              q="報酬はいつ振り込まれますか？"
-              a="返金期間（購入後14日間）が終了し、報酬が確定した後に振込申請が可能になります。振込は月末締め翌月払いを予定しています。"
-            />
-            <FaqItem
-              q="紹介できる商品はどれですか？"
-              a="購入した講座を紹介できます。両方購入している場合は両方紹介できます。ダッシュボードから紹介URLを確認してください。"
-            />
-            <FaqItem
-              q="禁止されている宣伝方法はありますか？"
-              a="虚偽の情報・誇大広告・スパム行為・無断でのメール送信などは禁止しています。詳細は登録時の利用規約をご確認ください。"
-            />
+          <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl p-8 border border-orange-100 shadow-sm relative overflow-hidden">
+            <div className="absolute top-4 right-4 text-6xl opacity-10">🐱</div>
+            <div className="flex justify-center mb-6">
+              <Mio size={80} balloon="読んでね🐱" balloonDir="right" />
+            </div>
+            <h2 className="text-lg font-black text-center text-gray-800 mb-5">みおからのメッセージ</h2>
+            <div className="text-sm text-gray-600 leading-loose space-y-3">
+              <p>このプログラムは「ただ紹介リンクを貼るだけ」のものじゃありません。</p>
+              <p>
+                <span className="font-bold text-orange-500">「AIを使った副業で人生を変えたい人に届ける」</span>、そのための仕組みです。
+              </p>
+              <p>
+                スタート講座1,000部を達成するというプロジェクトを、いっしょに実現したい。
+                あなたの紹介が誰かの背中を押すきっかけになると本気で思っています。
+              </p>
+              <p>
+                養成講座は「アフィリエイトを学びながら実践する」講座でもあります。
+                だから、登録して紹介すること自体が<span className="font-bold">養成講座の実践</span>になります。
+              </p>
+              <p className="font-bold text-gray-700">一緒に頑張りましょう！🎯</p>
+            </div>
+            <p className="text-right text-sm text-orange-400 mt-5 font-bold">— みお 🐱</p>
           </div>
         </div>
       </section>
 
-      {/* ===== 最終CTA ===== */}
-      <section className="py-16 px-4 bg-gradient-to-b from-pink-400 to-pink-600 text-white text-center">
+      {/* ==============================
+          FAQ
+      ============================== */}
+      <section className="py-16 px-4 bg-orange-50">
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-xl font-black text-center text-gray-800 mb-8">よくある質問</h2>
+          <div className="space-y-3">
+            <Faq q="登録に費用はかかりますか？" a="完全無料です。講座を購入済みであればいつでも無料で登録できます。" />
+            <Faq q="スタート講座と養成講座、どちらでも登録できますか？" a="どちらか1つ購入していれば登録できます。両方購入している場合はもちろんどちらの講座も紹介できます。" />
+            <Faq q="報酬はいつ振り込まれますか？" a="返金期間（購入後14日間）が終了し報酬が確定した後に振込申請できます。振込は月末締め翌月払いを予定しています。" />
+            <Faq q="価格が上がったら報酬も上がりますか？" a="はい！報酬は販売価格の30%なので、価格が上がれば1件あたりの報酬も増えます。" />
+            <Faq q="禁止されている宣伝方法はありますか？" a="虚偽の情報・誇大広告・スパム行為・無断でのDM一斉送信などは禁止しています。ダッシュボードの商品詳細ページに推奨表現・禁止表現が記載されているので必ずご確認ください。" />
+            <Faq q="登録したらどこで紹介URLを確認できますか？" a="ログイン後のダッシュボードで商品ごとの紹介URLを確認できます。コピーボタン1つで取得できます。" />
+          </div>
+        </div>
+      </section>
+
+      {/* ==============================
+          最終CTA
+      ============================== */}
+      <section className="py-20 px-4 bg-gradient-to-br from-orange-400 via-amber-400 to-yellow-400 text-white text-center">
         <div className="max-w-xl mx-auto">
-          <img src={MIO_ICON} alt="みお" className="w-20 h-20 rounded-full border-4 border-white/50 shadow-lg mx-auto mb-5" />
-          <h2 className="text-2xl font-black mb-3">いっしょに始めよう！</h2>
-          <p className="text-pink-100 text-sm mb-8 leading-relaxed">
-            登録は3分でできます。<br />
-            まずは購入時のメールアドレスで登録してみてください。
+          <Mio size={80} balloon="待ってるよ！🐱" balloonDir="top"
+            className="justify-center mb-6" />
+          <h2 className="text-2xl sm:text-3xl font-black mb-3">さあ、はじめよう！</h2>
+          <p className="text-orange-100 text-sm mb-8 leading-relaxed">
+            登録は3分で完了。まず購入時のメールアドレスを入力するだけです。
           </p>
-          <Link
-            to="/affiliate/register"
-            className="inline-flex items-center justify-center gap-2 bg-white text-pink-500 font-black px-10 py-4 rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all text-lg"
-          >
-            🎉 パートナー登録する（無料）
+          <Link to="/affiliate/register"
+            className="inline-flex items-center justify-center gap-2 bg-white text-orange-500 font-black px-10 py-5 rounded-full shadow-2xl hover:scale-105 transition-transform text-lg">
+            🎉 無料でパートナー登録する
           </Link>
-          <div className="mt-4">
-            <Link to="/affiliate/login" className="text-pink-200 text-sm underline hover:text-white">
+          <div className="mt-5">
+            <Link to="/affiliate/login" className="text-orange-100 text-sm underline hover:text-white">
               すでに登録済みの方はこちら
             </Link>
           </div>
         </div>
       </section>
 
-      {/* ===== フッター ===== */}
-      <footer className="bg-gray-800 text-gray-400 text-center text-xs py-6 px-4">
-        <p>© 2026 みおアフィリエイトパートナー</p>
-        <div className="flex justify-center gap-4 mt-2">
-          <Link to="/tokushoho" className="hover:text-white">特定商取引法</Link>
-          <Link to="/privacy" className="hover:text-white">プライバシーポリシー</Link>
+      {/* ==============================
+          フッター
+      ============================== */}
+      <footer className="bg-gray-800 text-gray-400 text-center text-xs py-8 px-4">
+        <img src={MIO_ICON} alt="みお" className="w-10 h-10 rounded-full mx-auto mb-3 border-2 border-gray-600" />
+        <p className="font-bold text-gray-300 mb-1">みおアフィリエイトパートナー</p>
+        <p className="mb-3">© 2026 Mio. All rights reserved.</p>
+        <div className="flex justify-center gap-6">
+          <Link to="/tokushoho" className="hover:text-white transition-colors">特定商取引法</Link>
+          <Link to="/privacy" className="hover:text-white transition-colors">プライバシーポリシー</Link>
+          <Link to="/contact" className="hover:text-white transition-colors">お問い合わせ</Link>
         </div>
       </footer>
 
