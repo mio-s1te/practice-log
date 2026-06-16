@@ -17,6 +17,31 @@ const supabase = createClient(
 
 const SITE_URL = process.env.SITE_URL || 'https://localhost:3000';
 
+// 商品別サンクスページURL
+// 環境変数で上書き可能。未設定の場合は SITE_URL/purchase-complete にフォールバック
+const THANKS_URL_START_COURSE     = process.env.THANKS_URL_START_COURSE     || null;
+const THANKS_URL_AFFILIATE_COURSE = process.env.THANKS_URL_AFFILIATE_COURSE || null;
+
+// 商品名（Supabaseに登録されている name と一致させる）
+const PRODUCT_NAME_START_COURSE     = 'AI副業1日1時間化スタート講座';
+const PRODUCT_NAME_AFFILIATE_COURSE = 'プロAIアフィリエイター養成講座';
+
+/**
+ * 商品名からサンクスページのベースURLを返す
+ * @param {string} productName
+ * @returns {string}
+ */
+function getThanksBaseUrl(productName) {
+  if (THANKS_URL_START_COURSE && productName.includes('スタート')) {
+    return THANKS_URL_START_COURSE;
+  }
+  if (THANKS_URL_AFFILIATE_COURSE && productName.includes('アフィリエイター')) {
+    return THANKS_URL_AFFILIATE_COURSE;
+  }
+  // 環境変数未設定 or 一致しない場合はフォールバック
+  return `${SITE_URL}/purchase-complete`;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -288,7 +313,7 @@ exports.handler = async (event) => {
       line_items: lineItems,
       metadata,
       client_reference_id: lead_id || click_id || undefined,
-      success_url: `${SITE_URL}/purchase-complete?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${getThanksBaseUrl(product.name)}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${SITE_URL}/cancel?product_id=${product_id}`,
       locale: 'ja',
     };
