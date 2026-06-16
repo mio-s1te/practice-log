@@ -5,9 +5,11 @@ import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { initializeTracking, recordClick, getTrackingData } from '@/utils/tracking';
 
-const PRODUCT_ID = 'a0000000-0000-0000-0000-000000000003';
+const PRODUCT_ID = 'a0000000-0000-0000-0000-000000000003';  // 養成講座
+const START_COURSE_PRODUCT_ID = 'a0000000-0000-0000-0000-000000000001';  // スタート講座（プログレスバー用）
 const NORMAL_PRICE = 99800;
 const CAMPAIGN_PRICE = 4980;
+const START_COURSE_LIMIT = 1000;  // スタート講座1,000部でプロジェクト終了
 
 interface PriceInfo {
   current_price: number;
@@ -35,32 +37,41 @@ export function LandingPageAffiliateCourse() {
   const fetchPriceInfo = useCallback(async () => {
     setPriceLoading(true);
     try {
-      const res = await fetch(`/.netlify/functions/get-product-price?product_id=${PRODUCT_ID}`);
-      if (res.ok) {
-        const data = await res.json();
-        // start_course_sales_count:
-        //   sales_count_product_id が設定されている場合は API から直接取得
-        //   設定されていない場合(null)は valid_sales_count にフォールバック
-        const startCourseSalesCount =
-          data.start_course_sales_count != null
-            ? data.start_course_sales_count
-            : (data.valid_sales_count ?? 0);
-        // is_campaign_active:
-        //   APIが is_campaign_active を返さない場合、
-        //   current_price < NORMAL_PRICE であればキャンペーン中と判定
-        const isCampaignActive =
-          data.is_campaign_active != null
-            ? data.is_campaign_active
-            : (data.current_price != null && data.current_price < NORMAL_PRICE);
-        setPriceInfo({
-          current_price: data.current_price ?? CAMPAIGN_PRICE,
-          is_campaign_active: isCampaignActive,
-          campaign_price: data.campaign_price ?? CAMPAIGN_PRICE,
-          campaign_condition: data.campaign_price_condition ?? 'until_start_course_1000',
-          start_course_sales_count: startCourseSalesCount,
-          start_course_limit: 1000,
-        });
+      // 養成講座の価格を取得（養成講座自身の販売数でtier判定）
+      const [affiliateRes, startRes] = await Promise.all([
+        fetch(`/.netlify/functions/get-product-price?product_id=${PRODUCT_ID}`),
+        fetch(`/.netlify/functions/get-product-price?product_id=${START_COURSE_PRODUCT_ID}`),
+      ]);
+
+      let currentPrice = CAMPAIGN_PRICE;
+      let isCampaignActive = true;
+
+      if (affiliateRes.ok) {
+        const data = await affiliateRes.json();
+        currentPrice = data.current_price ?? CAMPAIGN_PRICE;
+        // キャンペーン中 = 通常価格より安い
+        isCampaignActive = currentPrice < NORMAL_PRICE;
       }
+
+      // スタート講座の販売数（プログレスバー表示用）
+      let startCourseSalesCount = 0;
+      if (startRes.ok) {
+        const startData = await startRes.json();
+        startCourseSalesCount = startData.valid_sales_count ?? 0;
+        // スタート講座が1,000部達成したらプロジェクト終了
+        if (startCourseSalesCount >= START_COURSE_LIMIT) {
+          isCampaignActive = false;
+        }
+      }
+
+      setPriceInfo({
+        current_price: currentPrice,
+        is_campaign_active: isCampaignActive,
+        campaign_price: CAMPAIGN_PRICE,
+        campaign_condition: 'until_start_course_1000',
+        start_course_sales_count: startCourseSalesCount,
+        start_course_limit: START_COURSE_LIMIT,
+      });
     } catch { /* fallback */ }
     finally { setPriceLoading(false); }
   }, []);
