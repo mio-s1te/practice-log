@@ -7,12 +7,17 @@ const ws = require('ws');
 const { addDays, parseISO } = require('date-fns');
 
 // ============================================================
-// 購入コード生成: start_XXXXXXXXXXXXXXXX (16文字英数字)
+// 購入コード生成
+// スタート講座: start_XXXXXXXXXXXXXXXX
+// 養成講座:     affi_grow_XXXXXXXXXXXXXXXX
 // 用途: LINE凍結時のメール連絡・スプレッドシート台帳管理
 // ============================================================
-function generatePurchaseCode() {
+const AFFILIATE_COURSE_PRODUCT_ID = 'a0000000-0000-0000-0000-000000000003';
+
+function generatePurchaseCode(productId) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; // 紛らわしい文字(0,O,1,I,l)を除外
-  let code = 'start_';
+  const prefix = productId === AFFILIATE_COURSE_PRODUCT_ID ? 'affi_grow_' : 'start_';
+  let code = prefix;
   for (let i = 0; i < 16; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
@@ -289,8 +294,8 @@ async function handleCheckoutCompleted(session) {
     accessVerified = true;
   }
 
-  // 購入コード生成（start_XXXXXXXXXXXXXXXX 形式）
-  const purchaseCode = generatePurchaseCode();
+  // 購入コード生成（講座によってプレフィックスが変わる）
+  const purchaseCode = generatePurchaseCode(product_id);
 
   // purchasesテーブルに保存
   const { data: purchase, error: purchaseError } = await supabase
