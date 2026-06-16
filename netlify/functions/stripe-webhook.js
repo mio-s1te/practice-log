@@ -185,6 +185,7 @@ async function handleCheckoutCompleted(session) {
   try {
     const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
     stripeProductId = lineItems?.data?.[0]?.price?.product || null;
+    console.log(`[stripe-webhook] product_id(meta)=${product_id} stripeProductId=${stripeProductId}`);
   } catch (e) {
     console.warn('[stripe-webhook] Failed to get line items:', e.message);
   }
