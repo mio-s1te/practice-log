@@ -486,6 +486,25 @@ async function handleCheckoutCompleted(session) {
   console.log(`Purchase completed: ${purchase.id}, commission: ${commissionAmount}, purchase_code: ${purchaseCode}`);
 
   // ============================================================
+  // 購入完了メール送信
+  // 購入者のメールアドレスに購入コード・合言葉・LINE URLを送る
+  // ============================================================
+  if (buyerEmail) {
+    try {
+      await sendPurchaseCompletedEmail({
+        to: buyerEmail,
+        productId: product_id,
+        productName: product_name || productData?.name || '',
+        purchaseCode: purchaseCode,
+        amountTotal: amountTotal,
+      });
+    } catch (e) {
+      // メール送信失敗は購入処理全体を止めない
+      console.error('[stripe-webhook] sendPurchaseCompletedEmail error:', e);
+    }
+  }
+
+  // ============================================================
   // Googleスプレッドシートへ購入者情報を同期
   // メール ↔ LINE 紐付け台帳として記録
   // LINE凍結時のメール連絡・アフィリ権限確認に利用
@@ -902,5 +921,226 @@ async function checkAffiliateCampaignAccess(affiliateId, campaignId) {
     console.error('checkAffiliateCampaignAccess error:', error);
     // エラー時は安全側に倒して false を返す
     return false;
+  }
+}
+
+// ============================================================
+// 購入完了メール送信
+// 購入した講座に応じた合言葉・LINE URLを含むメールを送る
+// ============================================================
+
+// 講座別の設定
+const COURSE_LINE_URL = 'https://lin.ee/yh1BNGJ';
+
+const COURSE_CONFIG = {
+  'a0000000-0000-0000-0000-000000000001': {
+    keyword: '1時間化スタート',
+    label:   'AI副業1時間化スタート講座',
+  },
+  'a0000000-0000-0000-0000-000000000003': {
+    keyword: '本気でプロアフィリエイター',
+    label:   'プロAIアフィリエイター養成講座',
+  },
+};
+
+async function sendPurchaseCompletedEmail({ to, productId, productName, purchaseCode, amountTotal }) {
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+  const FROM_EMAIL    = process.env.FROM_EMAIL || 'noreply@mio-ai.com';
+
+  if (!RESEND_API_KEY) {
+    console.log(`[sendPurchaseCompletedEmail] RESEND_API_KEY not set. Skip sending to: ${to}`);
+    return;
+  }
+
+  const config   = COURSE_CONFIG[productId];
+  const keyword  = config?.keyword  || '—';
+  const label    = config?.label    || productName || '講座';
+
+  const subject = `【購入完了】${label} — ご購入ありがとうございます`;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:0;background:#fffaf5;font-family:'Hiragino Sans','Noto Sans JP',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffaf5;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+          <!-- ヘッダー -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:32px 32px 24px;text-align:center;">
+              <p style="margin:0 0 8px;color:#fff3e0;font-size:13px;letter-spacing:1px;">PURCHASE COMPLETE</p>
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:900;line-height:1.4;">
+                ご購入ありがとうございます！🎉
+              </h1>
+              <p style="margin:8px 0 0;color:#fed7aa;font-size:14px;">${label}</p>
+            </td>
+          </tr>
+
+          <!-- 本文 -->
+          <tr>
+            <td style="padding:32px;">
+
+              <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.8;">
+                この度は <strong>${label}</strong> をご購入いただき、本当にありがとうございます。
+              </p>
+              <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.8;">
+                一緒にやっていきましょう！<br>
+                ひとつひとつ積み上げながら、あなたのペースで進んでいきましょう。応援しています。
+              </p>
+
+              <!-- 購入コード -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <p style="margin:0 0 6px;font-size:12px;color:#9a3412;font-weight:700;letter-spacing:1px;">🔑 購入コード</p>
+                    <p style="margin:0;font-size:22px;font-weight:900;color:#ea580c;letter-spacing:2px;font-family:monospace;">${purchaseCode}</p>
+                    <p style="margin:6px 0 0;font-size:12px;color:#92400e;">このコードは購入確認に使用します。大切に保管してください。</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- 講座受け取り手順 -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#166534;">📚 講座の受け取り方</p>
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding:6px 0;">
+                          <table cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="width:28px;height:28px;background:#22c55e;border-radius:50%;text-align:center;vertical-align:middle;">
+                                <span style="color:#fff;font-size:13px;font-weight:900;">1</span>
+                              </td>
+                              <td style="padding-left:12px;font-size:14px;color:#374151;">下記の公式LINEを友だち追加</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0;">
+                          <table cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="width:28px;height:28px;background:#22c55e;border-radius:50%;text-align:center;vertical-align:middle;">
+                                <span style="color:#fff;font-size:13px;font-weight:900;">2</span>
+                              </td>
+                              <td style="padding-left:12px;font-size:14px;color:#374151;">
+                                合言葉を送ってください：
+                                <strong style="color:#15803d;font-size:15px;"> 「${keyword}」</strong>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0;">
+                          <table cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="width:28px;height:28px;background:#22c55e;border-radius:50%;text-align:center;vertical-align:middle;">
+                                <span style="color:#fff;font-size:13px;font-weight:900;">3</span>
+                              </td>
+                              <td style="padding-left:12px;font-size:14px;color:#374151;">購入確認後に講座URLをお届けします</td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- LINE ボタン -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+                <tr>
+                  <td align="center">
+                    <a href="${COURSE_LINE_URL}"
+                      style="display:inline-block;background:#06c755;color:#ffffff;font-size:16px;font-weight:900;text-decoration:none;padding:16px 48px;border-radius:50px;letter-spacing:0.5px;">
+                      📲 公式LINEを友だち追加する
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-top:8px;">
+                    <p style="margin:0;font-size:12px;color:#9ca3af;">
+                      ${COURSE_LINE_URL}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- 注意書き -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:10px;">
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <p style="margin:0 0 4px;font-size:12px;color:#6b7280;">購入金額: ¥${amountTotal.toLocaleString()}（税込）</p>
+                    <p style="margin:0;font-size:12px;color:#6b7280;">このメールに心当たりがない場合はお問い合わせください。</p>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- フッター -->
+          <tr>
+            <td style="background:#1f2937;padding:20px 32px;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#9ca3af;">© 2026 みお ｜ AI副業サポート</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `
+【購入完了】${label}
+
+この度はご購入いただきありがとうございます！
+一緒にやっていきましょう！
+
+■ 購入コード
+${purchaseCode}
+
+■ 講座の受け取り方
+1. 公式LINEを友だち追加してください
+   ${COURSE_LINE_URL}
+
+2. 合言葉「${keyword}」を送ってください
+
+3. 購入確認後に講座URLをお届けします
+
+購入金額: ¥${amountTotal.toLocaleString()}（税込）
+
+© 2026 みお
+`.trim();
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: FROM_EMAIL, to, subject, html, text }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error(`[sendPurchaseCompletedEmail] Resend error ${res.status}:`, err);
+    } else {
+      const data = await res.json();
+      console.log(`[sendPurchaseCompletedEmail] Sent to ${to}, id: ${data.id}`);
+    }
+  } catch (e) {
+    console.error('[sendPurchaseCompletedEmail] fetch error:', e);
   }
 }
