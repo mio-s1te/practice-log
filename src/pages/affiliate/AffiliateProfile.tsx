@@ -167,10 +167,7 @@ export function AffiliateProfile() {
                 <p className="text-sm text-gray-500">{profile.email}</p>
               </div>
             </div>
-            <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xs text-gray-500 mb-1">紹介者コード</p>
-              <code className="font-mono text-sm font-semibold text-blue-700">{profile.affiliate_code}</code>
-            </div>
+
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-xs text-gray-500 mb-1">LINE表示名</p>
               <p className="text-sm text-gray-900">{profile.line_display_name || '未連携'}</p>
