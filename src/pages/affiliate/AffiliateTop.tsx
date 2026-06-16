@@ -132,19 +132,19 @@ function RewardSimMockup() {
         </div>
         <div className="border-t border-orange-50 pt-3 space-y-2">
           {[
-            { label: 'スタート講座（¥4,980）× 6人', reward: '¥8,964' },
-            { label: '養成講座（¥4,980）× 4人', reward: '¥5,976' },
+            { label: 'スタート講座 × 6人' },
+            { label: '養成講座 × 4人' },
           ].map(r => (
             <div key={r.label} className="flex justify-between items-center">
               <span className="text-xs text-gray-500">{r.label}</span>
-              <span className="text-sm font-bold text-orange-500">{r.reward}</span>
+              <span className="text-sm font-bold text-orange-500">高還元！</span>
             </div>
           ))}
         </div>
         <div className="bg-orange-50 rounded-xl p-3 text-center border border-orange-200">
           <p className="text-xs text-gray-500">月間報酬合計</p>
-          <p className="text-2xl font-black text-orange-500">¥14,940</p>
-          <p className="text-xs text-gray-400">（報酬率30%）</p>
+          <p className="text-lg font-black text-orange-500">報酬💰</p>
+          <p className="text-xs text-gray-400">詳細はダッシュボードで確認</p>
         </div>
       </div>
     </div>
@@ -284,16 +284,16 @@ export function AffiliateTop() {
               )}
 
               <div className="flex items-center gap-3 justify-center lg:justify-start mb-5">
-                <Mio size={72} balloon="いっしょに稼ごう🐱" balloonDir="right" />
+                <Mio size={72} balloon="あなたの理想の生活、叶えよう🐱" balloonDir="right" />
               </div>
 
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-gray-800 leading-tight mb-4">
-                AIで副業する人を<br />
-                <span className="text-orange-500">増やしながら</span><br />
-                自分も稼ごう
+                睡眠を削らなくていい。<br />
+                <span className="text-orange-500">理想の毎日を、</span><br />
+                AIと一緒に手に入れよう。
               </h1>
               <p className="text-gray-500 text-sm sm:text-base leading-relaxed mb-8 max-w-md mx-auto lg:mx-0">
-                みおの講座を紹介するだけ。あなたのURLから誰かが購入すると<span className="font-bold text-orange-500">報酬30%</span>が入ります。
+                みおの講座を紹介するだけ。あなたのURLから誰かが購入すると<span className="font-bold text-orange-500">高還元報酬</span>が入ります。
                 スタート講座・養成講座どちらかの購入者なら今すぐ登録できます。
               </p>
 
@@ -328,7 +328,7 @@ export function AffiliateTop() {
         <div className="max-w-3xl mx-auto">
           <div className="flex flex-col items-center mb-10">
             <Mio size={56} balloon="かんたん3ステップ！" balloonDir="top" />
-            <h2 className="text-xl sm:text-2xl font-black text-gray-800 mt-4">報酬が発生する仕組み</h2>
+            <h2 className="text-xl sm:text-2xl font-black text-gray-800 mt-4">紹介で理想の生活に近づく仕組み</h2>
           </div>
           <div className="grid sm:grid-cols-3 gap-6">
             <StepCard no={1} icon="✅" color="bg-orange-400"
@@ -395,9 +395,9 @@ export function AffiliateTop() {
       <section className="py-16 px-4 bg-white">
         <div className="max-w-3xl mx-auto">
           <div className="flex flex-col items-center mb-10">
-            <Mio size={56} balloon="報酬30%はかなり高いよ！" balloonDir="top" />
+            <Mio size={56} balloon="報酬条件はダッシュボードで確認してね！" balloonDir="top" />
             <h2 className="text-xl sm:text-2xl font-black text-gray-800 mt-4">報酬体系</h2>
-            <p className="text-sm text-gray-400 mt-1">紹介した講座の販売価格に対して30%の報酬</p>
+            <p className="text-sm text-gray-400 mt-1">紹介した講座が売れるたびに報酬が入ります</p>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4 mb-6">
@@ -405,7 +405,6 @@ export function AffiliateTop() {
               {
                 name: 'AI副業1時間化\nスタート講座',
                 price: '¥4,980〜',
-                reward: '¥1,494〜',
                 color: 'from-orange-400 to-amber-400',
                 note: '先着30名まで4,980円。その後段階的に値上がり',
                 icon: '📘',
@@ -413,7 +412,6 @@ export function AffiliateTop() {
               {
                 name: 'プロAIアフィリエイター\n養成講座',
                 price: '¥4,980〜',
-                reward: '¥1,494〜',
                 color: 'from-pink-400 to-orange-400',
                 note: '先着30名まで4,980円。スタート講座1,000部達成後に99,800円へ',
                 icon: '🎓',
@@ -429,7 +427,7 @@ export function AffiliateTop() {
                   </div>
                   <div className="flex justify-between items-center mt-1">
                     <span className="text-sm opacity-90">あなたの報酬</span>
-                    <span className="font-black text-xl">{p.reward}</span>
+                    <span className="font-black text-base">高還元報酬💰</span>
                   </div>
                 </div>
                 <p className="text-xs opacity-80 leading-relaxed">💡 {p.note}</p>
@@ -441,7 +439,7 @@ export function AffiliateTop() {
             <p className="font-bold mb-1">⚠️ 価格は段階的に上がります</p>
             <p className="text-xs leading-relaxed text-amber-700">
               両講座とも現在は初期実践者限定の特別価格です。販売数が増えるにつれて値上がりします。
-              価格が低い今の方が購入してもらいやすいので、<span className="font-bold">早く動くほど有利</span>です！
+              報酬の詳細な条件は登録後のダッシュボードでご確認いただけます。
             </p>
           </div>
         </div>
@@ -521,7 +519,7 @@ export function AffiliateTop() {
             <Faq q="登録に費用はかかりますか？" a="完全無料です。講座を購入済みであればいつでも無料で登録できます。" />
             <Faq q="スタート講座と養成講座、どちらでも登録できますか？" a="どちらか1つ購入していれば登録できます。両方購入している場合はもちろんどちらの講座も紹介できます。" />
             <Faq q="報酬はいつ振り込まれますか？" a="返金期間（購入後14日間）が終了し報酬が確定した後に振込申請できます。振込は月末締め翌月払いを予定しています。" />
-            <Faq q="価格が上がったら報酬も上がりますか？" a="はい！報酬は販売価格の30%なので、価格が上がれば1件あたりの報酬も増えます。" />
+            <Faq q="価格が上がったら報酬も上がりますか？" a="はい！報酬は価格に連動して変動します。詳細な報酬条件は登録後のダッシュボードでご確認いただけます。" />
             <Faq q="禁止されている宣伝方法はありますか？" a="虚偽の情報・誇大広告・スパム行為・無断でのDM一斉送信などは禁止しています。ダッシュボードの商品詳細ページに推奨表現・禁止表現が記載されているので必ずご確認ください。" />
             <Faq q="登録したらどこで紹介URLを確認できますか？" a="ログイン後のダッシュボードで商品ごとの紹介URLを確認できます。コピーボタン1つで取得できます。" />
           </div>
