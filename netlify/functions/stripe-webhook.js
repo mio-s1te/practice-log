@@ -112,23 +112,26 @@ exports.handler = async (event) => {
   // 同じStripe Event IDが既に処理済みかどうかをSupabaseで確認
   // ============================================================
   const stripeEventId = stripeEvent.id;
-  const { data: existingEvent } = await supabase
-    .from('processed_stripe_events')
-    .select('id')
-    .eq('stripe_event_id', stripeEventId)
-    .single();
+  try {
+    const { data: existingEvent } = await supabase
+      .from('processed_stripe_events')
+      .select('id')
+      .eq('stripe_event_id', stripeEventId)
+      .single();
 
-  if (existingEvent) {
-    console.log(`[stripe-webhook] Already processed event: ${stripeEventId} — skipping`);
-    return { statusCode: 200, body: JSON.stringify({ received: true, skipped: true }) };
+    if (existingEvent) {
+      console.log(`[stripe-webhook] Already processed event: ${stripeEventId} — skipping`);
+      return { statusCode: 200, body: JSON.stringify({ received: true, skipped: true }) };
+    }
+
+    // 処理済みとして記録
+    await supabase
+      .from('processed_stripe_events')
+      .insert({ stripe_event_id: stripeEventId, processed_at: new Date().toISOString() });
+  } catch (e) {
+    // テーブルが存在しない場合などはスキップして処理を続行
+    console.warn('[stripe-webhook] processed_stripe_events check failed (skipping):', e.message);
   }
-
-  // 処理済みとして記録
-  await supabase
-    .from('processed_stripe_events')
-    .insert({ stripe_event_id: stripeEventId, processed_at: new Date().toISOString() })
-    .throwOnError()
-    .catch((e) => console.warn('[stripe-webhook] Failed to record processed event:', e.message));
 
   try {
     switch (stripeEvent.type) {
