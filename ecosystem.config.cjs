@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'mainsite',
       script: 'npx',
-      args: 'vite preview --port 3000 --host 0.0.0.0',
+      args: 'vite preview',
       cwd: '/home/user/mainsite',
       watch: false,
       instances: 1,
