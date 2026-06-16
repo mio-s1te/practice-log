@@ -180,6 +180,15 @@ async function handleCheckoutCompleted(session) {
 
   const amountTotal = session.amount_total || 0;
 
+  // Stripe Product IDを取得（line_itemsから）
+  let stripeProductId = null;
+  try {
+    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
+    stripeProductId = lineItems?.data?.[0]?.price?.product || null;
+  } catch (e) {
+    console.warn('[stripe-webhook] Failed to get line items:', e.message);
+  }
+
   // checkout_sessions更新
   await supabase
     .from('checkout_sessions')
@@ -329,7 +338,7 @@ async function handleCheckoutCompleted(session) {
   }
 
   // 購入コード生成（講座によってプレフィックスが変わる）
-  const purchaseCode = generatePurchaseCode(product_id);
+  const purchaseCode = generatePurchaseCode(product_id || stripeProductId);
 
   // purchasesテーブルに保存
   const { data: purchase, error: purchaseError } = await supabase
@@ -542,6 +551,7 @@ async function handleCheckoutCompleted(session) {
       await sendPurchaseCompletedEmail({
         to: buyerEmail,
         productId: product_id,
+        stripeProductId: stripeProductId,
         productName: product_name || productData?.name || '',
         purchaseCode: purchaseCode,
         amountTotal: amountTotal,
@@ -996,7 +1006,7 @@ const COURSE_CONFIG = {
   },
 };
 
-async function sendPurchaseCompletedEmail({ to, productId, productName, purchaseCode, amountTotal }) {
+async function sendPurchaseCompletedEmail({ to, productId, stripeProductId, productName, purchaseCode, amountTotal }) {
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   const FROM_EMAIL    = process.env.FROM_EMAIL || 'noreply@mio-ai.com';
 
@@ -1005,9 +1015,10 @@ async function sendPurchaseCompletedEmail({ to, productId, productName, purchase
     return;
   }
 
-  const config   = COURSE_CONFIG[productId];
-  const keyword  = config?.keyword  || '—';
-  const label    = config?.label    || productName || '講座';
+  // Supabase product_id → Stripe product_id の順で設定を検索
+  const config  = COURSE_CONFIG[productId] || COURSE_CONFIG[stripeProductId];
+  const keyword = config?.keyword  || '—';
+  const label   = config?.label    || productName || '講座';
 
   const subject = `【購入完了】${label} — ご購入ありがとうございます`;
 
