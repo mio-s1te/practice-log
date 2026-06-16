@@ -128,7 +128,7 @@ exports.handler = async (event) => {
 
       const { data: purchase } = await supabase
         .from('purchases')
-        .select('id, purchase_code, buyer_email, product_name, amount_total, affiliate_code, affiliate_name, affiliate_permission_granted, purchased_at, status')
+        .select('id, purchase_code, buyer_email, product_name, amount_total, affiliate_code, affiliate_name, purchased_at, status')
         .eq('purchase_code', purchase_code)
         .eq('status', 'completed')
         .single();
