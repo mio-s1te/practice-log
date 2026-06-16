@@ -45,7 +45,7 @@ exports.handler = async (event) => {
     // 商品情報取得
     const { data: product, error: productError } = await supabase
       .from('products')
-      .select('id, name, price, stripe_price_id, status')
+      .select('id, name, price, stripe_price_id, status, campaign_price, campaign_price_active')
       .eq('id', product_id)
       .single();
 
@@ -81,15 +81,19 @@ exports.handler = async (event) => {
 
     const tiers = allTiers || [];
 
+    // キャンペーン価格が有効かどうかを判定
+    const isCampaignActive = product.campaign_price_active && product.campaign_price;
+
     // price_tiers が設定されていない場合は商品のデフォルト価格を返す
     if (tiers.length === 0) {
+      const basePrice = isCampaignActive ? product.campaign_price : product.price;
       return {
         statusCode: 200,
         headers: CORS_HEADERS,
         body: JSON.stringify({
           product_id,
           product_name: product.name,
-          current_price: product.price,
+          current_price: basePrice,
           current_stripe_price_id: product.stripe_price_id || null,
           current_tier: null,
           next_tier: null,
@@ -113,8 +117,8 @@ exports.handler = async (event) => {
         ? currentTier.max_valid_sales_count - salesCount
         : null;
 
-    // 現在価格 (tierがあればtierの価格、なければ商品デフォルト価格)
-    const currentPrice = currentTier ? currentTier.price : product.price;
+    // 現在価格 (tierがあればtierの価格、キャンペーン中ならcampaign_price、なければ商品デフォルト価格)
+    const currentPrice = currentTier ? currentTier.price : (isCampaignActive ? product.campaign_price : product.price);
     const currentStripePriceId = currentTier
       ? currentTier.stripe_price_id
       : product.stripe_price_id || null;
