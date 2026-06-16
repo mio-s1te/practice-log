@@ -3,7 +3,8 @@ module.exports = {
     {
       name: 'mainsite',
       script: 'npx',
-      args: 'wrangler pages dev dist --ip 0.0.0.0 --port 3000',
+      args: 'vite preview --port 3000 --host 0.0.0.0',
+      cwd: '/home/user/mainsite',
       watch: false,
       instances: 1,
       exec_mode: 'fork',

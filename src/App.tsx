@@ -58,6 +58,17 @@ import { Contact } from '@/pages/lp/Contact';
 import { Tokushoho } from '@/pages/lp/Tokushoho';
 import { Privacy } from '@/pages/lp/Privacy';
 
+// ==================== Main Site Pages ====================
+import { HomePage } from '@/pages/main/HomePage';
+import { CoursesPage } from '@/pages/main/CoursesPage';
+import { CourseStartPage } from '@/pages/main/CourseStartPage';
+import { CourseAffiliatePage } from '@/pages/main/CourseAffiliatePage';
+import { ContactPage } from '@/pages/main/ContactPage';
+import { TokushohoPage } from '@/pages/legal/TokushohoPage';
+import { PrivacyPage } from '@/pages/legal/PrivacyPage';
+import { TermsPage } from '@/pages/legal/TermsPage';
+import { DisclaimerPage } from '@/pages/legal/DisclaimerPage';
+
 function App() {
   useEffect(() => {
     initializeTracking();
@@ -67,10 +78,23 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* ========================================
+            会社HP風 メインサイト（mio-mainsite.netlify.app）
+           ======================================== */}
+        <Route path="/" element={<HomePage />} />
+        <Route path="/courses" element={<CoursesPage />} />
+        <Route path="/courses/ai-1hour-start" element={<CourseStartPage />} />
+        <Route path="/courses/pro-ai-affiliate" element={<CourseAffiliatePage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/legal/tokushoho" element={<TokushohoPage />} />
+        <Route path="/legal/privacy" element={<PrivacyPage />} />
+        <Route path="/legal/terms" element={<TermsPage />} />
+        <Route path="/legal/disclaimer" element={<DisclaimerPage />} />
+
+        {/* ========================================
             販売ページ（メインの導線）
            ======================================== */}
-        {/* ルート: アフィリエイト講座ページへリダイレクト */}
-        <Route path="/" element={<AffiliateTop />} />
+        {/* ルート: アフィリエイト講座ページへリダイレクト（mio-affiliateサイト用パス） */}
+        <Route path="/affiliate-top" element={<AffiliateTop />} />
 
         {/* AIアフィリエイト実践講座（通常¥29,800 / キャンペーン¥4,980） */}
         <Route path="/affiliate-course" element={<LandingPageAffiliateCourse />} />
@@ -155,8 +179,8 @@ function App() {
           <Route path="notices" element={<PartnerNotices />} />
         </Route>
 
-        {/* 404 → affiliate-courseへ */}
-        <Route path="*" element={<Navigate to="/affiliate-course" replace />} />
+        {/* 404 → トップへ */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
