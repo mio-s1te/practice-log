@@ -978,6 +978,11 @@ const COURSE_CONFIG = {
     keyword: '本気でプロアフィリエイター',
     label:   'プロAIアフィリエイター養成講座',
   },
+  // テスト用商品
+  'prod_UiLVzdaB4s6Dnz': {
+    keyword: 'テスト',
+    label:   'テスト',
+  },
 };
 
 async function sendPurchaseCompletedEmail({ to, productId, productName, purchaseCode, amountTotal }) {
