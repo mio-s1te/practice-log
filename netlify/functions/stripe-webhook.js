@@ -99,6 +99,29 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: `Webhook Error: ${lastError?.message}` };
   }
 
+  // ============================================================
+  // 重複処理防止（冪等性チェック）
+  // 同じStripe Event IDが既に処理済みかどうかをSupabaseで確認
+  // ============================================================
+  const stripeEventId = stripeEvent.id;
+  const { data: existingEvent } = await supabase
+    .from('processed_stripe_events')
+    .select('id')
+    .eq('stripe_event_id', stripeEventId)
+    .single();
+
+  if (existingEvent) {
+    console.log(`[stripe-webhook] Already processed event: ${stripeEventId} — skipping`);
+    return { statusCode: 200, body: JSON.stringify({ received: true, skipped: true }) };
+  }
+
+  // 処理済みとして記録
+  await supabase
+    .from('processed_stripe_events')
+    .insert({ stripe_event_id: stripeEventId, processed_at: new Date().toISOString() })
+    .throwOnError()
+    .catch((e) => console.warn('[stripe-webhook] Failed to record processed event:', e.message));
+
   try {
     switch (stripeEvent.type) {
       case 'checkout.session.completed':
