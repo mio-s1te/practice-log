@@ -13,10 +13,18 @@ const { addDays, parseISO } = require('date-fns');
 // 用途: LINE凍結時のメール連絡・スプレッドシート台帳管理
 // ============================================================
 const AFFILIATE_COURSE_PRODUCT_ID = 'a0000000-0000-0000-0000-000000000003';
+const TEST_PRODUCT_ID = 'prod_UiLVzdaB4s6Dnz';
 
 function generatePurchaseCode(productId) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; // 紛らわしい文字(0,O,1,I,l)を除外
-  const prefix = productId === AFFILIATE_COURSE_PRODUCT_ID ? 'affi_grow_' : 'start_';
+  let prefix;
+  if (productId === AFFILIATE_COURSE_PRODUCT_ID) {
+    prefix = 'affi_grow_';
+  } else if (productId === TEST_PRODUCT_ID) {
+    prefix = 'test_';
+  } else {
+    prefix = 'start_';
+  }
   let code = prefix;
   for (let i = 0; i < 16; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
