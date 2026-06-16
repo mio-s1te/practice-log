@@ -241,53 +241,140 @@ export function LiffSeminar() {
 // ============================================================
 // src/pages/lp/PurchaseComplete.tsx
 // 購入完了ページ
-// 購入者専用LINEへの登録案内を表示
+// ① purchase_code（start_xxx）を表示・コピー
+// ② 購入者専用LINEへの登録案内
 // ============================================================
 export function PurchaseComplete() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id');
 
-  // 購入者LINE LIFF ID（環境変数から取得）
-  const buyerLiffId = (import.meta as any).env?.VITE_LINE_BUYER_LIFF_ID || '';
   const buyerLineAddUrl = (import.meta as any).env?.VITE_LINE_BUYER_ADD_URL || '#';
+
+  // 購入コード取得状態
+  const [purchaseCode, setPurchaseCode] = useState<string | null>(null);
+  const [codeLoading, setCodeLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  // session_id → purchase_code をAPIから取得
+  useEffect(() => {
+    if (!sessionId) {
+      setCodeLoading(false);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch('/api/affiliate-api/purchase/get-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stripe_session_id: sessionId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.found) setPurchaseCode(data.purchase_code);
+        }
+      } catch (e) {
+        console.error('purchase code fetch error:', e);
+      } finally {
+        setCodeLoading(false);
+      }
+    })();
+  }, [sessionId]);
+
+  // クリップボードコピー
+  const handleCopy = () => {
+    if (!purchaseCode) return;
+    navigator.clipboard.writeText(purchaseCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center p-4">
       <div className="max-w-lg w-full">
         <div className="bg-white rounded-3xl shadow-xl p-8 text-center">
+
           {/* 完了アイコン */}
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
 
-          <h1 className="text-2xl font-extrabold text-gray-900 mb-3">
+          <h1 className="text-2xl font-extrabold text-gray-900 mb-1">
             ご購入ありがとうございます！
           </h1>
+          <p className="text-sm text-gray-500 mb-6">講座の受け取りは以下の手順で進めてください</p>
 
           {/* ======================================================
-              購入者LINE登録の案内（最重要）
+              STEP 1: 購入コード表示（最重要）
               ====================================================== */}
-          <div className="bg-gradient-to-br from-green-600 to-emerald-700 text-white rounded-2xl p-6 mb-6 text-left">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-2xl">
-                💬
+          <div className="bg-gradient-to-br from-orange-500 to-amber-500 text-white rounded-2xl p-5 mb-5 text-left">
+            <p className="text-xs font-bold uppercase tracking-widest opacity-80 mb-2">STEP 1</p>
+            <p className="font-extrabold text-lg mb-3">購入コードをコピーする</p>
+
+            {codeLoading ? (
+              <div className="bg-white/20 rounded-xl p-4 flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm">取得中...</span>
               </div>
-              <div>
-                <p className="font-extrabold text-lg">講座の受け取り方法</p>
-                <p className="text-green-200 text-sm">購入者専用LINEからお受け取りください</p>
+            ) : purchaseCode ? (
+              <>
+                {/* コードボックス */}
+                <div className="bg-white rounded-xl p-4 mb-3 flex items-center justify-between gap-3">
+                  <span className="font-mono font-bold text-orange-600 text-base tracking-wider select-all break-all">
+                    {purchaseCode}
+                  </span>
+                  <button
+                    onClick={handleCopy}
+                    className={`flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+                      copied
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                    }`}
+                  >
+                    {copied ? (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        コピー済み
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        コピー
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs opacity-80">※ このコードは購入完了メールにも記載されています</p>
+              </>
+            ) : (
+              <div className="bg-white/20 rounded-xl p-4">
+                <p className="text-sm">購入コードは購入完了メールに記載されています。メールをご確認ください。</p>
               </div>
+            )}
+          </div>
+
+          {/* ======================================================
+              STEP 2: 購入者LINEに登録 → コードを送信
+              ====================================================== */}
+          <div className="bg-gradient-to-br from-green-600 to-emerald-700 text-white rounded-2xl p-5 mb-5 text-left">
+            <p className="text-xs font-bold uppercase tracking-widest opacity-80 mb-2">STEP 2</p>
+            <p className="font-extrabold text-lg mb-3">購入者専用LINEに登録して送信</p>
+
+            <div className="bg-white/10 rounded-xl p-4 mb-4 text-sm leading-relaxed">
+              購入者専用LINEに登録後、コピーした
+              <strong className="block mt-1 text-yellow-300 font-mono text-base">
+                {purchaseCode ?? 'start_〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇'}
+              </strong>
+              をそのまま送信してください。<br />
+              <span className="text-green-200 text-xs mt-1 block">→ 講座URLとご案内が自動で届きます</span>
             </div>
 
-            <div className="bg-white/10 rounded-xl p-4 mb-4">
-              <p className="text-sm leading-relaxed">
-                講座の受け取りは<strong>購入者専用LINE</strong>からお願いします。
-                登録後、<strong>「講座」</strong>と送ってください。
-              </p>
-            </div>
-
-            {/* 購入者LINE登録ボタン */}
             <a
               href={buyerLineAddUrl}
               target="_blank"
@@ -301,80 +388,41 @@ export function PurchaseComplete() {
                 購入者専用LINEに登録する
               </span>
             </a>
-
-            <p className="text-xs text-green-200 text-center mt-3">
-              ※ 登録後「講座」と送ると講座URLをお届けします
-            </p>
           </div>
 
-          {/* ステップ案内 */}
-          <div className="bg-blue-50 rounded-2xl p-5 mb-6 text-left">
-            <h3 className="font-bold text-blue-900 mb-3">📋 次のステップ</h3>
-            <ol className="space-y-3">
+          {/* ステップ概要 */}
+          <div className="bg-gray-50 rounded-2xl p-4 mb-5 text-left">
+            <h3 className="font-bold text-gray-700 mb-3 text-sm">📋 全体の流れ</h3>
+            <ol className="space-y-2">
               {[
-                {
-                  step: 1,
-                  title: '購入者専用LINEに登録',
-                  desc: '上のボタンから登録してください',
-                  done: false,
-                  highlight: true,
-                },
-                {
-                  step: 2,
-                  title: '「講座」と送信',
-                  desc: '登録後、LINEで「講座」と送ると講座URLが届きます',
-                  done: false,
-                  highlight: true,
-                },
-                {
-                  step: 3,
-                  title: '講座を受講',
-                  desc: 'AI副業1時間化スタート講座を受講しましょう',
-                  done: false,
-                  highlight: false,
-                },
-                {
-                  step: 4,
-                  title: 'アフィリエイト参加（任意）',
-                  desc: '紹介制度に参加して副収入を得ましょう',
-                  done: false,
-                  highlight: false,
-                },
+                { step: 1, text: '購入コードをコピー', done: !!purchaseCode },
+                { step: 2, text: '購入者専用LINEに登録', done: false },
+                { step: 3, text: 'コードを送信 → 講座URLが届く', done: false },
+                { step: 4, text: '講座を受講・アフィリエイト参加（任意）', done: false },
               ].map((item) => (
-                <li key={item.step} className="flex items-start gap-3">
-                  <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                    item.highlight ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                <li key={item.step} className="flex items-center gap-3">
+                  <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                    item.done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
                   }`}>
-                    {item.step}
+                    {item.done ? '✓' : item.step}
                   </span>
-                  <div>
-                    <p className={`text-sm font-semibold ${item.highlight ? 'text-blue-800' : 'text-gray-700'}`}>
-                      {item.title}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
-                  </div>
+                  <p className={`text-sm ${item.done ? 'text-green-700 font-semibold' : 'text-gray-600'}`}>
+                    {item.text}
+                  </p>
                 </li>
               ))}
             </ol>
           </div>
 
-          {/* 注意事項 */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 text-left">
-            <p className="text-sm font-semibold text-yellow-800 mb-1">⚠ ご注意</p>
-            <ul className="text-xs text-yellow-700 space-y-1">
-              <li>• 無料セミナーLINEと購入者専用LINEは<strong>別のLINEアカウント</strong>です</li>
-              <li>• 講座URLは購入者専用LINEからのみ受け取れます</li>
-              <li>• ご購入時のメールアドレスで購入確認を行います</li>
-            </ul>
+          {/* 困ったときは */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-5 text-left">
+            <p className="text-xs font-semibold text-yellow-800 mb-1">⚠ うまくいかない場合</p>
+            <p className="text-xs text-yellow-700">
+              購入コードが不明な場合は、購入時のメールアドレスを添えてお問い合わせください。
+            </p>
           </div>
 
-          {sessionId && (
-            <p className="text-xs text-gray-400 mb-4">
-              決済ID: {sessionId.substring(0, 24)}...
-            </p>
-          )}
-
-          <a href="/" className="btn-secondary inline-block text-sm">
+          <a href="/" className="text-sm text-gray-400 hover:text-gray-600 underline">
             トップページへ戻る
           </a>
         </div>

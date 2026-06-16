@@ -116,6 +116,112 @@ exports.handler = async (event) => {
     }
 
     // ======================================================
+    // 購入コード照合（GAS LINE Bot用）
+    // POST /purchase/verify-code  { purchase_code }
+    // → 照合成功時に buyer_email・LINE紐付け用フル情報を返す
+    // ======================================================
+    if (path === '/purchase/verify-code' && method === 'POST') {
+      const { purchase_code } = JSON.parse(event.body || '{}');
+      if (!purchase_code || !purchase_code.startsWith('start_')) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'invalid purchase_code' }) };
+      }
+
+      const { data: purchase } = await supabase
+        .from('purchases')
+        .select('id, purchase_code, buyer_email, product_name, amount_total, affiliate_code, affiliate_name, affiliate_permission_granted, purchased_at, status')
+        .eq('purchase_code', purchase_code)
+        .eq('status', 'completed')
+        .single();
+
+      if (!purchase) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ found: false }),
+        };
+      }
+
+      // affiliateのproduct_affiliate_permissionsで権限確認
+      let affiliatePermissionGranted = false;
+      if (purchase.buyer_email) {
+        const { data: aff } = await supabase
+          .from('affiliates')
+          .select('id')
+          .eq('email', purchase.buyer_email)
+          .eq('status', 'active')
+          .single();
+        if (aff) {
+          const { data: perm } = await supabase
+            .from('product_affiliate_permissions')
+            .select('id')
+            .eq('affiliate_id', aff.id)
+            .is('revoked_at', null)
+            .limit(1)
+            .single();
+          affiliatePermissionGranted = !!perm;
+        }
+      }
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          found: true,
+          purchase_id:                   purchase.id,
+          purchase_code:                 purchase.purchase_code,
+          buyer_email:                   purchase.buyer_email,
+          product_name:                  purchase.product_name,
+          amount_total:                  purchase.amount_total,
+          affiliate_code:                purchase.affiliate_code,
+          affiliate_name:                purchase.affiliate_name,
+          affiliate_permission_granted:  affiliatePermissionGranted,
+          purchased_at:                  purchase.purchased_at,
+        }),
+      };
+    }
+
+    // ======================================================
+    // 購入コード取得（認証不要・サンクスページ用）
+    // POST /purchase/get-code  { stripe_session_id }
+    // → { purchase_code, product_name, buyer_email }
+    // ======================================================
+    if (path === '/purchase/get-code' && method === 'POST') {
+      const { stripe_session_id } = JSON.parse(event.body || '{}');
+      if (!stripe_session_id) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: 'stripe_session_id is required' }) };
+      }
+
+      const { data: purchase } = await supabase
+        .from('purchases')
+        .select('purchase_code, product_name, buyer_email')
+        .eq('stripe_session_id', stripe_session_id)
+        .eq('status', 'completed')
+        .single();
+
+      if (!purchase || !purchase.purchase_code) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ found: false }),
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          found: true,
+          purchase_code: purchase.purchase_code,
+          product_name: purchase.product_name,
+          // メールは先頭3文字+***でマスク表示
+          buyer_email_masked: purchase.buyer_email
+            ? purchase.buyer_email.replace(/^(.{3})(.*)(@.*)$/, (_, a, b, c) => a + b.replace(/./g, '*') + c)
+            : null,
+        }),
+      };
+    }
+
+    // ======================================================
     // アフィリエイター登録フロー（認証不要）
     // ======================================================
 
