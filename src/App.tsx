@@ -33,6 +33,7 @@ import { AffiliateProfile } from '@/pages/affiliate/AffiliateProfile';
 import { AffiliateMaterials } from '@/pages/affiliate/AffiliateMaterials';
 // 新規追加
 import { AffiliateRegister } from '@/pages/affiliate/AffiliateRegister';
+import { AffiliateTop } from '@/pages/affiliate/AffiliateTop';
 import { AffiliateProductDetail } from '@/pages/affiliate/AffiliateProductDetail';
 
 // ==================== Partner Pages ====================
@@ -70,7 +71,7 @@ function App() {
             販売ページ（メインの導線）
            ======================================== */}
         {/* ルート: アフィリエイト講座ページへリダイレクト */}
-        <Route path="/" element={<LandingPageAffiliateCourse />} />
+        <Route path="/" element={<AffiliateTop />} />
 
         {/* AIアフィリエイト実践講座（通常¥29,800 / キャンペーン¥4,980） */}
         <Route path="/affiliate-course" element={<LandingPageAffiliateCourse />} />
