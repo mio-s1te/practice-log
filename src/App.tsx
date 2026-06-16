@@ -51,7 +51,6 @@ import { PartnerNotices } from '@/pages/partner/PartnerNotices';
 import { LandingPageAffiliateCourse } from '@/pages/lp/LandingPageAffiliateCourse';
 // 既存ページ（start-course として流用）
 import { LandingPageStartCourse } from '@/pages/lp/LandingPageStartCourse';
-import { LandingPageMiniCourse } from '@/pages/lp/LandingPageMiniCourse';
 import { LandingPageFreeGift } from '@/pages/lp/LandingPageFreeGift';
 import { LiffSeminar } from '@/pages/lp/LiffSeminar';
 import { PurchaseComplete } from '@/pages/lp/PurchaseComplete';
@@ -79,8 +78,8 @@ function App() {
         {/* AI副業1時間化スタート講座（段階価格） */}
         <Route path="/start-course" element={<LandingPageStartCourse />} />
 
-        {/* その他既存ページ（移行期間中は維持） */}
-        <Route path="/mini-course" element={<LandingPageMiniCourse />} />
+        {/* /mini-course は養成講座LPへリダイレクト（ミニ講座は存在しない） */}
+        <Route path="/mini-course" element={<Navigate to="/affiliate-course" replace />} />
         <Route path="/free-gift" element={<LandingPageFreeGift />} />
         <Route path="/seminar" element={<LiffSeminar />} />
         <Route path="/purchase-complete" element={<PurchaseComplete />} />
