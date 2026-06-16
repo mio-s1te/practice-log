@@ -555,7 +555,7 @@ exports.handler = async (event) => {
     if (path === '/profile/update' && method === 'PUT') {
       const body = JSON.parse(event.body || '{}');
       // 更新可能なフィールドのみ許可
-      const allowedFields: Record<string, any> = {};
+      const allowedFields = {};
       if (body.phone !== undefined) allowedFields.phone = body.phone;
       if (Object.keys(allowedFields).length === 0) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: '更新するフィールドがありません' }) };
