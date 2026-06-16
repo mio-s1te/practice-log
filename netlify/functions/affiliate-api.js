@@ -1418,22 +1418,31 @@ async function getDashboardV2(affiliate, headers) {
       .single();
 
     let canRefer = false;
-    // defaultPermがない場合は 'open' にフォールバック（product_affiliate_permissionsに行が未登録でも紹介可）
-    const accessLevel = defaultPerm?.access_level || 'open';
 
-    // 個別権限が明示的に設定されている場合（revoked_atがあれば無効）
+    // 個別権限が明示的に設定されている場合（revoked_atがあれば無効）最優先
     if (individualPerm && individualPerm.is_explicitly_granted !== null && !individualPerm.revoked_at) {
       canRefer = individualPerm.is_explicitly_granted;
+    } else if (!defaultPerm) {
+      // デフォルト権限がない場合: 購入を直接確認（購入者なら紹介可、それ以外もactiveなら紹介可）
+      const { data: purchase } = await supabase
+        .from('purchases')
+        .select('id')
+        .eq('buyer_email', affiliate.email)
+        .eq('product_id', product.id)
+        .eq('status', 'completed')
+        .limit(1)
+        .single();
+      canRefer = !!purchase || affiliate.status === 'active';
     } else {
-      // デフォルト権限で判定
+      const accessLevel = defaultPerm.access_level;
       if (accessLevel === 'open') {
-        // activeなアフィリエイターなら紹介可
         canRefer = affiliate.status === 'active';
       } else if (accessLevel === 'approved_only') {
         canRefer = affiliate.status === 'active' && !!affiliate.approved_at;
+      } else if (accessLevel === 'none') {
+        canRefer = false;
       } else if (accessLevel === 'requires_purchase') {
-        // 必要な商品を購入済みか確認
-        const reqProductId = defaultPerm?.required_product_id || product.id;
+        const reqProductId = defaultPerm.required_product_id || product.id;
         const { data: purchase } = await supabase
           .from('purchases')
           .select('id')
@@ -1443,6 +1452,8 @@ async function getDashboardV2(affiliate, headers) {
           .limit(1)
           .single();
         canRefer = !!purchase;
+      } else {
+        canRefer = affiliate.status === 'active';
       }
     }
 
@@ -1910,15 +1921,9 @@ function getWeekNumber(date) {
 }
 
 async function checkProductPermission(affiliate, product) {
-  // デフォルト権限
-  const { data: defaultPerm } = await supabase
-    .from('product_affiliate_permissions')
-    .select('access_level, required_product_id')
-    .eq('product_id', product.id)
-    .is('affiliate_id', null)
-    .single();
+  if (affiliate.status !== 'active') return false;
 
-  // 個別権限
+  // 個別権限（明示的に設定されている場合は最優先）
   const { data: individualPerm } = await supabase
     .from('product_affiliate_permissions')
     .select('is_explicitly_granted, revoked_at')
@@ -1930,12 +1935,35 @@ async function checkProductPermission(affiliate, product) {
     return individualPerm.is_explicitly_granted;
   }
 
-  // defaultPermがない場合は 'open' にフォールバック
-  const accessLevel = defaultPerm?.access_level || 'open';
-  if (accessLevel === 'open') return affiliate.status === 'active';
-  if (accessLevel === 'approved_only') return affiliate.status === 'active' && !!affiliate.approved_at;
+  // デフォルト権限
+  const { data: defaultPerm } = await supabase
+    .from('product_affiliate_permissions')
+    .select('access_level, required_product_id')
+    .eq('product_id', product.id)
+    .is('affiliate_id', null)
+    .single();
+
+  // デフォルト権限がない場合: purchasesで購入を直接確認（購入者なら常に紹介可）
+  if (!defaultPerm) {
+    const { data: purchase } = await supabase
+      .from('purchases')
+      .select('id')
+      .eq('buyer_email', affiliate.email)
+      .eq('product_id', product.id)
+      .eq('status', 'completed')
+      .limit(1)
+      .single();
+    // 購入者なら紹介可、それ以外はactiveなら紹介可（openフォールバック）
+    return !!purchase || affiliate.status === 'active';
+  }
+
+  const accessLevel = defaultPerm.access_level;
+  if (accessLevel === 'open') return true;
+  if (accessLevel === 'approved_only') return !!affiliate.approved_at;
+  if (accessLevel === 'none') return false;
   if (accessLevel === 'requires_purchase') {
-    const reqProductId = defaultPerm?.required_product_id || product.id;
+    // 必要商品を確認（required_product_idが指定されていればそれ、なければ当該商品の購入確認）
+    const reqProductId = defaultPerm.required_product_id || product.id;
     const { data: purchase } = await supabase
       .from('purchases')
       .select('id')
@@ -1946,7 +1974,7 @@ async function checkProductPermission(affiliate, product) {
       .single();
     return !!purchase;
   }
-  return affiliate.status === 'active'; // 不明なaccess_levelはactiveなら許可
+  return true; // 不明なaccess_levelはactiveなら許可
 }
 
 function calculateRadarScore(affiliate, kpi, product_stats, daily_data) {

@@ -598,7 +598,7 @@ export function AffiliateDashboardNew() {
             <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0">🐱</div>
             <div className="min-w-0">
               <p className="text-sm font-bold text-gray-900 leading-none">紹介者ダッシュボード</p>
-              <p className="text-xs text-gray-400 truncate">{affiliate?.name}（{affiliate?.affiliate_code}）</p>
+              <p className="text-xs text-gray-400 truncate">{affiliate?.name}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -640,21 +640,17 @@ export function AffiliateDashboardNew() {
 
         {/* 紹介URL（自分専用） */}
         {affiliate && referrableProducts.length > 0 && (
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-5 text-white">
-            <p className="text-blue-200 text-xs mb-2">あなたの紹介コード</p>
-            <div className="flex items-center gap-3 mb-3">
-              <code className="text-2xl font-extrabold font-mono tracking-wider">{affiliate.affiliate_code}</code>
-              <CopyButton text={affiliate.affiliate_code} label="コード" />
-            </div>
+          <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-5 text-white">
+            <p className="text-orange-100 text-xs font-semibold mb-3">🔗 あなたの専用紹介URL</p>
             <div className="space-y-2">
               {referrableProducts.map(p => {
                 const url = `${SITE_URL}${p.affiliate_lp_url || p.lp_url}?ref=${affiliate.affiliate_code}`;
                 return (
-                  <div key={p.product_id} className="bg-white/10 rounded-xl p-3">
-                    <p className="text-xs text-blue-200 mb-1">{p.product_name}</p>
+                  <div key={p.product_id} className="bg-white/15 rounded-xl p-3">
+                    <p className="text-xs text-orange-100 mb-1.5 font-medium">{p.product_name}</p>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <code className="text-xs font-mono flex-1 min-w-0 truncate">{url}</code>
-                      <CopyButton text={url} label="URL" />
+                      <code className="text-xs font-mono flex-1 min-w-0 truncate bg-white/20 px-2 py-1 rounded-lg">{url}</code>
+                      <CopyButton text={url} label="コピー" />
                     </div>
                   </div>
                 );

@@ -5,7 +5,7 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 
-const MIO_ICON = 'https://www.genspark.ai/api/files/s/CJ9px1sS';
+const MIO_ICON = '/mio-icon.png';
 
 // ─────────────────────────────────────────
 // みおキャラ（吹き出し付き）
@@ -53,15 +53,14 @@ function DashboardMockup() {
           <div className="w-3 h-3 rounded-full bg-green-400" />
         </div>
         <div className="flex-1 bg-white rounded-full px-3 py-1 text-xs text-gray-400 ml-2">
-          mio-affiliate.netlify.app/affiliate/dashboard
+          ログイン後のパートナー専用画面
         </div>
       </div>
       {/* 実ダッシュボードのスクリーンショット */}
       <img
         src={SS_KPI}
         alt="ダッシュボード KPI概要"
-        className="w-full object-cover object-top"
-        style={{ maxHeight: '420px' }}
+        className="w-full object-contain bg-white"
       />
     </div>
   );
@@ -79,8 +78,7 @@ function RewardSimMockup() {
       <img
         src={SS_GRAPH}
         alt="グラフ分析"
-        className="w-full object-cover object-top"
-        style={{ maxHeight: '300px' }}
+        className="w-full object-contain bg-white"
       />
     </div>
   );
@@ -98,8 +96,7 @@ function RankingMockup() {
       <img
         src={SS_RADAR}
         alt="パフォーマンス診断"
-        className="w-full object-cover object-top"
-        style={{ maxHeight: '300px' }}
+        className="w-full object-contain bg-white"
       />
     </div>
   );
@@ -313,8 +310,7 @@ export function AffiliateTop() {
                 <img
                   src={SS_RANKING}
                   alt="ランキング画面"
-                  className="w-full object-cover object-top"
-                  style={{ maxHeight: '280px' }}
+                  className="w-full object-contain bg-white"
                 />
               </div>
             </div>
