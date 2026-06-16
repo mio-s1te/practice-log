@@ -33,8 +33,14 @@ function Mio({ size = 80, balloon, balloonDir = 'right', className = '' }:
   );
 }
 
+// スクリーンショット画像URL（実際のダッシュボード）
+const SS_KPI     = 'https://www.genspark.ai/api/files/s/mGtoWazF';
+const SS_GRAPH   = 'https://www.genspark.ai/api/files/s/NYuHlT4z';
+const SS_RADAR   = 'https://www.genspark.ai/api/files/s/QCj6gOYX';
+const SS_RANKING = 'https://www.genspark.ai/api/files/s/cSPMgpPe';
+
 // ─────────────────────────────────────────
-// ダッシュボードモックアップ
+// ダッシュボードモックアップ（実スクリーンショット使用）
 // ─────────────────────────────────────────
 function DashboardMockup() {
   return (
@@ -50,136 +56,51 @@ function DashboardMockup() {
           mio-affiliate.netlify.app/affiliate/dashboard
         </div>
       </div>
-      {/* ダッシュボード本体 */}
-      <div className="p-4 bg-orange-50">
-        {/* ヘッダー行 */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <img src={MIO_ICON} alt="みお" className="w-7 h-7 rounded-full" />
-            <span className="text-sm font-bold text-gray-700">みおアフィリエイト</span>
-          </div>
-          <div className="text-xs text-orange-500 bg-orange-100 px-2 py-1 rounded-full font-medium">
-            📊 ダッシュボード
-          </div>
-        </div>
-
-        {/* KPIカード */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {[
-            { label: 'クリック数', value: '128', icon: '👆', color: 'bg-blue-50 border-blue-100' },
-            { label: '成約数', value: '7', icon: '🎉', color: 'bg-green-50 border-green-100' },
-            { label: '獲得報酬', value: '¥34,860', icon: '💰', color: 'bg-orange-50 border-orange-200' },
-          ].map(k => (
-            <div key={k.label} className={`rounded-xl p-3 border ${k.color}`}>
-              <div className="text-lg mb-0.5">{k.icon}</div>
-              <div className="text-sm font-black text-gray-800">{k.value}</div>
-              <div className="text-xs text-gray-400">{k.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* グラフ風バー */}
-        <div className="bg-white rounded-xl p-3 mb-3 border border-orange-100">
-          <div className="text-xs font-bold text-gray-500 mb-2">直近7日間のクリック数</div>
-          <div className="flex items-end gap-1 h-12">
-            {[30, 45, 28, 60, 42, 78, 55].map((h, i) => (
-              <div key={i} className="flex-1 bg-orange-300 rounded-t-sm opacity-80"
-                style={{ height: `${(h / 78) * 100}%` }} />
-            ))}
-          </div>
-          <div className="flex justify-between mt-1">
-            {['月','火','水','木','金','土','日'].map(d => (
-              <div key={d} className="flex-1 text-center text-xs text-gray-300">{d}</div>
-            ))}
-          </div>
-        </div>
-
-        {/* 紹介URLエリア */}
-        <div className="bg-white rounded-xl p-3 border border-orange-100">
-          <div className="text-xs font-bold text-gray-500 mb-2">🔗 あなたの紹介URL</div>
-          <div className="flex gap-2 items-center">
-            <div className="flex-1 bg-gray-50 rounded-lg px-3 py-1.5 text-xs text-gray-400 truncate border border-gray-100">
-              mio-mainsite.netlify.app/?ref=mio_xxxx
-            </div>
-            <div className="bg-orange-400 text-white text-xs px-3 py-1.5 rounded-lg font-bold whitespace-nowrap">
-              コピー
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* 実ダッシュボードのスクリーンショット */}
+      <img
+        src={SS_KPI}
+        alt="ダッシュボード KPI概要"
+        className="w-full object-cover object-top"
+        style={{ maxHeight: '420px' }}
+      />
     </div>
   );
 }
 
 // ─────────────────────────────────────────
-// 報酬シミュレーターモックアップ
+// グラフ分析スクリーンショット
 // ─────────────────────────────────────────
 function RewardSimMockup() {
   return (
-    <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-orange-100 text-left">
-      <div className="bg-orange-400 px-4 py-3">
-        <p className="text-white font-bold text-sm">💰 報酬シミュレーター</p>
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-orange-100">
+      <div className="bg-orange-400 px-4 py-2">
+        <p className="text-white font-bold text-sm">📈 グラフ分析</p>
       </div>
-      <div className="p-4 space-y-3">
-        <div>
-          <p className="text-xs text-gray-400 mb-1">月間紹介人数</p>
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-2 bg-orange-100 rounded-full">
-              <div className="w-2/3 h-2 bg-orange-400 rounded-full" />
-            </div>
-            <span className="text-sm font-bold text-gray-700">10人</span>
-          </div>
-        </div>
-        <div className="border-t border-orange-50 pt-3 space-y-2">
-          {[
-            { label: 'スタート講座 × 6人' },
-            { label: '養成講座 × 4人' },
-          ].map(r => (
-            <div key={r.label} className="flex justify-between items-center">
-              <span className="text-xs text-gray-500">{r.label}</span>
-              <span className="text-sm font-bold text-orange-500">高還元！</span>
-            </div>
-          ))}
-        </div>
-        <div className="bg-orange-50 rounded-xl p-3 text-center border border-orange-200">
-          <p className="text-xs text-gray-500">月間報酬合計</p>
-          <p className="text-lg font-black text-orange-500">報酬💰</p>
-          <p className="text-xs text-gray-400">詳細はダッシュボードで確認</p>
-        </div>
-      </div>
+      <img
+        src={SS_GRAPH}
+        alt="グラフ分析"
+        className="w-full object-cover object-top"
+        style={{ maxHeight: '300px' }}
+      />
     </div>
   );
 }
 
 // ─────────────────────────────────────────
-// ランキングモックアップ
+// パフォーマンス診断スクリーンショット
 // ─────────────────────────────────────────
 function RankingMockup() {
-  const data = [
-    { rank: 1, name: 'さくらさん', count: 12, medal: '🥇' },
-    { rank: 2, name: 'ゆいさん', count: 9,  medal: '🥈' },
-    { rank: 3, name: 'はるさん', count: 7,  medal: '🥉' },
-    { rank: 4, name: 'あなた',   count: 5,  medal: '4位', me: true },
-  ];
   return (
-    <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-orange-100 text-left">
-      <div className="bg-gradient-to-r from-orange-400 to-pink-400 px-4 py-3">
-        <p className="text-white font-bold text-sm">🏆 今月のランキング</p>
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-orange-100">
+      <div className="bg-gradient-to-r from-orange-400 to-pink-400 px-4 py-2">
+        <p className="text-white font-bold text-sm">🎯 パフォーマンス診断</p>
       </div>
-      <div className="p-3 space-y-2">
-        {data.map(d => (
-          <div key={d.rank}
-            className={`flex items-center gap-3 px-3 py-2 rounded-xl ${d.me ? 'bg-orange-50 border-2 border-orange-300' : 'bg-gray-50'}`}>
-            <span className="text-base w-6 text-center">{d.medal}</span>
-            <span className={`flex-1 text-sm font-medium ${d.me ? 'text-orange-600 font-bold' : 'text-gray-600'}`}>
-              {d.name}{d.me && ' ← あなた'}
-            </span>
-            <span className={`text-sm font-black ${d.me ? 'text-orange-500' : 'text-gray-700'}`}>
-              {d.count}件
-            </span>
-          </div>
-        ))}
-      </div>
+      <img
+        src={SS_RADAR}
+        alt="パフォーマンス診断"
+        className="w-full object-cover object-top"
+        style={{ maxHeight: '300px' }}
+      />
     </div>
   );
 }
@@ -380,10 +301,22 @@ export function AffiliateTop() {
               ))}
             </div>
 
-            {/* 右：モックアップ */}
+            {/* 右：スクリーンショット */}
             <div className="space-y-4">
               <RewardSimMockup />
               <RankingMockup />
+              {/* ランキング画面 */}
+              <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-orange-100">
+                <div className="bg-gradient-to-r from-yellow-400 to-orange-400 px-4 py-2">
+                  <p className="text-white font-bold text-sm">🏆 ランキング</p>
+                </div>
+                <img
+                  src={SS_RANKING}
+                  alt="ランキング画面"
+                  className="w-full object-cover object-top"
+                  style={{ maxHeight: '280px' }}
+                />
+              </div>
             </div>
           </div>
         </div>

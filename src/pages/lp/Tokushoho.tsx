@@ -32,16 +32,16 @@ export function Tokushoho() {
           <li>
             <span className="font-semibold">AI副業1時間化スタート講座</span><br />
             <span className="text-gray-300 text-sm">
-              〜1,000部：29,800円（税込）<br />
-              1,001部〜：49,800円（税込）<br />
-              10,001部〜：99,800円（税込）
+              先着30名：4,980円（税込）<br />
+              31名〜1,000名：順次値上がり<br />
+              1,001名〜：99,800円（税込）
             </span>
           </li>
           <li className="mt-2">
-            <span className="font-semibold">AIアフィリエイト実践講座（予定）</span><br />
+            <span className="font-semibold">プロAIアフィリエイター養成講座</span><br />
             <span className="text-gray-300 text-sm">
               スタート講座1,000部達成まで：4,980円（税込）<br />
-              1,000部達成後：29,800円（税込）
+              1,000部達成後：99,800円（税込）
             </span>
           </li>
         </ul>

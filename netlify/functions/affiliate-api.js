@@ -1419,17 +1419,19 @@ async function getDashboardV2(affiliate, headers) {
       .single();
 
     let canRefer = false;
-    const accessLevel = defaultPerm?.access_level || 'none';
+    // defaultPermがない場合は 'open' にフォールバック（product_affiliate_permissionsに行が未登録でも紹介可）
+    const accessLevel = defaultPerm?.access_level || 'open';
 
-    // 個別権限が明示的に設定されている場合
+    // 個別権限が明示的に設定されている場合（revoked_atがあれば無効）
     if (individualPerm && individualPerm.is_explicitly_granted !== null && !individualPerm.revoked_at) {
       canRefer = individualPerm.is_explicitly_granted;
     } else {
       // デフォルト権限で判定
       if (accessLevel === 'open') {
+        // activeなアフィリエイターなら紹介可
         canRefer = affiliate.status === 'active';
       } else if (accessLevel === 'approved_only') {
-        canRefer = affiliate.status === 'active' && affiliate.start_course_purchased && !!affiliate.approved_at;
+        canRefer = affiliate.status === 'active' && !!affiliate.approved_at;
       } else if (accessLevel === 'requires_purchase') {
         // 必要な商品を購入済みか確認
         const reqProductId = defaultPerm?.required_product_id || product.id;
@@ -1929,7 +1931,8 @@ async function checkProductPermission(affiliate, product) {
     return individualPerm.is_explicitly_granted;
   }
 
-  const accessLevel = defaultPerm?.access_level || 'none';
+  // defaultPermがない場合は 'open' にフォールバック
+  const accessLevel = defaultPerm?.access_level || 'open';
   if (accessLevel === 'open') return affiliate.status === 'active';
   if (accessLevel === 'approved_only') return affiliate.status === 'active' && !!affiliate.approved_at;
   if (accessLevel === 'requires_purchase') {
@@ -1944,7 +1947,7 @@ async function checkProductPermission(affiliate, product) {
       .single();
     return !!purchase;
   }
-  return false;
+  return affiliate.status === 'active'; // 不明なaccess_levelはactiveなら許可
 }
 
 function calculateRadarScore(affiliate, kpi, product_stats, daily_data) {

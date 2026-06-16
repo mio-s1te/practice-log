@@ -193,11 +193,11 @@ export function AffiliateRegister() {
         </div>
 
         {/* 条件説明 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm">
-          <p className="font-semibold text-blue-800 mb-2">✅ 登録条件</p>
-          <ul className="text-blue-700 space-y-1 text-xs">
-            <li>✓ AI副業1時間化スタート講座の購入者であること</li>
-            <li>✓ 購入メールアドレスで照合後、即時登録完了</li>
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6 text-sm">
+          <p className="font-semibold text-orange-800 mb-2">✅ 登録条件</p>
+          <ul className="text-orange-700 space-y-1 text-xs">
+            <li>✓ AI副業1時間化スタート講座 または プロAIアフィリエイター養成講座の購入者</li>
+            <li>✓ 購入時のメールアドレスで照合後、即時登録完了</li>
             <li>✓ 登録完了後すぐに紹介URLが発行されます</li>
           </ul>
         </div>
@@ -224,21 +224,21 @@ export function AffiliateRegister() {
         {/* Step1: 購入メール確認 */}
         {step === 'verify' && (
           <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-1">スタート講座の購入確認</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-1">講座の購入確認</h2>
             <p className="text-gray-500 text-sm mb-6">
-              スタート講座購入時に使用したメールアドレスを入力してください。
+              スタート講座 または 養成講座の購入時に使用したメールアドレスを入力してください。
               購入記録と照合して確認します。
             </p>
             <form onSubmit={handleVerify} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  メールアドレス <span className="text-red-500">*</span>
+                  購入時のメールアドレス <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="スタート講座購入時のメールアドレス"
+                  placeholder="講座購入時に使ったメールアドレス"
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
@@ -252,7 +252,7 @@ export function AffiliateRegister() {
                         AI副業1時間化スタート講座はこちら
                       </Link>
                       <Link to="/affiliate-course" className="block text-red-600 underline font-semibold">
-                        AIアフィリエイト実践講座はこちら
+                        プロAIアフィリエイター養成講座はこちら
                       </Link>
                     </div>
                   )}
@@ -269,11 +269,11 @@ export function AffiliateRegister() {
 
             <div className="mt-6 pt-4 border-t border-gray-100 text-center space-y-1">
               <p className="text-xs text-gray-500">講座をまだお持ちでない方は</p>
-              <Link to="/start-course" className="block text-sm text-blue-600 font-semibold hover:underline">
+              <Link to="/start-course" className="block text-sm text-orange-500 font-semibold hover:underline">
                 AI副業1時間化スタート講座を購入する →
               </Link>
-              <Link to="/affiliate-course" className="block text-sm text-blue-600 font-semibold hover:underline">
-                AIアフィリエイト実践講座を購入する →
+              <Link to="/affiliate-course" className="block text-sm text-orange-500 font-semibold hover:underline">
+                プロAIアフィリエイター養成講座を購入する →
               </Link>
             </div>
           </div>
