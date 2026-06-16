@@ -32,9 +32,11 @@ export function Tokushoho() {
           <li>
             <span className="font-semibold">AI副業1時間化スタート講座</span><br />
             <span className="text-gray-300 text-sm">
-              〜1,000部：29,800円（税込）<br />
-              〜10,000部：49,800円（税込）<br />
-              10,001部〜：99,800円（税込）
+              先着30名（〜30部）：4,980円（税込）<br />
+              31〜100名：9,800円（税込）<br />
+              101〜300名：29,800円（税込）<br />
+              301〜1,000名：49,800円（税込）<br />
+              1,001名〜：99,800円（税込）
             </span>
           </li>
           <li className="mt-2">
