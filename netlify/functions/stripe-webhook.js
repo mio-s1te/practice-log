@@ -6,6 +6,54 @@ const { createClient } = require('@supabase/supabase-js');
 const ws = require('ws');
 const { addDays, parseISO } = require('date-fns');
 
+// ============================================================
+// 購入コード生成: start_XXXXXXXXXXXXXXXX (16文字英数字)
+// 用途: LINE凍結時のメール連絡・スプレッドシート台帳管理
+// ============================================================
+function generatePurchaseCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; // 紛らわしい文字(0,O,1,I,l)を除外
+  let code = 'start_';
+  for (let i = 0; i < 16; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// ============================================================
+// GASへ購入者情報を送信（スプレッドシート記録用）
+// 環境変数: GAS_PURCHASE_SYNC_URL, GAS_PURCHASE_SYNC_SECRET
+// ============================================================
+async function syncPurchaseToSpreadsheet(payload) {
+  const gasUrl = process.env.GAS_PURCHASE_SYNC_URL;
+  const gasSecret = process.env.GAS_PURCHASE_SYNC_SECRET;
+
+  if (!gasUrl) {
+    console.log('[purchase-sync] GAS_PURCHASE_SYNC_URL not set, skipping spreadsheet sync');
+    return;
+  }
+
+  try {
+    const res = await fetch(gasUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(gasSecret ? { 'x-purchase-sync-secret': gasSecret } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      console.log('[purchase-sync] Spreadsheet sync succeeded');
+    } else {
+      const text = await res.text();
+      console.error('[purchase-sync] Spreadsheet sync failed:', res.status, text);
+    }
+  } catch (e) {
+    // スプシ同期の失敗は購入処理全体を止めない
+    console.error('[purchase-sync] Spreadsheet sync error:', e.message);
+  }
+}
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2023-10-16',
 });
@@ -232,6 +280,9 @@ async function handleCheckoutCompleted(session) {
     accessVerified = true;
   }
 
+  // 購入コード生成（start_XXXXXXXXXXXXXXXX 形式）
+  const purchaseCode = generatePurchaseCode();
+
   // purchasesテーブルに保存
   const { data: purchase, error: purchaseError } = await supabase
     .from('purchases')
@@ -258,6 +309,7 @@ async function handleCheckoutCompleted(session) {
       no_access_reason: noAccessReason,
       stripe_session_id: session.id,
       stripe_payment_intent_id: session.payment_intent,
+      purchase_code: purchaseCode,
       status: 'completed',
       purchased_at: new Date().toISOString(),
     })
@@ -431,7 +483,35 @@ async function handleCheckoutCompleted(session) {
     related_id: purchase.id,
   });
 
-  console.log(`Purchase completed: ${purchase.id}, commission: ${commissionAmount}`);
+  console.log(`Purchase completed: ${purchase.id}, commission: ${commissionAmount}, purchase_code: ${purchaseCode}`);
+
+  // ============================================================
+  // Googleスプレッドシートへ購入者情報を同期
+  // メール ↔ LINE 紐付け台帳として記録
+  // LINE凍結時のメール連絡・アフィリ権限確認に利用
+  // ============================================================
+  await syncPurchaseToSpreadsheet({
+    // 識別情報
+    purchase_code:          purchaseCode,
+    purchase_id:            purchase.id,
+    // メール（LINE凍結時の連絡先）
+    buyer_email:            buyerEmail || '',
+    // LINE情報
+    line_user_id:           line_user_id || '',
+    line_display_name:      buyerDisplayName || '',
+    // 商品情報
+    product_id:             product_id || '',
+    product_name:           product_name || productData?.name || '',
+    // 金額
+    amount_total:           amountTotal,
+    // 紹介者情報
+    affiliate_code:         affiliate_code || '',
+    affiliate_name:         affiliate_name || affiliateDisplayName || '',
+    // 日時
+    purchased_at:           new Date().toISOString(),
+    // アフィリエイト権限（この購入で自動付与されたか）
+    affiliate_permission_granted: !!(buyerEmail && product_id),
+  });
 }
 
 async function handlePaymentFailed(paymentIntent) {
