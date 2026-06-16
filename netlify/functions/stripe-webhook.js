@@ -70,19 +70,28 @@ exports.handler = async (event) => {
   }
 
   const sig = event.headers['stripe-signature'];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
   let stripeEvent;
 
-  try {
-    stripeEvent = stripe.webhooks.constructEvent(
-      event.body,
-      sig,
-      endpointSecret
-    );
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
-    return { statusCode: 400, body: `Webhook Error: ${err.message}` };
+  // テスト用・本番用シークレットを両方試みる
+  const secrets = [
+    process.env.STRIPE_WEBHOOK_SECRET,
+    process.env.STRIPE_WEBHOOK_SECRET_TEST,
+  ].filter(Boolean);
+
+  let lastError;
+  for (const secret of secrets) {
+    try {
+      stripeEvent = stripe.webhooks.constructEvent(event.body, sig, secret);
+      break; // 成功したらループを抜ける
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  if (!stripeEvent) {
+    console.error('Webhook signature verification failed:', lastError?.message);
+    return { statusCode: 400, body: `Webhook Error: ${lastError?.message}` };
   }
 
   try {
