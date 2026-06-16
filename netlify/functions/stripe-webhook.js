@@ -181,11 +181,17 @@ async function handleCheckoutCompleted(session) {
   const amountTotal = session.amount_total || 0;
 
   // Stripe Product IDを取得（line_itemsから）
+  // セッションIDがcs_test_で始まる場合はテスト用キーを使う
   let stripeProductId = null;
   try {
-    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
+    const isTestSession = session.id?.startsWith('cs_test_');
+    const stripeKey = isTestSession
+      ? (process.env.STRIPE_SECRET_KEY_TEST || process.env.STRIPE_SECRET_KEY)
+      : process.env.STRIPE_SECRET_KEY;
+    const stripeForLineItems = new Stripe(stripeKey, { apiVersion: '2023-10-16' });
+    const lineItems = await stripeForLineItems.checkout.sessions.listLineItems(session.id, { limit: 1 });
     stripeProductId = lineItems?.data?.[0]?.price?.product || null;
-    console.log(`[stripe-webhook] product_id(meta)=${product_id} stripeProductId=${stripeProductId}`);
+    console.log(`[stripe-webhook] product_id(meta)=${product_id} stripeProductId=${stripeProductId} isTest=${isTestSession}`);
   } catch (e) {
     console.warn('[stripe-webhook] Failed to get line items:', e.message);
   }
