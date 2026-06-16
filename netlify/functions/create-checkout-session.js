@@ -358,10 +358,15 @@ exports.handler = async (event) => {
 // --------------------------------------------------------
 // 価格tier判定ヘルパー
 // 有効累計販売数を取得し、現在適用すべき price_tier を返す
+//
+// sales_count_product_id 対応:
+//   price_tiers に sales_count_product_id が設定されている場合、
+//   その商品の販売数でtierを判定する。
+//   例: 養成講座のtier判定をスタート講座の販売数に連動させる。
 // --------------------------------------------------------
 async function resolveCurrentPriceTier(product) {
   try {
-    // 商品の全 price_tiers を取得
+    // 商品の全 price_tiers を取得（sales_count_product_id カラムを含む）
     const { data: tiers } = await supabase
       .from('price_tiers')
       .select('*')
@@ -378,11 +383,22 @@ async function resolveCurrentPriceTier(product) {
       };
     }
 
+    // -------------------------------------------------------
+    // 販売数カウント対象商品の決定
+    // tiers に sales_count_product_id が設定されていれば、
+    // その商品の販売数を参照する（例: 養成講座 → スタート講座の販売数で判定）
+    // 設定がなければ自身の product.id を使う（従来動作）
+    // -------------------------------------------------------
+    const salesCountProductId =
+      (tiers[0].sales_count_product_id)
+        ? tiers[0].sales_count_product_id
+        : product.id;
+
     // 有効累計販売数を取得 (status='completed' のみ)
     const { count: salesCount } = await supabase
       .from('purchases')
       .select('id', { count: 'exact', head: true })
-      .eq('product_id', product.id)
+      .eq('product_id', salesCountProductId)
       .eq('status', 'completed');
 
     const validSales = salesCount || 0;
@@ -408,7 +424,7 @@ async function resolveCurrentPriceTier(product) {
     }
 
     console.log(
-      `Price tier resolved: product=${product.id}, sales=${validSales}, tier=${currentTier.tier_name}, price=${currentTier.price}`
+      `[resolveCurrentPriceTier] product=${product.id}, salesCountFrom=${salesCountProductId}, sales=${validSales}, tier=${currentTier.tier_name}, price=${currentTier.price}`
     );
 
     return {

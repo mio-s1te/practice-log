@@ -57,17 +57,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // 有効累計販売数を取得
-    // 有効条件: status = 'completed' のみ（返金・キャンセル・チャージバック除外）
-    const { count: validSalesCount } = await supabase
-      .from('purchases')
-      .select('id', { count: 'exact', head: true })
-      .eq('product_id', product_id)
-      .eq('status', 'completed');
-
-    const salesCount = validSalesCount || 0;
-
-    // 全 price_tiers を取得
+    // 全 price_tiers を取得（sales_count_product_id カラムを含む）
     const { data: allTiers, error: tiersError } = await supabase
       .from('price_tiers')
       .select('*')
@@ -80,6 +70,40 @@ exports.handler = async (event) => {
     }
 
     const tiers = allTiers || [];
+
+    // -------------------------------------------------------
+    // 販売数カウント対象商品の決定
+    // tiers に sales_count_product_id が設定されていれば、
+    // その商品の販売数を参照する（例: 養成講座 → スタート講座の販売数で判定）
+    // 設定がなければ自身の product_id を使う（従来動作）
+    // -------------------------------------------------------
+    const salesCountProductId =
+      (tiers.length > 0 && tiers[0].sales_count_product_id)
+        ? tiers[0].sales_count_product_id
+        : product_id;
+
+    const isSalesCountLinked = salesCountProductId !== product_id;
+
+    // 有効累計販売数を取得
+    // 有効条件: status = 'completed' のみ（返金・キャンセル・チャージバック除外）
+    const { count: validSalesCount } = await supabase
+      .from('purchases')
+      .select('id', { count: 'exact', head: true })
+      .eq('product_id', salesCountProductId)
+      .eq('status', 'completed');
+
+    const salesCount = validSalesCount || 0;
+
+    // 自身の販売数も取得（レスポンスに含めるため）
+    let ownSalesCount = salesCount;
+    if (isSalesCountLinked) {
+      const { count: ownCount } = await supabase
+        .from('purchases')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', product_id)
+        .eq('status', 'completed');
+      ownSalesCount = ownCount || 0;
+    }
 
     // キャンペーン価格が有効かどうかを判定
     const isCampaignActive = product.campaign_price_active && product.campaign_price;
@@ -98,6 +122,9 @@ exports.handler = async (event) => {
           current_tier: null,
           next_tier: null,
           valid_sales_count: salesCount,
+          own_sales_count: ownSalesCount,
+          start_course_sales_count: isSalesCountLinked ? salesCount : null,
+          sales_count_product_id: isSalesCountLinked ? salesCountProductId : null,
           remaining_until_next_tier: null,
           all_tiers: [],
           has_price_tiers: false,
@@ -123,6 +150,10 @@ exports.handler = async (event) => {
       ? currentTier.stripe_price_id
       : product.stripe_price_id || null;
 
+    console.log(
+      `[get-product-price] product=${product_id}, salesCountFrom=${salesCountProductId}, salesCount=${salesCount}, tier=${currentTier?.tier_name || 'none'}, price=${currentPrice}`
+    );
+
     return {
       statusCode: 200,
       headers: CORS_HEADERS,
@@ -134,6 +165,11 @@ exports.handler = async (event) => {
         current_tier: currentTier || null,
         next_tier: nextTier || null,
         valid_sales_count: salesCount,
+        own_sales_count: ownSalesCount,
+        // sales_count_product_id が設定されている場合のみ返す
+        // フロントの start_course_sales_count フィールドはここを参照
+        start_course_sales_count: isSalesCountLinked ? salesCount : null,
+        sales_count_product_id: isSalesCountLinked ? salesCountProductId : null,
         remaining_until_next_tier: remainingUntilNextTier,
         all_tiers: tiers,
         has_price_tiers: true,

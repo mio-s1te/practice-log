@@ -38,12 +38,26 @@ export function LandingPageAffiliateCourse() {
       const res = await fetch(`/.netlify/functions/get-product-price?product_id=${PRODUCT_ID}`);
       if (res.ok) {
         const data = await res.json();
+        // start_course_sales_count:
+        //   sales_count_product_id が設定されている場合は API から直接取得
+        //   設定されていない場合(null)は valid_sales_count にフォールバック
+        const startCourseSalesCount =
+          data.start_course_sales_count != null
+            ? data.start_course_sales_count
+            : (data.valid_sales_count ?? 0);
+        // is_campaign_active:
+        //   APIが is_campaign_active を返さない場合、
+        //   current_price < NORMAL_PRICE であればキャンペーン中と判定
+        const isCampaignActive =
+          data.is_campaign_active != null
+            ? data.is_campaign_active
+            : (data.current_price != null && data.current_price < NORMAL_PRICE);
         setPriceInfo({
           current_price: data.current_price ?? CAMPAIGN_PRICE,
-          is_campaign_active: data.is_campaign_active ?? true,
+          is_campaign_active: isCampaignActive,
           campaign_price: data.campaign_price ?? CAMPAIGN_PRICE,
           campaign_condition: data.campaign_price_condition ?? 'until_start_course_1000',
-          start_course_sales_count: data.start_course_sales_count ?? 0,
+          start_course_sales_count: startCourseSalesCount,
           start_course_limit: 1000,
         });
       }
@@ -91,6 +105,9 @@ export function LandingPageAffiliateCourse() {
   const remaining = Math.max(0, priceInfo.start_course_limit - salesCount);
   const progress = Math.min(100, (salesCount / priceInfo.start_course_limit) * 100);
 
+  // 購入ボタンラベルを現在価格に連動させる
+  const priceLabel = priceLoading ? '...' : `¥${currentPrice.toLocaleString()}で参加する`;
+
   const PurchaseBtn = ({ label, size = 'lg' }: { label?: string; size?: 'sm' | 'lg' }) =>
     size === 'lg' ? (
       <button onClick={handlePurchase} disabled={checkoutLoading || priceLoading}
@@ -100,7 +117,7 @@ export function LandingPageAffiliateCourse() {
     ) : (
       <button onClick={handlePurchase} disabled={checkoutLoading || priceLoading}
         className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all disabled:opacity-50">
-        {checkoutLoading ? '処理中...' : (label || '4,980円で参加する')}
+        {checkoutLoading ? '処理中...' : (label || priceLabel)}
       </button>
     );
 
@@ -112,7 +129,7 @@ export function LandingPageAffiliateCourse() {
         className="sticky top-0 z-50 border-b border-orange-100 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <span className="text-xs font-bold text-gray-800 leading-tight">プロAIアフィリエイター<br className="sm:hidden" />養成講座</span>
-          <PurchaseBtn label="4,980円で参加する" size="sm" />
+          <PurchaseBtn size="sm" />
         </div>
       </header>
 
@@ -201,10 +218,10 @@ export function LandingPageAffiliateCourse() {
                   </div>
                 </div>
 
-                <PurchaseBtn label="4,980円でプロジェクト参加する" />
+                <PurchaseBtn label={`${priceLabel}でプロジェクト参加する`} />
                 <p className="text-center text-xs text-gray-400 mt-2">Stripe 安全決済 ｜ クレジットカード対応</p>
                 <p className="text-center text-xs text-gray-400 mt-1">
-                  ※先着30名に達した時点、またはプロジェクト終了のどちらか早い時点で価格が変わります
+                  ※スタート講座1,000部達成またはプロジェクト終了のどちらか早い時点で価格が変わります
                 </p>
               </>
             )}
@@ -780,7 +797,7 @@ export function LandingPageAffiliateCourse() {
               </div>
             )}
 
-            <PurchaseBtn label="4,980円でプロジェクト参加する" />
+            <PurchaseBtn label={`${priceLabel}でプロジェクト参加する`} />
             <p className="text-center text-xs text-gray-400 mt-2">Stripe 安全決済 ｜ クレジットカード対応</p>
           </div>
         </div>
@@ -925,7 +942,7 @@ export function LandingPageAffiliateCourse() {
                   ¥{currentPrice.toLocaleString()}
                 </div>
                 <p className="text-xs text-red-500 font-bold text-center mb-4">先着30名限定 ｜ プロジェクト期間中のみ</p>
-                <PurchaseBtn label="4,980円でプロジェクト参加する" />
+                <PurchaseBtn label={`${priceLabel}でプロジェクト参加する`} />
                 <p className="text-center text-xs text-gray-400 mt-2">Stripe 安全決済 ｜ クレジットカード対応</p>
               </>
             )}
