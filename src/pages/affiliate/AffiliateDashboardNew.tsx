@@ -604,7 +604,7 @@ export function AffiliateDashboardNew() {
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* LINE友だち追加ボタン */}
             <a
-              href="https://lin.ee/mioaffiliate"
+              href="https://lin.ee/5YgaiRJ"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 bg-[#06C755] hover:bg-[#05a847] text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-sm transition-colors"

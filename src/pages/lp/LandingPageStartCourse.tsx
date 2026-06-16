@@ -553,7 +553,7 @@ export function LandingPageStartCourse() {
           <a href="/tokushoho" className="hover:text-white transition-colors">特定商取引法</a>
           <a href="/privacy" className="hover:text-white transition-colors">プライバシーポリシー</a>
           <a href="/contact" className="hover:text-white transition-colors">お問い合わせ</a>
-          <a href="https://lin.ee/TJWaKcD" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">公式LINE</a>
+          <a href="https://lin.ee/xnG19H3" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">公式LINE</a>
         </div>
         <p className="text-xs">© 2026 みお ｜ 本ページはアフィリエイト広告を含みます</p>
       </footer>
