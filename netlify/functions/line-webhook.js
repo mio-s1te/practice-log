@@ -260,6 +260,9 @@ ${displayName}さん、ようこそ購入者専用LINEへ！
         ]);
         return;
       }
+
+      // 未認証buyer はメール・購入必須キーワード以外は完全無視
+      return;
     }
   }
 
