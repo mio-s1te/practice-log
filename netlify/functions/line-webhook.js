@@ -270,10 +270,11 @@ ${displayName}さん、ようこそ購入者専用LINEへ！
   const matched = keywords.find(k => trimmedText.includes(k.keyword));
 
   if (!matched) {
-    // マッチなし: デフォルト応答
-    const defaultReply =
-      lineType === 'seminar'
-        ? `メッセージありがとうございます😊
+    // マッチなし:
+    // buyer → チャットで普通の会話もするので完全無視（返信しない）
+    // seminar → キーワード案内を返す
+    if (lineType === 'seminar') {
+      const defaultReply = `メッセージありがとうございます😊
 
 以下のキーワードをお試しください：
 ・セミナー
@@ -281,19 +282,10 @@ ${displayName}さん、ようこそ購入者専用LINEへ！
 ・スタート講座
 ・価格
 ・アフィリエイト
-・質問`
-        : `メッセージありがとうございます😊
-
-以下のキーワードをお試しください：
-・講座
-・第0章 / 第1章
-・ワーク
-・ToDo
-・特典
-・紹介 / アフィリエイト参加
-・紹介者画面`;
-
-    await replyMessage(accessToken, replyToken, [{ type: 'text', text: defaultReply }]);
+・質問`;
+      await replyMessage(accessToken, replyToken, [{ type: 'text', text: defaultReply }]);
+    }
+    // buyer は何も返さない（手動チャットで対応）
     return;
   }
 
