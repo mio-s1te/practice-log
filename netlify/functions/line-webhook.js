@@ -25,6 +25,10 @@ const supabase = createClient(
 
 const SITE_URL = process.env.SITE_URL || 'https://localhost:3000';
 
+// 養成講座カードメッセージの設定
+const AFFILIATE_COURSE_URL  = 'https://beamish-gecko-f0cb60.netlify.app/';
+const AFFILIATE_COURSE_THUMBNAIL = 'https://www.genspark.ai/api/files/s/8Eug5mVj';
+
 // キャッシュ: キーワード応答をメモリに一時保存（10分TTL）
 let keywordCache = { seminar: null, buyer: null, lastFetched: 0 };
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -161,7 +165,8 @@ ${SITE_URL}/seminar
 ・特典 → 特典を受け取る
 ・紹介 → 紹介制度の案内
 ・アフィリエイト参加 → 参加申請
-・紹介者画面 → ダッシュボードを開く`,
+・紹介者画面 → ダッシュボードを開く
+・養成講座 → AIアフィリエイター養成講座を開く`,
         },
       ]);
     } else {
@@ -221,7 +226,8 @@ ${displayName}さん、ようこそ購入者専用LINEへ！
 ・特典 → 特典を受け取る
 ・紹介 → 紹介制度の案内
 ・アフィリエイト参加 → 参加申請
-・紹介者画面 → ダッシュボードを開く`,
+・紹介者画面 → ダッシュボードを開く
+・養成講座 → AIアフィリエイター養成講座を開く`,
             },
           ]);
           return;
@@ -304,6 +310,26 @@ ${displayName}さん、ようこそ購入者専用LINEへ！
       ]);
       return;
     }
+  }
+
+  // ----------------------------------------
+  // 養成講座キーワード → Flexカードメッセージを返す
+  // ----------------------------------------
+  const AFFILIATE_KEYWORDS = ['養成講座', 'アフィリエイト養成', '養成', '紹介講座'];
+  const isAffiliateCourseKeyword =
+    lineType === 'buyer' &&
+    AFFILIATE_KEYWORDS.some(kw => trimmedText.includes(kw));
+
+  if (isAffiliateCourseKeyword) {
+    const flexCard = buildAffiliateCourseFlexMessage();
+    await replyMessage(accessToken, replyToken, [
+      {
+        type: 'text',
+        text: '🎓 プロAIアフィリエイター養成講座はこちらです！\n\nボタンをタップして講座をご覧ください👇',
+      },
+      flexCard,
+    ]);
+    return;
   }
 
   // 返信テキストのプレースホルダー置換
@@ -506,6 +532,122 @@ async function isBuyerLineLinked(buyerLineUserId) {
     .limit(1)
     .single();
   return !!data;
+}
+
+// ============================================================
+// 養成講座 Flexカードメッセージ生成
+// ============================================================
+
+/** 養成講座カードメッセージ（Flex Message）を返す */
+function buildAffiliateCourseFlexMessage() {
+  return {
+    type: 'flex',
+    altText: '🎓 プロAIアフィリエイター養成講座',
+    contents: {
+      type: 'bubble',
+      size: 'giga',
+      hero: {
+        type: 'image',
+        url: AFFILIATE_COURSE_THUMBNAIL,
+        size: 'full',
+        aspectRatio: '1:1',
+        aspectMode: 'cover',
+        action: {
+          type: 'uri',
+          label: '養成講座を開く',
+          uri: AFFILIATE_COURSE_URL,
+        },
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        paddingAll: '20px',
+        contents: [
+          {
+            type: 'text',
+            text: '🎓 プロAIアフィリエイター養成講座',
+            weight: 'bold',
+            size: 'lg',
+            color: '#1a1a1a',
+            wrap: true,
+          },
+          {
+            type: 'text',
+            text: '振り回される人 → 理由を作れる人へ\nAIを使ってアフィリエイト収益を仕組み化する実践講座',
+            size: 'sm',
+            color: '#666666',
+            wrap: true,
+            margin: 'sm',
+          },
+          {
+            type: 'separator',
+            margin: 'md',
+            color: '#f0f0f0',
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'md',
+            spacing: 'sm',
+            contents: [
+              {
+                type: 'box',
+                layout: 'baseline',
+                spacing: 'sm',
+                contents: [
+                  { type: 'text', text: '✅', size: 'sm', flex: 0 },
+                  { type: 'text', text: 'AIアフィリエイトの全体設計', size: 'sm', color: '#444444', flex: 1, wrap: true },
+                ],
+              },
+              {
+                type: 'box',
+                layout: 'baseline',
+                spacing: 'sm',
+                contents: [
+                  { type: 'text', text: '✅', size: 'sm', flex: 0 },
+                  { type: 'text', text: '紹介リンク・収益導線の作り方', size: 'sm', color: '#444444', flex: 1, wrap: true },
+                ],
+              },
+              {
+                type: 'box',
+                layout: 'baseline',
+                spacing: 'sm',
+                contents: [
+                  { type: 'text', text: '✅', size: 'sm', flex: 0 },
+                  { type: 'text', text: 'SNS×AIで作業を自動化する方法', size: 'sm', color: '#444444', flex: 1, wrap: true },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '16px',
+        contents: [
+          {
+            type: 'button',
+            action: {
+              type: 'uri',
+              label: '📖 養成講座を開く',
+              uri: AFFILIATE_COURSE_URL,
+            },
+            style: 'primary',
+            color: '#f97316',
+            height: 'sm',
+            borderRadius: '12px',
+          },
+        ],
+      },
+      styles: {
+        hero: { backgroundColor: '#fff8f0' },
+        body: { backgroundColor: '#ffffff' },
+        footer: { backgroundColor: '#fff8f0', separator: false },
+      },
+    },
+  };
 }
 
 /** 講座URL送信を記録 */
