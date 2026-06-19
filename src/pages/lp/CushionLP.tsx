@@ -1,12 +1,14 @@
 // src/pages/lp/CushionLP.tsx
 // クッションLP - 無料note → アフィリエイト養成講座 or スタート講座への2択導線
 
+import { useState } from 'react';
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { initializeTracking } from '@/utils/tracking';
 
 export function CushionLP() {
   const [searchParams] = useSearchParams();
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
     initializeTracking();
@@ -22,30 +24,59 @@ export function CushionLP() {
     return params.toString() ? `${path}?${params.toString()}` : path;
   };
 
+  const faqs = [
+    {
+      q: '2つの講座、どちらを選べばいいですか？',
+      a: '「アフィリエイトでとにかく動き出したい！」なら養成講座へ。「副業で何をすべきかまだ迷っている」「AI×副業の全体像を掴んでから動きたい」ならスタート講座がおすすめです。',
+    },
+    {
+      q: '養成講座はアフィリエイト未経験でも大丈夫ですか？',
+      a: 'はい。ゼロから始める前提で設計されています。ASP登録から丁寧に解説するので、経験不問です。',
+    },
+    {
+      q: '1日にどのくらい時間が必要ですか？',
+      a: '養成講座は1日1時間（60分）目安の14日間ロードマップです。細切れ時間でも進められる設計です。',
+    },
+    {
+      q: '購入後すぐに始められますか？',
+      a: 'はい。決済完了後すぐにアクセス可能です。',
+    },
+    {
+      q: '価格はなぜ上がるのですか？',
+      a: '養成講座は参加者数に応じて自動で価格が上がる段階価格制を採用しています。先に動いた方ほどお得に受講できる仕組みです。',
+    },
+    {
+      q: 'お問い合わせはどこからできますか？',
+      a: '下のLINEリンクからご連絡ください。購入前のご相談もお気軽にどうぞ🐱',
+    },
+  ];
+
   return (
     <div style={{
       fontFamily: "'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif",
-      background: 'linear-gradient(160deg,#0f0c29 0%,#1a1040 40%,#0d1b2a 100%)',
+      background: 'linear-gradient(160deg,#1a0f00 0%,#2d1a00 40%,#1a1000 100%)',
       minHeight: '100vh',
       color: '#fff',
       position: 'relative',
       overflow: 'hidden',
     }}>
       <style>{`
-        @keyframes twinkle{0%,100%{opacity:.2}50%{opacity:.9}}
+        @keyframes twinkle{0%,100%{opacity:.15}50%{opacity:.7}}
         @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-        @keyframes pulse-glow-purple{0%,100%{box-shadow:0 0 24px rgba(168,85,247,.5)}50%{box-shadow:0 0 48px rgba(168,85,247,.9),0 0 80px rgba(168,85,247,.3)}}
+        @keyframes pulse-glow-orange{0%,100%{box-shadow:0 0 24px rgba(251,146,60,.45)}50%{box-shadow:0 0 48px rgba(251,146,60,.85),0 0 80px rgba(249,115,22,.25)}}
         @keyframes pulse-glow-amber{0%,100%{box-shadow:0 0 24px rgba(245,158,11,.4)}50%{box-shadow:0 0 48px rgba(245,158,11,.8),0 0 80px rgba(245,158,11,.3)}}
         @keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
         @keyframes badge-pop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
         @keyframes slide-up{0%{transform:translateY(30px);opacity:0}100%{transform:translateY(0);opacity:1}}
-        .star{position:absolute;border-radius:50%;background:#fff}
+        @keyframes neko-bounce{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-8px) rotate(2deg)}}
+        .star{position:absolute;border-radius:50%;background:rgba(251,146,60,.4)}
         .float1{animation:float 4s ease-in-out infinite}
         .float2{animation:float 4s ease-in-out infinite;animation-delay:1.2s}
-        .glow-purple{animation:pulse-glow-purple 2.5s ease-in-out infinite}
+        .neko-float{animation:neko-bounce 3s ease-in-out infinite}
+        .glow-orange{animation:pulse-glow-orange 2.5s ease-in-out infinite}
         .glow-amber{animation:pulse-glow-amber 2.5s ease-in-out infinite}
         .shimmer-text{
-          background:linear-gradient(90deg,#fff 0%,#fde68a 40%,#c4b5fd 60%,#fff 100%);
+          background:linear-gradient(90deg,#fff 0%,#fed7aa 40%,#fb923c 60%,#fff 100%);
           background-size:200% auto;
           -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
           animation:shimmer 3.5s linear infinite;
@@ -55,24 +86,31 @@ export function CushionLP() {
         .choice-card{transition:transform .25s ease,box-shadow .25s ease;cursor:pointer;text-decoration:none;display:block}
         .choice-card:hover{transform:translateY(-6px)}
         .choice-card:active{transform:translateY(-2px)}
+        .faq-item{border-bottom:1px solid rgba(251,146,60,.12)}
+        .line-btn:hover{opacity:.85;transform:scale(1.02)}
+        .line-btn{transition:all .2s ease;cursor:pointer;text-decoration:none;display:inline-block}
       `}</style>
 
-      {/* 星屑 */}
-      {Array.from({length: 24}).map((_, i) => (
+      {/* ほんのり光る粒子 */}
+      {Array.from({length: 20}).map((_, i) => (
         <span key={i} className="star" style={{
-          width: `${1 + (i % 3)}px`, height: `${1 + (i % 3)}px`,
+          width: `${1.5 + (i % 3)}px`, height: `${1.5 + (i % 3)}px`,
           top: `${(i * 37) % 100}%`, left: `${(i * 53) % 100}%`,
-          animation: `twinkle ${1.5 + (i % 3) * .5}s ${i * .3}s infinite`,
+          animation: `twinkle ${2 + (i % 4) * .5}s ${i * .4}s infinite`,
         }} />
       ))}
 
       <div style={{ position: 'relative', zIndex: 1 }}>
 
         {/* ══ HERO ══ */}
-        <section style={{ padding: '64px 20px 40px', textAlign: 'center' }}>
+        <section style={{ padding: '64px 20px 32px', textAlign: 'center' }}>
+
+          {/* ねこアイコン */}
+          <div className="neko-float" style={{ fontSize: '42px', marginBottom: '12px', lineHeight: 1 }}>🐱</div>
+
           <div className="badge-anim" style={{
             display: 'inline-block',
-            background: 'linear-gradient(90deg,#a855f7,#ec4899)',
+            background: 'linear-gradient(90deg,#fb923c,#f97316)',
             borderRadius: '999px', padding: '6px 20px',
             fontSize: '12px', fontWeight: 800, marginBottom: '24px', letterSpacing: '.05em',
           }}>
@@ -83,15 +121,15 @@ export function CushionLP() {
             <span className="shimmer-text">あなたは今、<br />どちらのステージにいますか？</span>
           </h1>
 
-          <p style={{ color: '#c4b5fd', fontSize: '15px', lineHeight: 1.85, maxWidth: '480px', margin: '0 auto 10px' }}>
+          <p style={{ color: '#fed7aa', fontSize: '15px', lineHeight: 1.85, maxWidth: '480px', margin: '0 auto 10px' }}>
             noteで紹介したAIアフィリエイトの世界へようこそ。<br />
             次の一歩は、今のあなたの状況で変わります。
           </p>
-          <p style={{ color: '#6b7280', fontSize: '13px', marginBottom: '8px' }}>↓ 当てはまる方を選んでください</p>
+          <p style={{ color: '#78350f', fontSize: '13px', marginBottom: '8px' }}>↓ 当てはまる方を選んでください</p>
         </section>
 
         {/* ══ 2択カード ══ */}
-        <section style={{ padding: '0 16px 64px', maxWidth: '800px', margin: '0 auto' }}>
+        <section style={{ padding: '0 16px 48px', maxWidth: '800px', margin: '0 auto' }}>
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))',
@@ -100,25 +138,25 @@ export function CushionLP() {
 
             {/* ── カード① 養成講座 ── */}
             <a href={buildUrl('/affiliate-course')} className="choice-card" style={{
-              background: 'linear-gradient(145deg,rgba(168,85,247,.18) 0%,rgba(236,72,153,.12) 100%)',
-              border: '1.5px solid rgba(168,85,247,.55)',
+              background: 'linear-gradient(145deg,rgba(251,146,60,.18) 0%,rgba(249,115,22,.12) 100%)',
+              border: '1.5px solid rgba(251,146,60,.55)',
               borderRadius: '28px', padding: '32px 24px',
             }}>
               <div style={{
                 display: 'inline-block',
-                background: 'linear-gradient(90deg,#a855f7,#ec4899)',
+                background: 'linear-gradient(90deg,#fb923c,#f97316)',
                 borderRadius: '999px', padding: '5px 16px',
                 fontSize: '11px', fontWeight: 800, marginBottom: '18px',
               }}>
-                💜 アフィリエイトに絞って実践したい
+                🔥 アフィリエイトに絞って実践したい
               </div>
 
               <div className="float1" style={{ fontSize: '52px', margin: '4px 0 14px', lineHeight: 1 }}>🚀</div>
 
-              <h2 style={{ fontSize: '21px', fontWeight: 900, color: '#e9d5ff', marginBottom: '10px', lineHeight: 1.3 }}>
+              <h2 style={{ fontSize: '21px', fontWeight: 900, color: '#fed7aa', marginBottom: '10px', lineHeight: 1.3 }}>
                 プロAIアフィリエイター<br />養成講座
               </h2>
-              <p style={{ color: '#c4b5fd', fontSize: '13px', lineHeight: 1.85, marginBottom: '20px' }}>
+              <p style={{ color: '#fdba74', fontSize: '13px', lineHeight: 1.85, marginBottom: '20px' }}>
                 方向性はもう決まっている。<br />
                 あとは「どう動くか」だけ。<br />
                 14日間で紹介導線を一気に完成させます。
@@ -126,30 +164,30 @@ export function CushionLP() {
 
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 22px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
                 {['✅ 1日1時間 × 14日で導線完成', '✅ AIで作業効率3倍以上', '✅ Day5で初報酬チャレンジ', '✅ 案件停止に強い複数導線設計'].map(t => (
-                  <li key={t} style={{ color: '#e9d5ff', fontSize: '13px', fontWeight: 600 }}>{t}</li>
+                  <li key={t} style={{ color: '#fed7aa', fontSize: '13px', fontWeight: 600 }}>{t}</li>
                 ))}
               </ul>
 
               {/* 価格 */}
               <div style={{
-                background: 'rgba(168,85,247,.18)', border: '1px solid rgba(168,85,247,.4)',
+                background: 'rgba(251,146,60,.15)', border: '1px solid rgba(251,146,60,.35)',
                 borderRadius: '14px', padding: '14px 16px', marginBottom: '22px', textAlign: 'center',
               }}>
-                <p style={{ color: '#c4b5fd', fontSize: '11px', margin: '0 0 6px' }}>スタート講座1,000部達成プロジェクト限定</p>
+                <p style={{ color: '#fdba74', fontSize: '11px', margin: '0 0 6px' }}>段階価格制（早いほど断然お得）</p>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
                   <span style={{ color: '#9ca3af', fontSize: '13px', textDecoration: 'line-through' }}>¥99,800</span>
-                  <span style={{ color: '#f0abfc', fontSize: '34px', fontWeight: 900 }}>¥4,980</span>
-                  <span style={{ color: '#c4b5fd', fontSize: '13px' }}>〜</span>
+                  <span style={{ color: '#fb923c', fontSize: '34px', fontWeight: 900 }}>¥4,980</span>
+                  <span style={{ color: '#fdba74', fontSize: '13px' }}>〜</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '11px', color: '#9ca3af', marginTop: '6px' }}>
                   <span>先着30名 → ¥4,980 ｜ 31〜100名 → ¥9,800</span>
                   <span>101〜500名 → ¥29,800 ｜ 501〜1,000名 → ¥49,800</span>
-                  <span style={{ color: '#f0abfc', fontWeight: 700, marginTop: '2px' }}>⚡ 販売数が増えると自動値上がり</span>
+                  <span style={{ color: '#fb923c', fontWeight: 700, marginTop: '2px' }}>⚡ 販売数が増えると自動値上がり</span>
                 </div>
               </div>
 
-              <div className="glow-purple" style={{
-                background: 'linear-gradient(90deg,#a855f7,#ec4899)',
+              <div className="glow-orange" style={{
+                background: 'linear-gradient(90deg,#fb923c,#f97316)',
                 borderRadius: '16px', padding: '16px',
                 textAlign: 'center', fontWeight: 900, fontSize: '16px', color: '#fff',
               }}>
@@ -162,13 +200,13 @@ export function CushionLP() {
 
             {/* ── カード② スタート講座 ── */}
             <a href={buildUrl('/start-course')} className="choice-card" style={{
-              background: 'linear-gradient(145deg,rgba(251,191,36,.12) 0%,rgba(249,115,22,.1) 100%)',
-              border: '1.5px solid rgba(251,191,36,.45)',
+              background: 'linear-gradient(145deg,rgba(251,191,36,.12) 0%,rgba(234,179,8,.08) 100%)',
+              border: '1.5px solid rgba(251,191,36,.4)',
               borderRadius: '28px', padding: '32px 24px',
             }}>
               <div style={{
                 display: 'inline-block',
-                background: 'linear-gradient(90deg,#f59e0b,#f97316)',
+                background: 'linear-gradient(90deg,#fbbf24,#d97706)',
                 borderRadius: '999px', padding: '5px 16px',
                 fontSize: '11px', fontWeight: 800, marginBottom: '18px',
               }}>
@@ -194,7 +232,7 @@ export function CushionLP() {
 
               {/* 価格 */}
               <div style={{
-                background: 'rgba(251,191,36,.12)', border: '1px solid rgba(251,191,36,.35)',
+                background: 'rgba(251,191,36,.10)', border: '1px solid rgba(251,191,36,.30)',
                 borderRadius: '14px', padding: '14px 16px', marginBottom: '22px', textAlign: 'center',
               }}>
                 <p style={{ color: '#fde68a', fontSize: '11px', margin: '0 0 6px' }}>段階価格制（早いほどお得）</p>
@@ -208,7 +246,7 @@ export function CushionLP() {
               </div>
 
               <div className="glow-amber" style={{
-                background: 'linear-gradient(90deg,#f59e0b,#f97316)',
+                background: 'linear-gradient(90deg,#fbbf24,#d97706)',
                 borderRadius: '16px', padding: '16px',
                 textAlign: 'center', fontWeight: 900, fontSize: '16px', color: '#fff',
               }}>
@@ -224,44 +262,95 @@ export function CushionLP() {
           <div style={{
             marginTop: '28px', textAlign: 'center',
             padding: '20px 24px',
-            background: 'rgba(255,255,255,.04)',
-            borderRadius: '18px', border: '1px solid rgba(255,255,255,.08)',
+            background: 'rgba(251,146,60,.07)',
+            borderRadius: '18px', border: '1px solid rgba(251,146,60,.2)',
           }}>
             <p style={{ color: '#d1d5db', fontSize: '14px', lineHeight: 1.8 }}>
-              💡 <strong style={{ color: '#e9d5ff' }}>迷ったら養成講座がおすすめです。</strong><br />
-              スタート講座の基礎内容も含まれており、今が歴史上最安値。<br />
-              <span style={{ color: '#9ca3af', fontSize: '12px' }}>
+              🐱 <strong style={{ color: '#fed7aa' }}>迷ったら養成講座がおすすめです。</strong><br />
+              アフィリエイトに特化した実践講座で、今が最安値。<br />
+              <span style={{ color: '#78350f', fontSize: '12px' }}>
                 スタート講座1,000部達成後は通常価格（¥99,800）に移行します。
               </span>
             </p>
           </div>
         </section>
 
-        {/* ══ 声 ══ */}
-        <section style={{ padding: '0 16px 64px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
-          <p style={{ color: '#4b5563', fontSize: '12px', marginBottom: '16px', letterSpacing: '.1em' }}>── 受講者の声 ──</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {[
-              { text: 'noteを読んですぐ申し込みました。Day5で初クリックが取れて感動しました！', name: '20代・会社員' },
-              { text: '方向性が決まってなかったのでスタート講座から。やりたいことが明確になりました。', name: '30代・主婦' },
-              { text: '今が一番安いと聞いて養成講座にしました。後回しにしなくてよかったです。', name: '40代・フリーランス' },
-            ].map((v, i) => (
-              <div key={i} style={{
-                background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.09)',
-                borderRadius: '16px', padding: '16px 20px', textAlign: 'left',
-              }}>
-                <p style={{ color: '#e5e7eb', fontSize: '13px', lineHeight: 1.75, marginBottom: '8px' }}>「{v.text}」</p>
-                <p style={{ color: '#6b7280', fontSize: '11px' }}>— {v.name}</p>
+        {/* ══ FAQ ══ */}
+        <section style={{ padding: '0 16px 64px', maxWidth: '600px', margin: '0 auto' }}>
+          <p style={{ color: '#92400e', fontSize: '12px', marginBottom: '20px', letterSpacing: '.1em', textAlign: 'center', fontWeight: 800 }}>── よくある質問 ──</p>
+
+          <div>
+            {faqs.map((item, i) => (
+              <div key={i} className="faq-item">
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  style={{
+                    width: '100%', background: 'none', border: 'none',
+                    padding: '18px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    cursor: 'pointer', textAlign: 'left', gap: '12px',
+                  }}>
+                  <span style={{ color: '#fed7aa', fontSize: '14px', fontWeight: 700 }}>Q. {item.q}</span>
+                  <span style={{
+                    color: '#fb923c', fontSize: '20px', flexShrink: 0,
+                    transform: openFaq === i ? 'rotate(45deg)' : 'none',
+                    transition: 'transform .2s',
+                  }}>+</span>
+                </button>
+                {openFaq === i && (
+                  <div style={{ paddingBottom: '18px' }}>
+                    <p style={{ color: '#a16207', fontSize: '13px', lineHeight: 1.75 }}>A. {item.a}</p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </section>
 
+        {/* ══ LINEお問い合わせ ══ */}
+        <section style={{
+          padding: '0 16px 64px', maxWidth: '500px', margin: '0 auto', textAlign: 'center',
+        }}>
+          <div style={{
+            background: 'rgba(251,146,60,.08)',
+            border: '1px solid rgba(251,146,60,.25)',
+            borderRadius: '24px', padding: '28px 24px',
+          }}>
+            <div style={{ fontSize: '36px', marginBottom: '10px' }}>🐱</div>
+            <p style={{ color: '#fed7aa', fontWeight: 800, fontSize: '15px', marginBottom: '6px' }}>
+              迷ったらLINEで相談してね
+            </p>
+            <p style={{ color: '#a16207', fontSize: '13px', lineHeight: 1.75, marginBottom: '20px' }}>
+              どちらを選べばいいか、購入前のご質問など<br />
+              お気軽にメッセージしてください😊
+            </p>
+            <a
+              href="https://lin.ee/VabXiJx"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="line-btn"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '10px',
+                background: '#06C755',
+                borderRadius: '14px', padding: '14px 28px',
+                color: '#fff', fontWeight: 900, fontSize: '15px',
+                boxShadow: '0 4px 20px rgba(6,199,85,.35)',
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="48" height="48" rx="12" fill="#06C755"/>
+                <path d="M24 8C15.163 8 8 14.373 8 22.25c0 7.089 6.29 13.04 14.786 14.066.576.124 1.36.38 1.558.87.178.446.116 1.145.057 1.596l-.252 1.512c-.077.447-.354 1.748 1.531.953 1.885-.795 10.17-5.99 13.876-10.26C41.474 28.56 40 25.535 40 22.25 40 14.373 32.837 8 24 8z" fill="white"/>
+                <path d="M34.5 25.5h-4a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5V24h2.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5zM19.5 25.5h-4a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v6h2.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5zM22 18h1a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5zM28.5 25.5h-1a.5.5 0 0 1-.41-.21l-3-4.5V25a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5h1c.16 0 .31.075.41.21l3 4.5V18.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5z" fill="#06C755"/>
+              </svg>
+              LINEでみおに相談する
+            </a>
+          </div>
+        </section>
+
         {/* footer */}
         <footer style={{
-          borderTop: '1px solid rgba(255,255,255,.07)',
+          borderTop: '1px solid rgba(251,146,60,.1)',
           padding: '20px', textAlign: 'center',
-          color: '#374151', fontSize: '11px',
+          color: '#44251a', fontSize: '11px',
         }}>
           © MIO AI LIFE DESIGN
         </footer>

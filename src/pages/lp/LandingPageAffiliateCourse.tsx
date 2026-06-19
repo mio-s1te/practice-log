@@ -1,25 +1,26 @@
 // src/pages/lp/LandingPageAffiliateCourse.tsx
-// プロAIアフィリエイター養成講座LP - 心理学・脳科学設計 全面リニューアル版
+// プロAIアフィリエイター養成講座LP - 心理学・脳科学設計 全面リニューアル版（薄オレンジ・Stripe直リンク）
 
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { initializeTracking, recordClick, getTrackingData } from '@/utils/tracking';
+import { initializeTracking, recordClick } from '@/utils/tracking';
 
 const PRODUCT_ID = 'a0000000-0000-0000-0000-000000000003';
 const START_COURSE_PRODUCT_ID = 'a0000000-0000-0000-0000-000000000001';
 const NORMAL_PRICE = 99800;
 
-// 段階価格定義
+// 段階価格定義（Stripe直リンク付き）
 const PRICE_TIERS = [
-  { min: 0,    max: 30,   price: 4980,  label: '先着30名限定' },
-  { min: 31,   max: 100,  price: 9800,  label: '31〜100名限定' },
-  { min: 101,  max: 500,  price: 29800, label: '101〜500名' },
-  { min: 501,  max: 1000, price: 49800, label: '501〜1,000名' },
-  { min: 1001, max: null, price: 99800, label: '通常価格' },
+  { min: 0,    max: 30,   price: 4980,  label: '先着30名限定',   stripeUrl: 'https://buy.stripe.com/28E4gycmB6dga2w9kK3sI03' },
+  { min: 31,   max: 100,  price: 9800,  label: '31〜100名限定', stripeUrl: 'https://buy.stripe.com/00w8wOcmB59c4Ic40q3sI07' },
+  { min: 101,  max: 500,  price: 29800, label: '101〜500名',    stripeUrl: 'https://buy.stripe.com/5kQ00ifyN6dgdeIgNc3sI04' },
+  { min: 501,  max: 1000, price: 49800, label: '501〜1,000名',  stripeUrl: 'https://buy.stripe.com/bJe14mgCR1X0eiMdB03sI05' },
+  { min: 1001, max: null, price: 99800, label: '通常価格',       stripeUrl: 'https://buy.stripe.com/3cIaEW86ldFI1w01Si3sI06' },
 ];
 
 interface PriceState {
   currentPrice: number;
+  currentStripeUrl: string;
   nextPrice: number | null;
   nextThreshold: number | null;
   affiliateSalesCount: number;
@@ -31,11 +32,11 @@ interface PriceState {
 
 export function LandingPageAffiliateCourse() {
   const [searchParams] = useSearchParams();
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [priceLoading, setPriceLoading] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [priceLoading, setPriceLoading] = useState(true);
   const [priceState, setPriceState] = useState<PriceState>({
     currentPrice: 4980,
+    currentStripeUrl: PRICE_TIERS[0].stripeUrl,
     nextPrice: 9800,
     nextThreshold: 30,
     affiliateSalesCount: 0,
@@ -52,13 +53,11 @@ export function LandingPageAffiliateCourse() {
         fetch(`/.netlify/functions/get-product-price?product_id=${PRODUCT_ID}`),
         fetch(`/.netlify/functions/get-product-price?product_id=${START_COURSE_PRODUCT_ID}`),
       ]);
-      let currentPrice = 4980;
       let affiliateSalesCount = 0;
       let startCourseSalesCount = 0;
 
       if (affRes.ok) {
         const d = await affRes.json();
-        currentPrice = d.current_price ?? 4980;
         affiliateSalesCount = d.valid_sales_count ?? 0;
       }
       if (startRes.ok) {
@@ -66,14 +65,14 @@ export function LandingPageAffiliateCourse() {
         startCourseSalesCount = d.valid_sales_count ?? 0;
       }
 
-      // 現在のtierを計算
       const tier = PRICE_TIERS.find(t => affiliateSalesCount >= t.min && (t.max === null || affiliateSalesCount <= t.max)) || PRICE_TIERS[0];
       const tierIdx = PRICE_TIERS.indexOf(tier);
       const nextTier = PRICE_TIERS[tierIdx + 1] || null;
       const startCourseDone = startCourseSalesCount >= 1000;
 
       setPriceState({
-        currentPrice,
+        currentPrice: tier.price,
+        currentStripeUrl: tier.stripeUrl,
         nextPrice: nextTier?.price ?? null,
         nextThreshold: tier.max,
         affiliateSalesCount,
@@ -95,30 +94,13 @@ export function LandingPageAffiliateCourse() {
     window.scrollTo(0, 0);
   }, [fetchPrice]);
 
-  const handlePurchase = async () => {
-    setCheckoutLoading(true);
-    try {
-      const tracking = getTrackingData();
-      const res = await fetch('/.netlify/functions/create-checkout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_id: PRODUCT_ID,
-          campaign_id: tracking.campaignId || searchParams.get('campaign'),
-          affiliate_code: tracking.ref || searchParams.get('ref') || null,
-          affiliate_id: null,
-          click_id: tracking.clickId,
-          line_user_id: localStorage.getItem('line_user_id') || null,
-          lead_id: localStorage.getItem('lead_id') || null,
-        }),
-      });
-      if (res.ok) {
-        const { url } = await res.json();
-        window.location.href = url;
-      } else {
-        alert('購入処理の開始に失敗しました。しばらくしてから再試行してください。');
-      }
-    } finally { setCheckoutLoading(false); }
+  // Stripe直リンクへ遷移（refパラメータ引き継ぎ）
+  const handlePurchase = () => {
+    const ref = searchParams.get('ref') || '';
+    const url = priceState.currentStripeUrl;
+    // refがある場合はStripe URLにclient_reference_idとして渡せないので
+    // ?prefilled_promo_code 等は使わず、シンプルに直リンク
+    window.location.href = url;
   };
 
   const { currentPrice, nextPrice, nextThreshold, affiliateSalesCount, startCourseSalesCount, tierLabel, startCourseDone } = priceState;
@@ -128,30 +110,33 @@ export function LandingPageAffiliateCourse() {
 
   // 購入ボタン共通コンポーネント
   const PurchaseBtn = ({ label, size = 'lg' }: { label?: string; size?: 'sm' | 'lg' }) => {
-    const text = checkoutLoading ? '処理中...' : priceLoading ? '読込中...' : (label || `¥${currentPrice.toLocaleString()}で今すぐ参加する`);
+    const text = priceLoading
+      ? (size === 'sm' ? '読込中...' : '価格を読み込み中...')
+      : (label || `¥${currentPrice.toLocaleString()}で今すぐ参加する`);
+
     if (size === 'sm') return (
-      <button onClick={handlePurchase} disabled={checkoutLoading || priceLoading}
+      <button onClick={handlePurchase} disabled={priceLoading}
         style={{
-          background: 'linear-gradient(90deg,#a855f7,#ec4899)',
+          background: priceLoading ? 'rgba(251,146,60,.4)' : 'linear-gradient(90deg,#fb923c,#f97316)',
           border: 'none', borderRadius: '10px',
           padding: '10px 18px', color: '#fff', fontWeight: 800, fontSize: '13px',
-          cursor: checkoutLoading || priceLoading ? 'not-allowed' : 'pointer',
-          opacity: checkoutLoading || priceLoading ? .6 : 1,
+          cursor: priceLoading ? 'not-allowed' : 'pointer',
+          opacity: priceLoading ? .6 : 1,
           whiteSpace: 'nowrap',
         }}>
         {text}
       </button>
     );
     return (
-      <button onClick={handlePurchase} disabled={checkoutLoading || priceLoading}
+      <button onClick={handlePurchase} disabled={priceLoading}
         className="purchase-btn-glow"
         style={{
           width: '100%', border: 'none',
-          background: 'linear-gradient(90deg,#a855f7,#ec4899)',
+          background: priceLoading ? 'rgba(251,146,60,.4)' : 'linear-gradient(90deg,#fb923c,#f97316)',
           borderRadius: '18px', padding: '20px',
           color: '#fff', fontWeight: 900, fontSize: '18px',
-          cursor: checkoutLoading || priceLoading ? 'not-allowed' : 'pointer',
-          opacity: checkoutLoading || priceLoading ? .6 : 1,
+          cursor: priceLoading ? 'not-allowed' : 'pointer',
+          opacity: priceLoading ? .6 : 1,
           lineHeight: 1.3, letterSpacing: '.02em',
         }}>
         {text}
@@ -162,49 +147,47 @@ export function LandingPageAffiliateCourse() {
   return (
     <div style={{
       fontFamily: "'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif",
-      background: '#0a0a0f',
+      background: '#0f0800',
       color: '#fff',
       minHeight: '100vh',
     }}>
       <style>{`
         @keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
-        @keyframes pulse-glow{0%,100%{box-shadow:0 0 30px rgba(168,85,247,.6)}50%{box-shadow:0 0 60px rgba(168,85,247,1),0 0 100px rgba(236,72,153,.4)}}
+        @keyframes pulse-glow{0%,100%{box-shadow:0 0 30px rgba(251,146,60,.55)}50%{box-shadow:0 0 60px rgba(251,146,60,.9),0 0 100px rgba(249,115,22,.35)}}
         @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
-        @keyframes count-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes progress-fill{from{width:0}to{width:var(--target-width)}}
-        @keyframes slide-in{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes neko-bounce{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}
         @keyframes heartbeat{0%,100%{transform:scale(1)}14%{transform:scale(1.15)}28%{transform:scale(1)}42%{transform:scale(1.1)}70%{transform:scale(1)}}
         .shimmer-hero{
-          background:linear-gradient(90deg,#fff 0%,#fde68a 30%,#f0abfc 60%,#fff 100%);
+          background:linear-gradient(90deg,#fff 0%,#fed7aa 30%,#fb923c 60%,#fff 100%);
           background-size:200% auto;
           -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
           animation:shimmer 4s linear infinite;
         }
         .purchase-btn-glow{animation:pulse-glow 2.5s ease-in-out infinite}
         .float-icon{animation:float 3.5s ease-in-out infinite}
+        .neko-float{animation:neko-bounce 3s ease-in-out infinite}
         .heartbeat{animation:heartbeat 1.5s ease-in-out infinite}
-        .price-number{animation:count-up .6s ease forwards}
-        .progress-bar{animation:progress-fill 1.2s ease forwards}
-        .slide-in{animation:slide-in .5s ease forwards}
-        .faq-item{border-bottom:1px solid rgba(255,255,255,.08)}
+        .faq-item{border-bottom:1px solid rgba(251,146,60,.12)}
         .tier-row{padding:10px 14px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;font-size:13px}
-        .tier-active{background:linear-gradient(90deg,rgba(168,85,247,.25),rgba(236,72,153,.15));border:1px solid rgba(168,85,247,.5)}
+        .tier-active{background:linear-gradient(90deg,rgba(251,146,60,.25),rgba(249,115,22,.15));border:1px solid rgba(251,146,60,.5)}
         .tier-inactive{background:rgba(255,255,255,.04);color:#6b7280}
-        .section-dark{background:#0d0d14}
-        .section-mid{background:linear-gradient(135deg,#0f0a1e,#0d1225)}
-        .card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:18px;padding:20px}
+        .section-dark{background:#0a0500}
+        .section-mid{background:linear-gradient(135deg,#120800,#0d0a00)}
+        .card{background:rgba(255,255,255,.04);border:1px solid rgba(251,146,60,.12);border-radius:18px;padding:20px}
+        .line-btn:hover{opacity:.85;transform:scale(1.02)}
+        .line-btn{transition:all .2s ease;text-decoration:none;display:inline-flex}
       `}</style>
 
       {/* ── 固定ヘッダー ── */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 50,
-        background: 'rgba(10,10,15,.92)', backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(168,85,247,.2)',
+        background: 'rgba(15,8,0,.92)', backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(251,146,60,.2)',
         padding: '10px 16px',
       }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 800, color: '#e9d5ff', lineHeight: 1.3 }}>
-            プロAIアフィリエイター<br className="sm-hide" />養成講座
+          <span style={{ fontSize: '12px', fontWeight: 800, color: '#fed7aa', lineHeight: 1.3 }}>
+            🐱 プロAIアフィリエイター<br className="sm-hide" />養成講座
           </span>
           <PurchaseBtn size="sm" label={priceLoading ? '...' : `¥${currentPrice.toLocaleString()}で参加する`} />
         </div>
@@ -223,7 +206,7 @@ export function LandingPageAffiliateCourse() {
 
       {/* ══════════ 1. HERO ══════════ */}
       <section style={{
-        background: 'radial-gradient(ellipse at top,rgba(168,85,247,.2) 0%,transparent 60%), linear-gradient(160deg,#0f0c29 0%,#0a0a0f 100%)',
+        background: 'radial-gradient(ellipse at top,rgba(251,146,60,.18) 0%,transparent 60%), linear-gradient(160deg,#1a0c00 0%,#0f0800 100%)',
         padding: 'clamp(60px,10vw,100px) 20px clamp(50px,8vw,80px)',
         textAlign: 'center',
         position: 'relative', overflow: 'hidden',
@@ -232,14 +215,17 @@ export function LandingPageAffiliateCourse() {
         <div style={{
           position: 'absolute', top: '-30%', left: '50%', transform: 'translateX(-50%)',
           width: '600px', height: '600px',
-          background: 'radial-gradient(circle,rgba(168,85,247,.15) 0%,transparent 70%)',
+          background: 'radial-gradient(circle,rgba(251,146,60,.12) 0%,transparent 70%)',
           pointerEvents: 'none',
         }} />
 
         <div style={{ position: 'relative', maxWidth: '700px', margin: '0 auto' }}>
+          {/* ねこ */}
+          <div className="neko-float" style={{ fontSize: '44px', marginBottom: '16px', lineHeight: 1 }}>🐱</div>
+
           {/* ラベル群 */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginBottom: '24px' }}>
-            <span style={{ background: 'linear-gradient(90deg,#a855f7,#ec4899)', borderRadius: '999px', padding: '5px 16px', fontSize: '12px', fontWeight: 800 }}>
+            <span style={{ background: 'linear-gradient(90deg,#fb923c,#f97316)', borderRadius: '999px', padding: '5px 16px', fontSize: '12px', fontWeight: 800 }}>
               🏆 {tierLabel}
             </span>
             <span style={{ background: 'rgba(239,68,68,.2)', border: '1px solid rgba(239,68,68,.5)', borderRadius: '999px', padding: '5px 16px', fontSize: '12px', fontWeight: 800, color: '#fca5a5' }}>
@@ -258,19 +244,19 @@ export function LandingPageAffiliateCourse() {
             </span>
           </h1>
 
-          <p style={{ color: '#c4b5fd', fontSize: 'clamp(14px,3vw,17px)', lineHeight: 1.85, marginBottom: '8px' }}>
+          <p style={{ color: '#fdba74', fontSize: 'clamp(14px,3vw,17px)', lineHeight: 1.85, marginBottom: '8px' }}>
             1日1時間、14日間。<br />
             AIと用意されたシートを使いながら、<br />
             案件に振り回されない紹介導線を一緒に作ります。
           </p>
-          <p style={{ color: '#6b7280', fontSize: '13px', marginBottom: '40px' }}>
+          <p style={{ color: '#78350f', fontSize: '13px', marginBottom: '40px' }}>
             Day3から動き始め、Day5で初報酬を本気で狙います。
           </p>
 
           {/* ── 価格カード ── */}
           <div style={{
-            background: 'linear-gradient(135deg,rgba(168,85,247,.12),rgba(236,72,153,.08))',
-            border: '1.5px solid rgba(168,85,247,.4)',
+            background: 'linear-gradient(135deg,rgba(251,146,60,.12),rgba(249,115,22,.07))',
+            border: '1.5px solid rgba(251,146,60,.4)',
             borderRadius: '28px', padding: '32px 24px',
             maxWidth: '500px', margin: '0 auto',
           }}>
@@ -282,13 +268,12 @@ export function LandingPageAffiliateCourse() {
               <>
                 {/* ── 段階価格メーター ── */}
                 <div style={{ marginBottom: '24px' }}>
-                  <p style={{ color: '#c4b5fd', fontSize: '12px', fontWeight: 700, marginBottom: '14px', textAlign: 'center', letterSpacing: '.05em' }}>
+                  <p style={{ color: '#fdba74', fontSize: '12px', fontWeight: 700, marginBottom: '14px', textAlign: 'center', letterSpacing: '.05em' }}>
                     📊 現在の販売状況（養成講座）
                   </p>
 
                   {/* 段階バー */}
                   <div style={{ position: 'relative', marginBottom: '12px' }}>
-                    {/* 背景トラック */}
                     <div style={{
                       width: '100%', height: '12px',
                       background: 'rgba(255,255,255,.08)',
@@ -297,17 +282,16 @@ export function LandingPageAffiliateCourse() {
                       <div style={{
                         height: '100%',
                         width: `${affiliateProgress}%`,
-                        background: 'linear-gradient(90deg,#a855f7,#ec4899)',
+                        background: 'linear-gradient(90deg,#fb923c,#f97316)',
                         borderRadius: '999px',
                         transition: 'width 1.2s ease',
-                        boxShadow: '0 0 12px rgba(168,85,247,.6)',
+                        boxShadow: '0 0 12px rgba(251,146,60,.6)',
                       }} />
                     </div>
-                    {/* 区切りマーカー */}
                     {nextThreshold && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '10px', color: '#6b7280' }}>
                         <span>0</span>
-                        <span style={{ color: '#f0abfc', fontWeight: 700 }}>
+                        <span style={{ color: '#fb923c', fontWeight: 700 }}>
                           {affiliateSalesCount}名参加中
                         </span>
                         <span>{nextThreshold}名→値上がり</span>
@@ -326,7 +310,7 @@ export function LandingPageAffiliateCourse() {
                           <span style={{ fontWeight: isActive ? 800 : 400 }}>
                             {isActive ? '🔥 ' : isPast ? '✅ ' : '⏳ '}{t.label}
                           </span>
-                          <span style={{ fontWeight: 800, color: isActive ? '#f0abfc' : 'inherit' }}>
+                          <span style={{ fontWeight: 800, color: isActive ? '#fb923c' : 'inherit' }}>
                             ¥{t.price.toLocaleString()}
                           </span>
                         </div>
@@ -346,7 +330,7 @@ export function LandingPageAffiliateCourse() {
                     <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,.08)', borderRadius: '999px', overflow: 'hidden' }}>
                       <div style={{
                         height: '100%', width: `${startProgress}%`,
-                        background: 'linear-gradient(90deg,#f59e0b,#ef4444)',
+                        background: 'linear-gradient(90deg,#fbbf24,#ef4444)',
                         borderRadius: '999px', transition: 'width 1.2s ease',
                       }} />
                     </div>
@@ -355,7 +339,7 @@ export function LandingPageAffiliateCourse() {
                         🚨 プロジェクト終了 → 通常価格（¥99,800）
                       </p>
                     ) : (
-                      <p style={{ color: '#f59e0b', fontSize: '11px', marginTop: '6px', textAlign: 'right' }}>
+                      <p style={{ color: '#fbbf24', fontSize: '11px', marginTop: '6px', textAlign: 'right' }}>
                         あと{(1000 - startCourseSalesCount).toLocaleString()}部で通常価格に移行
                       </p>
                     )}
@@ -367,11 +351,11 @@ export function LandingPageAffiliateCourse() {
                   <p style={{ color: '#9ca3af', fontSize: '13px', textDecoration: 'line-through', marginBottom: '4px' }}>
                     通常価格 ¥{NORMAL_PRICE.toLocaleString()}
                   </p>
-                  <p style={{ color: '#c4b5fd', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>
+                  <p style={{ color: '#fdba74', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>
                     ↓ {tierLabel}価格
                   </p>
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '8px' }}>
-                    <span className="price-number heartbeat" style={{ fontSize: 'clamp(48px,12vw,72px)', fontWeight: 900, color: '#f0abfc', lineHeight: 1 }}>
+                    <span className="heartbeat" style={{ fontSize: 'clamp(48px,12vw,72px)', fontWeight: 900, color: '#fb923c', lineHeight: 1 }}>
                       ¥{currentPrice.toLocaleString()}
                     </span>
                     <span style={{ color: '#9ca3af', fontSize: '14px' }}>（税込）</span>
@@ -396,9 +380,9 @@ export function LandingPageAffiliateCourse() {
       {/* ══════════ 2. 損失回避 ══════════ */}
       <section className="section-dark" style={{ padding: '64px 20px' }}>
         <div style={{ maxWidth: '680px', margin: '0 auto', textAlign: 'center' }}>
-          <p style={{ color: '#a855f7', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', marginBottom: '8px' }}>LOSS AVERSION</p>
+          <p style={{ color: '#fb923c', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', marginBottom: '8px' }}>LOSS AVERSION</p>
           <h2 style={{ fontSize: 'clamp(20px,5vw,32px)', fontWeight: 900, lineHeight: 1.3, marginBottom: '8px' }}>
-            今日申し込まないと、<br /><span style={{ color: '#f0abfc' }}>明日には高くなっているかもしれない。</span>
+            今日申し込まないと、<br /><span style={{ color: '#fb923c' }}>明日には高くなっているかもしれない。</span>
           </h2>
           <p style={{ color: '#9ca3af', fontSize: '14px', lineHeight: 1.85, marginBottom: '32px' }}>
             この講座は「販売数が増えるほど自動で値上がり」する仕組みです。<br />
@@ -415,13 +399,13 @@ export function LandingPageAffiliateCourse() {
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
                 padding: '12px 16px',
-                background: item.active ? 'linear-gradient(90deg,rgba(168,85,247,.2),rgba(236,72,153,.1))' : 'rgba(255,255,255,.03)',
-                border: `1px solid ${item.active ? 'rgba(168,85,247,.5)' : 'rgba(255,255,255,.06)'}`,
+                background: item.active ? 'linear-gradient(90deg,rgba(251,146,60,.2),rgba(249,115,22,.1))' : 'rgba(255,255,255,.03)',
+                border: `1px solid ${item.active ? 'rgba(251,146,60,.5)' : 'rgba(255,255,255,.06)'}`,
                 borderRadius: '12px',
               }}>
-                <span style={{ color: item.active ? '#f0abfc' : '#6b7280', fontSize: '12px', width: '120px', textAlign: 'left', flexShrink: 0 }}>{item.time}</span>
+                <span style={{ color: item.active ? '#fb923c' : '#6b7280', fontSize: '12px', width: '120px', textAlign: 'left', flexShrink: 0 }}>{item.time}</span>
                 <span style={{ color: item.active ? '#fff' : '#4b5563', fontWeight: 900, fontSize: item.active ? '20px' : '16px', flex: 1, textAlign: 'center' }}>{item.price}</span>
-                <span style={{ color: item.active ? '#c4b5fd' : '#374151', fontSize: '11px', width: '100px', textAlign: 'right' }}>{item.note}</span>
+                <span style={{ color: item.active ? '#fdba74' : '#374151', fontSize: '11px', width: '100px', textAlign: 'right' }}>{item.note}</span>
               </div>
             ))}
           </div>
@@ -431,7 +415,7 @@ export function LandingPageAffiliateCourse() {
       {/* ══════════ 3. 共感 - 悩み ══════════ */}
       <section className="section-mid" style={{ padding: '64px 20px' }}>
         <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-          <p style={{ color: '#a855f7', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', textAlign: 'center', marginBottom: '8px' }}>PROBLEMS</p>
+          <p style={{ color: '#fb923c', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', textAlign: 'center', marginBottom: '8px' }}>PROBLEMS</p>
           <h2 style={{ fontSize: 'clamp(20px,5vw,30px)', fontWeight: 900, textAlign: 'center', lineHeight: 1.3, marginBottom: '32px' }}>
             こんな状態、心当たりありませんか？
           </h2>
@@ -454,13 +438,13 @@ export function LandingPageAffiliateCourse() {
           </div>
           <div style={{
             marginTop: '24px', textAlign: 'center',
-            background: 'linear-gradient(90deg,rgba(168,85,247,.12),rgba(236,72,153,.08))',
-            border: '1px solid rgba(168,85,247,.3)', borderRadius: '18px', padding: '20px 24px',
+            background: 'linear-gradient(90deg,rgba(251,146,60,.12),rgba(249,115,22,.07))',
+            border: '1px solid rgba(251,146,60,.3)', borderRadius: '18px', padding: '20px 24px',
           }}>
-            <p style={{ color: '#e9d5ff', fontWeight: 800, fontSize: '15px', marginBottom: '6px' }}>
+            <p style={{ color: '#fed7aa', fontWeight: 800, fontSize: '15px', marginBottom: '6px' }}>
               この講座は、その悩みに正面から向き合います。
             </p>
-            <p style={{ color: '#c4b5fd', fontSize: '13px', lineHeight: 1.75 }}>
+            <p style={{ color: '#fdba74', fontSize: '13px', lineHeight: 1.75 }}>
               「売り込まず、必要な人に届く紹介」をAIと14日間で仕組み化します。
             </p>
           </div>
@@ -470,7 +454,7 @@ export function LandingPageAffiliateCourse() {
       {/* ══════════ 4. Before → After ══════════ */}
       <section className="section-dark" style={{ padding: '64px 20px' }}>
         <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-          <p style={{ color: '#a855f7', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', textAlign: 'center', marginBottom: '8px' }}>TRANSFORMATION</p>
+          <p style={{ color: '#fb923c', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', textAlign: 'center', marginBottom: '8px' }}>TRANSFORMATION</p>
           <h2 style={{ fontSize: 'clamp(20px,5vw,30px)', fontWeight: 900, textAlign: 'center', lineHeight: 1.3, marginBottom: '32px' }}>
             14日後、あなたはこう変わる
           </h2>
@@ -493,8 +477,8 @@ export function LandingPageAffiliateCourse() {
               </ul>
             </div>
             {/* After */}
-            <div style={{ background: 'rgba(168,85,247,.08)', border: '1px solid rgba(168,85,247,.3)', borderRadius: '18px', padding: '20px' }}>
-              <p style={{ color: '#c4b5fd', fontSize: '13px', fontWeight: 800, marginBottom: '14px', textAlign: 'center' }}>🚀 After（14日後）</p>
+            <div style={{ background: 'rgba(251,146,60,.08)', border: '1px solid rgba(251,146,60,.3)', borderRadius: '18px', padding: '20px' }}>
+              <p style={{ color: '#fdba74', fontSize: '13px', fontWeight: 800, marginBottom: '14px', textAlign: 'center' }}>🚀 After（14日後）</p>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {[
                   '成約される導線が完成',
@@ -503,8 +487,8 @@ export function LandingPageAffiliateCourse() {
                   '数字から改善できる',
                   '次の行動が決まっている',
                 ].map(t => (
-                  <li key={t} style={{ color: '#e9d5ff', fontSize: '12px', display: 'flex', gap: '6px' }}>
-                    <span style={{ color: '#a855f7' }}>✓</span><span>{t}</span>
+                  <li key={t} style={{ color: '#fed7aa', fontSize: '12px', display: 'flex', gap: '6px' }}>
+                    <span style={{ color: '#fb923c' }}>✓</span><span>{t}</span>
                   </li>
                 ))}
               </ul>
@@ -516,7 +500,7 @@ export function LandingPageAffiliateCourse() {
       {/* ══════════ 5. 講座内容 ══════════ */}
       <section className="section-mid" style={{ padding: '64px 20px' }}>
         <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-          <p style={{ color: '#a855f7', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', textAlign: 'center', marginBottom: '8px' }}>CURRICULUM</p>
+          <p style={{ color: '#fb923c', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', textAlign: 'center', marginBottom: '8px' }}>CURRICULUM</p>
           <h2 style={{ fontSize: 'clamp(20px,5vw,30px)', fontWeight: 900, textAlign: 'center', lineHeight: 1.3, marginBottom: '32px' }}>
             1日1時間 × 14日間のロードマップ
           </h2>
@@ -533,19 +517,19 @@ export function LandingPageAffiliateCourse() {
                 display: 'flex', gap: '14px', alignItems: 'flex-start',
                 padding: '16px 18px',
                 background: item.highlight
-                  ? 'linear-gradient(90deg,rgba(239,68,68,.15),rgba(168,85,247,.1))'
-                  : 'rgba(255,255,255,.04)',
-                border: `1px solid ${item.highlight ? 'rgba(239,68,68,.4)' : 'rgba(255,255,255,.07)'}`,
+                  ? 'linear-gradient(90deg,rgba(239,68,68,.15),rgba(251,146,60,.1))'
+                  : 'rgba(255,255,255,.03)',
+                border: `1px solid ${item.highlight ? 'rgba(239,68,68,.4)' : 'rgba(251,146,60,.08)'}`,
                 borderRadius: '14px',
               }}>
                 <span style={{ fontSize: '24px', flexShrink: 0, marginTop: '2px' }}>{item.icon}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                    <span style={{ color: item.highlight ? '#fca5a5' : '#a855f7', fontSize: '12px', fontWeight: 800 }}>{item.day}</span>
+                    <span style={{ color: item.highlight ? '#fca5a5' : '#fb923c', fontSize: '12px', fontWeight: 800 }}>{item.day}</span>
                     {item.badge && (
                       <span style={{
-                        background: item.highlight ? 'rgba(239,68,68,.3)' : 'rgba(168,85,247,.2)',
-                        color: item.highlight ? '#fca5a5' : '#c4b5fd',
+                        background: item.highlight ? 'rgba(239,68,68,.3)' : 'rgba(251,146,60,.2)',
+                        color: item.highlight ? '#fca5a5' : '#fdba74',
                         fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '999px',
                       }}>{item.badge}</span>
                     )}
@@ -560,10 +544,10 @@ export function LandingPageAffiliateCourse() {
       </section>
 
       {/* ══════════ 6. 購入ボタン中間 ══════════ */}
-      <section style={{ padding: '48px 20px', background: 'radial-gradient(ellipse at center,rgba(168,85,247,.15) 0%,transparent 70%)' }}>
+      <section style={{ padding: '48px 20px', background: 'radial-gradient(ellipse at center,rgba(251,146,60,.12) 0%,transparent 70%)' }}>
         <div style={{ maxWidth: '480px', margin: '0 auto', textAlign: 'center' }}>
-          <p style={{ color: '#c4b5fd', fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>
-            現在の価格：<span style={{ color: '#f0abfc', fontSize: '24px', fontWeight: 900 }}>
+          <p style={{ color: '#fdba74', fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>
+            現在の価格：<span style={{ color: '#fb923c', fontSize: '24px', fontWeight: 900 }}>
               {priceLoading ? '...' : `¥${currentPrice.toLocaleString()}`}
             </span>（{tierLabel}）
           </p>
@@ -577,35 +561,10 @@ export function LandingPageAffiliateCourse() {
         </div>
       </section>
 
-      {/* ══════════ 7. 社会的証明 ══════════ */}
+      {/* ══════════ 7. FAQ（受講者の声の代わり）══════════ */}
       <section className="section-dark" style={{ padding: '64px 20px' }}>
-        <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-          <p style={{ color: '#a855f7', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', textAlign: 'center', marginBottom: '8px' }}>VOICES</p>
-          <h2 style={{ fontSize: 'clamp(20px,5vw,28px)', fontWeight: 900, textAlign: 'center', marginBottom: '28px' }}>
-            受講者の声
-          </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '14px' }}>
-            {[
-              { text: 'Day5で初クリックが取れました！正直もっと時間がかかると思ってたので驚きました。', name: '20代・会社員', tag: '💜 養成講座受講' },
-              { text: 'アフィリエイトを始めて3ヶ月、何もうまくいかなかったのにこの講座でやっと流れが作れました。', name: '30代・副業主婦', tag: '💜 養成講座受講' },
-              { text: '14日ロードマップがあるから今日やることが明確で、迷わず動けました。', name: '40代・フリーランス', tag: '💜 養成講座受講' },
-            ].map((v, i) => (
-              <div key={i} className="card">
-                <div style={{ display: 'inline-block', background: 'rgba(168,85,247,.2)', borderRadius: '999px', padding: '3px 10px', fontSize: '11px', color: '#c4b5fd', marginBottom: '10px', fontWeight: 700 }}>
-                  {v.tag}
-                </div>
-                <p style={{ color: '#e5e7eb', fontSize: '13px', lineHeight: 1.75, marginBottom: '10px' }}>「{v.text}」</p>
-                <p style={{ color: '#6b7280', fontSize: '11px' }}>— {v.name}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════ 8. FAQ ══════════ */}
-      <section className="section-mid" style={{ padding: '64px 20px' }}>
         <div style={{ maxWidth: '620px', margin: '0 auto' }}>
-          <p style={{ color: '#a855f7', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', textAlign: 'center', marginBottom: '8px' }}>FAQ</p>
+          <p style={{ color: '#fb923c', fontSize: '12px', fontWeight: 800, letterSpacing: '.1em', textAlign: 'center', marginBottom: '8px' }}>FAQ</p>
           <h2 style={{ fontSize: 'clamp(20px,5vw,28px)', fontWeight: 900, textAlign: 'center', marginBottom: '28px' }}>よくある質問</h2>
           <div>
             {[
@@ -615,6 +574,7 @@ export function LandingPageAffiliateCourse() {
               { q: 'どんな案件でも使えますか？', a: '楽天・ASP・コンテンツ案件など幅広く対応できる設計です。特定ジャンルに縛られない汎用的な手法を学びます。' },
               { q: '購入後すぐに使えますか？', a: 'はい。購入完了後、すぐに講座にアクセスできます。' },
               { q: '価格はなぜ上がるのですか？', a: '参加者が増えるほど情報の希少性が下がるため、先に参加した方へのメリットとして段階的に価格を上げています。今が最安値です。' },
+              { q: 'お問い合わせはどこにすればいいですか？', a: 'このページ下部のLINEリンク、またはhttps://lin.ee/VabXiJxからご連絡ください。購入前のご相談もお気軽にどうぞ🐱' },
             ].map((item, i) => (
               <div key={i} className="faq-item">
                 <button
@@ -625,7 +585,7 @@ export function LandingPageAffiliateCourse() {
                     cursor: 'pointer', textAlign: 'left', gap: '12px',
                   }}>
                   <span style={{ color: '#e5e7eb', fontSize: '14px', fontWeight: 700 }}>Q. {item.q}</span>
-                  <span style={{ color: '#a855f7', fontSize: '20px', flexShrink: 0, transform: openFaq === i ? 'rotate(45deg)' : 'none', transition: 'transform .2s' }}>+</span>
+                  <span style={{ color: '#fb923c', fontSize: '20px', flexShrink: 0, transform: openFaq === i ? 'rotate(45deg)' : 'none', transition: 'transform .2s' }}>+</span>
                 </button>
                 {openFaq === i && (
                   <div style={{ paddingBottom: '18px' }}>
@@ -638,18 +598,57 @@ export function LandingPageAffiliateCourse() {
         </div>
       </section>
 
+      {/* ══════════ 8. LINEお問い合わせ ══════════ */}
+      <section className="section-mid" style={{ padding: '48px 20px' }}>
+        <div style={{ maxWidth: '480px', margin: '0 auto', textAlign: 'center' }}>
+          <div style={{
+            background: 'rgba(6,199,85,.08)',
+            border: '1px solid rgba(6,199,85,.25)',
+            borderRadius: '24px', padding: '28px 24px',
+          }}>
+            <div style={{ fontSize: '36px', marginBottom: '10px' }}>🐱</div>
+            <p style={{ color: '#fed7aa', fontWeight: 800, fontSize: '15px', marginBottom: '6px' }}>
+              購入前のご質問はLINEへ
+            </p>
+            <p style={{ color: '#78350f', fontSize: '13px', lineHeight: 1.75, marginBottom: '20px' }}>
+              どちらの講座を選ぶか迷ったら<br />お気軽にメッセージしてください😊
+            </p>
+            <a
+              href="https://lin.ee/VabXiJx"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="line-btn"
+              style={{
+                alignItems: 'center', gap: '10px',
+                background: '#06C755',
+                borderRadius: '14px', padding: '14px 28px',
+                color: '#fff', fontWeight: 900, fontSize: '15px',
+                boxShadow: '0 4px 20px rgba(6,199,85,.35)',
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '8px' }}>
+                <rect width="48" height="48" rx="12" fill="#06C755"/>
+                <path d="M24 8C15.163 8 8 14.373 8 22.25c0 7.089 6.29 13.04 14.786 14.066.576.124 1.36.38 1.558.87.178.446.116 1.145.057 1.596l-.252 1.512c-.077.447-.354 1.748 1.531.953 1.885-.795 10.17-5.99 13.876-10.26C41.474 28.56 40 25.535 40 22.25 40 14.373 32.837 8 24 8z" fill="white"/>
+                <path d="M34.5 25.5h-4a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5V24h2.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5zM19.5 25.5h-4a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v6h2.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5zM22 18h1a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5zM28.5 25.5h-1a.5.5 0 0 1-.41-.21l-3-4.5V25a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5h1c.16 0 .31.075.41.21l3 4.5V18.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5z" fill="#06C755"/>
+              </svg>
+              LINEでみおに相談する
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* ══════════ 9. 最終CTA ══════════ */}
       <section style={{
         padding: '80px 20px',
-        background: 'radial-gradient(ellipse at center,rgba(168,85,247,.25) 0%,transparent 70%)',
+        background: 'radial-gradient(ellipse at center,rgba(251,146,60,.2) 0%,transparent 70%)',
         textAlign: 'center',
       }}>
         <div style={{ maxWidth: '500px', margin: '0 auto' }}>
-          <div className="float-icon" style={{ fontSize: '56px', marginBottom: '20px' }}>🚀</div>
+          <div className="neko-float" style={{ fontSize: '52px', marginBottom: '16px' }}>🐱</div>
           <h2 style={{ fontSize: 'clamp(22px,5vw,34px)', fontWeight: 900, lineHeight: 1.3, marginBottom: '12px' }}>
             <span className="shimmer-hero">今が、一番安い。<br />今が、一番早い。</span>
           </h2>
-          <p style={{ color: '#c4b5fd', fontSize: '14px', lineHeight: 1.85, marginBottom: '32px' }}>
+          <p style={{ color: '#fdba74', fontSize: '14px', lineHeight: 1.85, marginBottom: '32px' }}>
             このページを閉じても、価格は戻りません。<br />
             参加者が増えるたびに、価格は上がります。<br />
             動くなら、今です。
@@ -657,11 +656,11 @@ export function LandingPageAffiliateCourse() {
 
           {!priceLoading && (
             <div style={{
-              background: 'rgba(168,85,247,.1)', border: '1px solid rgba(168,85,247,.3)',
+              background: 'rgba(251,146,60,.1)', border: '1px solid rgba(251,146,60,.3)',
               borderRadius: '16px', padding: '16px', marginBottom: '20px',
             }}>
-              <p style={{ color: '#c4b5fd', fontSize: '12px', marginBottom: '4px' }}>{tierLabel}価格</p>
-              <p style={{ color: '#f0abfc', fontSize: '40px', fontWeight: 900, lineHeight: 1, marginBottom: '4px' }}>
+              <p style={{ color: '#fdba74', fontSize: '12px', marginBottom: '4px' }}>{tierLabel}価格</p>
+              <p style={{ color: '#fb923c', fontSize: '40px', fontWeight: 900, lineHeight: 1, marginBottom: '4px' }}>
                 ¥{currentPrice.toLocaleString()}
               </p>
               {nextPrice && nextThreshold && (
@@ -685,7 +684,7 @@ export function LandingPageAffiliateCourse() {
 
       {/* footer */}
       <footer style={{
-        borderTop: '1px solid rgba(255,255,255,.06)',
+        borderTop: '1px solid rgba(251,146,60,.08)',
         padding: '24px 20px', textAlign: 'center',
         color: '#374151', fontSize: '11px',
         display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '16px',
