@@ -324,7 +324,7 @@ export function CushionLP() {
               お気軽にメッセージしてください😊
             </p>
             <a
-              href="https://lin.ee/VabXiJx"
+              href="https://lin.ee/nxWg5F3"
               target="_blank"
               rel="noopener noreferrer"
               className="line-btn"

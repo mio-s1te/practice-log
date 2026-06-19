@@ -98,53 +98,47 @@ export function LandingPageAffiliateCourse() {
     return () => clearInterval(interval);
   }, [fetchPrice]);
 
-  // Stripe直リンクへ遷移（refパラメータ引き継ぎ）
-  const handlePurchase = () => {
-    const ref = searchParams.get('ref') || '';
-    const url = priceState.currentStripeUrl;
-    // refがある場合はStripe URLにclient_reference_idとして渡せないので
-    // ?prefilled_promo_code 等は使わず、シンプルに直リンク
-    window.location.href = url;
-  };
-
   const { currentPrice, nextPrice, nextThreshold, affiliateSalesCount, startCourseSalesCount, tierLabel, startCourseDone } = priceState;
+  const currentStripeUrl = priceState.currentStripeUrl;
   const startProgress = Math.min(100, (startCourseSalesCount / 1000) * 100);
   const affiliateProgress = nextThreshold ? Math.min(100, (affiliateSalesCount / nextThreshold) * 100) : 100;
   const remainingForNext = nextThreshold ? Math.max(0, nextThreshold - affiliateSalesCount) : 0;
 
-  // 購入ボタン共通コンポーネント
+  // 購入ボタン共通コンポーネント — aタグ直リンク・ポップアップブロック回避
   const PurchaseBtn = ({ label, size = 'lg' }: { label?: string; size?: 'sm' | 'lg' }) => {
     const text = priceLoading
       ? (size === 'sm' ? '読込中...' : '価格を読み込み中...')
       : (label || `¥${currentPrice.toLocaleString()}で今すぐ参加する`);
 
     if (size === 'sm') return (
-      <button onClick={handlePurchase} disabled={priceLoading}
+      <a href={currentStripeUrl} target="_blank" rel="noopener noreferrer"
         style={{
-          background: priceLoading ? 'rgba(251,146,60,.4)' : 'linear-gradient(90deg,#fb923c,#f97316)',
+          display: 'inline-block',
+          background: 'linear-gradient(90deg,#fb923c,#f97316)',
           border: 'none', borderRadius: '10px',
           padding: '10px 18px', color: '#fff', fontWeight: 800, fontSize: '13px',
-          cursor: priceLoading ? 'not-allowed' : 'pointer',
-          opacity: priceLoading ? .6 : 1,
+          cursor: 'pointer',
           whiteSpace: 'nowrap',
+          textDecoration: 'none',
         }}>
         {text}
-      </button>
+      </a>
     );
     return (
-      <button onClick={handlePurchase} disabled={priceLoading}
+      <a href={currentStripeUrl} target="_blank" rel="noopener noreferrer"
         className="purchase-btn-glow"
         style={{
-          width: '100%', border: 'none',
-          background: priceLoading ? 'rgba(251,146,60,.4)' : 'linear-gradient(90deg,#fb923c,#f97316)',
+          display: 'block',
+          width: '100%', textAlign: 'center',
+          background: 'linear-gradient(90deg,#fb923c,#f97316)',
           borderRadius: '18px', padding: '20px',
           color: '#fff', fontWeight: 900, fontSize: '18px',
-          cursor: priceLoading ? 'not-allowed' : 'pointer',
-          opacity: priceLoading ? .6 : 1,
+          cursor: 'pointer',
           lineHeight: 1.3, letterSpacing: '.02em',
+          textDecoration: 'none',
         }}>
         {text}
-      </button>
+      </a>
     );
   };
 
@@ -578,7 +572,7 @@ export function LandingPageAffiliateCourse() {
               { q: 'どんな案件でも使えますか？', a: '楽天・ASP・コンテンツ案件など幅広く対応できる設計です。特定ジャンルに縛られない汎用的な手法を学びます。' },
               { q: '購入後すぐに使えますか？', a: 'はい。購入完了後、すぐに講座にアクセスできます。' },
               { q: '価格はなぜ上がるのですか？', a: '参加者が増えるほど情報の希少性が下がるため、先に参加した方へのメリットとして段階的に価格を上げています。今が最安値です。' },
-              { q: 'お問い合わせはどこにすればいいですか？', a: 'このページ下部のLINEリンク、またはhttps://lin.ee/VabXiJxからご連絡ください。購入前のご相談もお気軽にどうぞ🐱' },
+              { q: 'お問い合わせはどこにすればいいですか？', a: 'このページ下部のLINEリンク、またはhttps://lin.ee/nxWg5F3からご連絡ください。購入前のご相談もお気軽にどうぞ🐱' },
             ].map((item, i) => (
               <div key={i} className="faq-item">
                 <button
@@ -618,7 +612,7 @@ export function LandingPageAffiliateCourse() {
               どちらの講座を選ぶか迷ったら<br />お気軽にメッセージしてください😊
             </p>
             <a
-              href="https://lin.ee/VabXiJx"
+              href="https://lin.ee/nxWg5F3"
               target="_blank"
               rel="noopener noreferrer"
               className="line-btn"

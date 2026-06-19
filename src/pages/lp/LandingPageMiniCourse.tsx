@@ -45,7 +45,7 @@ export function LandingPageFreeGift() {
                   className="w-full px-4 py-3 rounded-xl bg-white/20 text-white placeholder-white/60 border border-white/30 focus:outline-none focus:ring-2 focus:ring-yellow-400"
                 />
                 <a
-                  href="https://lin.ee/xnG19H3"
+                  href="https://lin.ee/nxWg5F3"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block w-full bg-green-400 hover:bg-green-300 text-green-900 font-extrabold py-4 rounded-2xl text-lg text-center transition-all"

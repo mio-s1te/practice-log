@@ -22,26 +22,31 @@ function getTier(salesCount: number) {
 }
 
 // ======================================================
-// 購入ボタン（共通）
+// 購入ボタン（共通） — aタグ直リンク・ポップアップブロック回避
 // ======================================================
 function PurchaseButton({
   currentPrice,
+  stripeUrl,
   isPriceLoading,
-  onClick,
   size = 'lg',
 }: {
   currentPrice: number;
+  stripeUrl: string;
   isPriceLoading: boolean;
-  onClick: () => void;
   size?: 'lg' | 'sm';
 }) {
   const base =
-    'inline-flex items-center justify-center rounded-2xl font-extrabold transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed bg-yellow-400 hover:bg-yellow-300 text-yellow-900 shadow-lg';
+    'inline-flex items-center justify-center rounded-2xl font-extrabold transition-all transform hover:scale-105 bg-yellow-400 hover:bg-yellow-300 text-yellow-900 shadow-lg';
   const sizeClass = size === 'lg' ? 'py-5 px-12 text-xl' : 'py-4 px-8 text-lg';
   return (
-    <button onClick={onClick} disabled={isPriceLoading} className={`${base} ${sizeClass} w-full`}>
+    <a
+      href={stripeUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`${base} ${sizeClass} w-full`}
+    >
       {isPriceLoading ? '読み込み中...' : `今すぐ購入する（¥${currentPrice.toLocaleString()}）`}
-    </button>
+    </a>
   );
 }
 
@@ -105,12 +110,6 @@ export function LandingPageStartCourse() {
     const intervalId = setInterval(fetchPriceInfo, 3 * 60 * 1000);
     return () => clearInterval(intervalId);
   }, [fetchPriceInfo]);
-
-  const handlePurchase = () => {
-    // 現在の販売数からTierを決定してStripe直リンクへ遷移
-    const tier = getTier(salesCount);
-    window.open(tier.stripeUrl, '_blank', 'noopener,noreferrer');
-  };
 
   const salesCount = priceInfo?.valid_sales_count ?? 0;
   // フロントエンドのPRICE_TIERSで現在Tierを決定
@@ -276,8 +275,8 @@ export function LandingPageStartCourse() {
 
           <PurchaseButton
             currentPrice={currentPrice}
+            stripeUrl={activeTier.stripeUrl}
             isPriceLoading={isPriceLoading}
-            onClick={handlePurchase}
           />
           <p className="text-xs text-blue-400 mt-3">🔒 Stripe 安全決済 ｜ 返金保証あり</p>
         </div>
@@ -480,8 +479,8 @@ export function LandingPageStartCourse() {
 
             <PurchaseButton
               currentPrice={currentPrice}
+              stripeUrl={activeTier.stripeUrl}
               isPriceLoading={isPriceLoading}
-              onClick={handlePurchase}
               size="sm"
             />
             <p className="text-xs opacity-50 mt-3">返金保証あり ｜ 個人情報はStripeで安全に管理</p>
@@ -510,8 +509,8 @@ export function LandingPageStartCourse() {
           </p>
           <PurchaseButton
             currentPrice={currentPrice}
+            stripeUrl={activeTier.stripeUrl}
             isPriceLoading={isPriceLoading}
-            onClick={handlePurchase}
             size="sm"
           />
         </div>
@@ -527,7 +526,7 @@ export function LandingPageStartCourse() {
           <a href="/tokushoho" className="hover:text-white transition-colors">特定商取引法</a>
           <a href="/privacy" className="hover:text-white transition-colors">プライバシーポリシー</a>
           <a href="/contact" className="hover:text-white transition-colors">お問い合わせ</a>
-          <a href="https://lin.ee/xnG19H3" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">公式LINE</a>
+          <a href="https://lin.ee/nxWg5F3" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">公式LINE</a>
         </div>
         <p className="text-xs">© 2026 みお ｜ 本ページはアフィリエイト広告を含みます</p>
       </footer>
