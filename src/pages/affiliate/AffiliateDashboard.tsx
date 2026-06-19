@@ -107,7 +107,11 @@ export function AffiliateDashboard() {
       if (rankRes.ok) setRanking(await rankRes.json());
       if (campRes.ok) {
         const data = await campRes.json();
-        setCampaigns(Array.isArray(data) ? data : []);
+        // APIは { accessible_campaigns: [...], applicable_campaigns: [...] } を返す
+        // accessible_campaigns = アクセス可能（紹介URLあり）
+        // applicable_campaigns = 申請のみ可能（紹介URLなし）
+        const accessible = Array.isArray(data.accessible_campaigns) ? data.accessible_campaigns : [];
+        setCampaigns(accessible);
       }
       if (notifRes.ok) {
         const data = await notifRes.json();
@@ -212,13 +216,13 @@ export function AffiliateDashboard() {
         <div className="card bg-gradient-to-r from-blue-600 to-purple-600 text-white">
           <p className="text-sm font-semibold mb-3 opacity-90">🔗 あなたの紹介URL</p>
           {campaigns.map((ca: any) => {
-            const campaign = ca.campaign;
-            const product = campaign?.product;
+            // APIはフラット構造: ca.id, ca.name, ca.product.lp_url など
+            const product = ca.product;
             const affiliateCode = localStorage.getItem('affiliate_code') || 'your_code';
-            const url = `${SITE_URL}${product?.lp_url || '/start-course'}?campaign=${campaign?.id}&ref=${affiliateCode}`;
+            const url = `${SITE_URL}${product?.lp_url || '/start-course'}?campaign=${ca.id}&ref=${affiliateCode}`;
             return (
               <div key={ca.id} className="bg-white/20 rounded-xl p-3 mb-2">
-                <p className="text-xs opacity-80 mb-1">{campaign?.name}</p>
+                <p className="text-xs opacity-80 mb-1">{ca.name}</p>
                 <div className="flex items-center gap-2">
                   <code className="text-xs bg-white/20 px-2 py-1 rounded flex-1 truncate">{url}</code>
                   <button

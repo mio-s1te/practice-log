@@ -14,8 +14,8 @@ const PRICE_TIERS = [
   { min: 0,    max: 30,   price: 4980,  label: '先着30名限定',   stripeUrl: 'https://buy.stripe.com/28E4gycmB6dga2w9kK3sI03' },
   { min: 31,   max: 100,  price: 9800,  label: '31〜100名限定', stripeUrl: 'https://buy.stripe.com/00w8wOcmB59c4Ic40q3sI07' },
   { min: 101,  max: 500,  price: 29800, label: '101〜500名',    stripeUrl: 'https://buy.stripe.com/5kQ00ifyN6dgdeIgNc3sI04' },
-  { min: 501,  max: 1000, price: 49800, label: '501〜1,000名',  stripeUrl: 'https://buy.stripe.com/bJe14mgCR1X0eiMdB03sI05' },
-  { min: 1001, max: null, price: 99800, label: '通常価格',       stripeUrl: 'https://buy.stripe.com/3cIaEW86ldFI1w01Si3sI06' },
+  { min: 501,  max: 999,  price: 49800, label: '501〜999名',    stripeUrl: 'https://buy.stripe.com/bJe14mgCR1X0eiMdB03sI05' },
+  { min: 1000, max: null, price: 99800, label: '通常価格',       stripeUrl: 'https://buy.stripe.com/3cIaEW86ldFI1w01Si3sI06' },
 ];
 
 interface PriceState {
@@ -68,7 +68,7 @@ export function LandingPageAffiliateCourse() {
       const tier = PRICE_TIERS.find(t => affiliateSalesCount >= t.min && (t.max === null || affiliateSalesCount <= t.max)) || PRICE_TIERS[0];
       const tierIdx = PRICE_TIERS.indexOf(tier);
       const nextTier = PRICE_TIERS[tierIdx + 1] || null;
-      const startCourseDone = startCourseSalesCount >= 1000;
+      const startCourseDone = startCourseSalesCount >= 1000;  // 1,000部到達でプロジェクト終了
 
       setPriceState({
         currentPrice: tier.price,
@@ -92,6 +92,9 @@ export function LandingPageAffiliateCourse() {
     }
     fetchPrice();
     window.scrollTo(0, 0);
+    // 3分ごとに価格を再取得（ページ開きっぱなし時も価格が自動更新される）
+    const interval = setInterval(fetchPrice, 3 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [fetchPrice]);
 
   // Stripe直リンクへ遷移（refパラメータ引き継ぎ）
@@ -336,11 +339,11 @@ export function LandingPageAffiliateCourse() {
                     </div>
                     {startCourseDone ? (
                       <p style={{ color: '#ef4444', fontSize: '11px', fontWeight: 700, marginTop: '6px', textAlign: 'right' }}>
-                        🚨 プロジェクト終了 → 通常価格（¥99,800）
+                        🚨 1,000部達成！通常価格（¥99,800）に移行済み
                       </p>
                     ) : (
                       <p style={{ color: '#fbbf24', fontSize: '11px', marginTop: '6px', textAlign: 'right' }}>
-                        あと{(1000 - startCourseSalesCount).toLocaleString()}部で通常価格に移行
+                        999部突破で通常価格に移行（あと{Math.max(0, 999 - startCourseSalesCount).toLocaleString()}部）
                       </p>
                     )}
                   </div>

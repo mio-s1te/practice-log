@@ -269,7 +269,7 @@ export function CushionLP() {
               🐱 <strong style={{ color: '#fed7aa' }}>迷ったら養成講座がおすすめです。</strong><br />
               アフィリエイトに特化した実践講座で、今が最安値。<br />
               <span style={{ color: '#78350f', fontSize: '12px' }}>
-                スタート講座1,000部達成後は通常価格（¥99,800）に移行します。
+                スタート講座999部突破（1,000部到達）後は通常価格（¥99,800）に移行します。
               </span>
             </p>
           </div>
