@@ -26,8 +26,10 @@ const supabase = createClient(
 const SITE_URL = process.env.SITE_URL || 'https://localhost:3000';
 
 // 養成講座カードメッセージの設定
-const AFFILIATE_COURSE_URL  = 'https://beamish-gecko-f0cb60.netlify.app/';
+const AFFILIATE_COURSE_URL       = 'https://beamish-gecko-f0cb60.netlify.app/';
 const AFFILIATE_COURSE_THUMBNAIL = 'https://www.genspark.ai/api/files/s/8Eug5mVj';
+const AFFILIATE_KEYWORD          = '本気でアフィリエイター';  // 購入完了メールに記載の合言葉
+const AFFILIATE_CODE_PREFIX      = 'affi_grow_';              // 購入コードのプレフィックス
 
 // キャッシュ: キーワード応答をメモリに一時保存（10分TTL）
 let keywordCache = { seminar: null, buyer: null, lastFetched: 0 };
@@ -166,7 +168,7 @@ ${SITE_URL}/seminar
 ・紹介 → 紹介制度の案内
 ・アフィリエイト参加 → 参加申請
 ・紹介者画面 → ダッシュボードを開く
-・養成講座 → AIアフィリエイター養成講座を開く`,
+・本気でアフィリエイター＋購入コード → 養成講座を受け取る`,
         },
       ]);
     } else {
@@ -227,7 +229,7 @@ ${displayName}さん、ようこそ購入者専用LINEへ！
 ・紹介 → 紹介制度の案内
 ・アフィリエイト参加 → 参加申請
 ・紹介者画面 → ダッシュボードを開く
-・養成講座 → AIアフィリエイター養成講座を開く`,
+・本気でアフィリエイター＋購入コード → 養成講座を受け取る`,
             },
           ]);
           return;
@@ -273,6 +275,57 @@ ${displayName}さん、ようこそ購入者専用LINEへ！
   }
 
   // ----------------------------------------
+  // 養成講座合言葉＋購入コード検証（購入者LINEのみ）
+  // ----------------------------------------
+  if (lineType === 'buyer' && trimmedText.includes(AFFILIATE_KEYWORD)) {
+    // テキスト中から購入コード（affi_grow_で始まる文字列）を抽出
+    const codeMatch = trimmedText.match(/affi_grow_[A-Za-z0-9]+/);
+
+    if (!codeMatch) {
+      // キーワードのみ・コードなし → コードを促す
+      await replyMessage(accessToken, replyToken, [
+        {
+          type: 'text',
+          text: `合言葉を受け取りました！🎉\n\n購入完了メールに記載の\n🔑 購入コード（affi_grow_〜）\nをこのトークに送ってください。\n\n例：affi_grow_XXXXXXXXXXXXXXXX`,
+        },
+      ]);
+      return;
+    }
+
+    const purchaseCode = codeMatch[0];
+
+    // Supabaseで購入コード照合
+    const { data: purchase } = await supabase
+      .from('purchases')
+      .select('id, lead_id, product_id, status')
+      .eq('purchase_code', purchaseCode)
+      .eq('status', 'completed')
+      .limit(1)
+      .single();
+
+    if (!purchase) {
+      // コードが見つからない
+      await replyMessage(accessToken, replyToken, [
+        {
+          type: 'text',
+          text: `❌ 購入コードを確認できませんでした。\n\n以下をご確認ください：\n・購入完了メールのコードをそのままコピーして送ってください\n・入力ミスがないかご確認ください\n\n解決しない場合はこちらにメッセージをお送りください🙏`,
+        },
+      ]);
+      return;
+    }
+
+    // 確認OK → Flexカード送信
+    await replyMessage(accessToken, replyToken, [
+      {
+        type: 'text',
+        text: `✅ 購入を確認しました！\n\nプロAIアフィリエイター養成講座へようこそ🎉\n講座はこちらからご覧ください👇`,
+      },
+      buildAffiliateCourseFlexMessage(),
+    ]);
+    return;
+  }
+
+  // ----------------------------------------
   // キーワードマッチング
   // ----------------------------------------
   const keywords = await getKeywords(lineType);
@@ -310,26 +363,6 @@ ${displayName}さん、ようこそ購入者専用LINEへ！
       ]);
       return;
     }
-  }
-
-  // ----------------------------------------
-  // 養成講座キーワード → Flexカードメッセージを返す
-  // ----------------------------------------
-  const AFFILIATE_KEYWORDS = ['養成講座', 'アフィリエイト養成', '養成', '紹介講座'];
-  const isAffiliateCourseKeyword =
-    lineType === 'buyer' &&
-    AFFILIATE_KEYWORDS.some(kw => trimmedText.includes(kw));
-
-  if (isAffiliateCourseKeyword) {
-    const flexCard = buildAffiliateCourseFlexMessage();
-    await replyMessage(accessToken, replyToken, [
-      {
-        type: 'text',
-        text: '🎓 プロAIアフィリエイター養成講座はこちらです！\n\nボタンをタップして講座をご覧ください👇',
-      },
-      flexCard,
-    ]);
-    return;
   }
 
   // 返信テキストのプレースホルダー置換

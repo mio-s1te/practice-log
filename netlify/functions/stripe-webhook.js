@@ -995,7 +995,7 @@ async function checkAffiliateCampaignAccess(affiliateId, campaignId) {
 // ============================================================
 
 // 講座別の設定
-const COURSE_LINE_URL = 'https://lin.ee/yh1BNGJ';
+const COURSE_LINE_URL = 'https://lin.ee/nxWg5F3';
 
 const COURSE_CONFIG = {
   'a0000000-0000-0000-0000-000000000001': {
@@ -1003,7 +1003,7 @@ const COURSE_CONFIG = {
     label:   'AI副業1時間化スタート講座',
   },
   'a0000000-0000-0000-0000-000000000003': {
-    keyword: '本気でプロアフィリエイター',
+    keyword: '本気でアフィリエイター',
     label:   'プロAIアフィリエイター養成講座',
   },
   // テスト用商品
