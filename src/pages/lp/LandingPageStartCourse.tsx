@@ -2,8 +2,7 @@
 // AI副業1時間化スタート講座 — 全面改訂版ランディングページ
 
 import { useEffect, useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { initializeTracking, recordClick, getTrackingData } from '@/utils/tracking';
+import { initializeTracking, recordClick } from '@/utils/tracking';
 import type { ProductPriceInfo } from '@/types';
 
 const PRODUCT_ID = 'a0000000-0000-0000-0000-000000000001';
@@ -27,13 +26,11 @@ function getTier(salesCount: number) {
 // ======================================================
 function PurchaseButton({
   currentPrice,
-  checkoutLoading,
   isPriceLoading,
   onClick,
   size = 'lg',
 }: {
   currentPrice: number;
-  checkoutLoading: boolean;
   isPriceLoading: boolean;
   onClick: () => void;
   size?: 'lg' | 'sm';
@@ -42,8 +39,8 @@ function PurchaseButton({
     'inline-flex items-center justify-center rounded-2xl font-extrabold transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed bg-yellow-400 hover:bg-yellow-300 text-yellow-900 shadow-lg';
   const sizeClass = size === 'lg' ? 'py-5 px-12 text-xl' : 'py-4 px-8 text-lg';
   return (
-    <button onClick={onClick} disabled={checkoutLoading || isPriceLoading} className={`${base} ${sizeClass} w-full`}>
-      {checkoutLoading ? '処理中...' : isPriceLoading ? '読み込み中...' : `今すぐ購入する（¥${currentPrice.toLocaleString()}）`}
+    <button onClick={onClick} disabled={isPriceLoading} className={`${base} ${sizeClass} w-full`}>
+      {isPriceLoading ? '読み込み中...' : `今すぐ購入する（¥${currentPrice.toLocaleString()}）`}
     </button>
   );
 }
@@ -64,8 +61,6 @@ function PriceTierBadge({ label, price, active }: { label: string; price: number
 // メインコンポーネント
 // ======================================================
 export function LandingPageStartCourse() {
-  const [searchParams] = useSearchParams();
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [priceInfo, setPriceInfo] = useState<ProductPriceInfo | null>(null);
   const [priceLoading, setPriceLoading] = useState(true);
 
@@ -114,7 +109,7 @@ export function LandingPageStartCourse() {
   const handlePurchase = () => {
     // 現在の販売数からTierを決定してStripe直リンクへ遷移
     const tier = getTier(salesCount);
-    window.location.href = tier.stripeUrl;
+    window.open(tier.stripeUrl, '_blank', 'noopener,noreferrer');
   };
 
   const salesCount = priceInfo?.valid_sales_count ?? 0;
@@ -123,8 +118,9 @@ export function LandingPageStartCourse() {
   const currentPrice = activeTier.price;
   const activeTierIndex = PRICE_TIERS.indexOf(activeTier);
   const nextTier = activeTierIndex < PRICE_TIERS.length - 1 ? PRICE_TIERS[activeTierIndex + 1] : null;
-  const tierLimit = activeTier.max ?? 10001;
-  const remaining = Math.max(0, tierLimit - salesCount + 1);
+  const tierLimit = activeTier.max ?? 10000;
+  // 残り部数：「tierLimit - salesCount」が正確（999部突破→1,000部で値上がり）
+  const remaining = Math.max(0, tierLimit - salesCount);
   const progress = Math.min(100, (salesCount / tierLimit) * 100);
   const isPriceLoading = priceLoading;
 
@@ -244,7 +240,7 @@ export function LandingPageStartCourse() {
                     <div>
                       <span className="text-blue-200 text-sm">次回価格</span>
                       <p className="text-xs text-blue-300 mt-0.5">
-                        {(activeTier.max ?? 10000).toLocaleString()}部突破後に値上げ
+                        {(activeTier.max ?? 10000).toLocaleString()}部到達で値上がり
                       </p>
                     </div>
                     <span className="text-xl font-bold text-red-300">¥{nextTier.price.toLocaleString()}</span>
@@ -280,7 +276,6 @@ export function LandingPageStartCourse() {
 
           <PurchaseButton
             currentPrice={currentPrice}
-            checkoutLoading={checkoutLoading}
             isPriceLoading={isPriceLoading}
             onClick={handlePurchase}
           />
@@ -469,7 +464,7 @@ export function LandingPageStartCourse() {
             )}
             {nextTier && remaining > 50 && (
               <div className="bg-white/10 rounded-xl p-3 mb-5 text-sm">
-                📈 {(activeTier.max ?? 10000).toLocaleString()}部突破後に¥{nextTier.price.toLocaleString()}へ値上がり予定
+                📈 {(activeTier.max ?? 10000).toLocaleString()}部到達後に¥{nextTier.price.toLocaleString()}へ値上がり予定
               </div>
             )}
 
@@ -485,7 +480,6 @@ export function LandingPageStartCourse() {
 
             <PurchaseButton
               currentPrice={currentPrice}
-              checkoutLoading={checkoutLoading}
               isPriceLoading={isPriceLoading}
               onClick={handlePurchase}
               size="sm"
@@ -516,7 +510,6 @@ export function LandingPageStartCourse() {
           </p>
           <PurchaseButton
             currentPrice={currentPrice}
-            checkoutLoading={checkoutLoading}
             isPriceLoading={isPriceLoading}
             onClick={handlePurchase}
             size="sm"
