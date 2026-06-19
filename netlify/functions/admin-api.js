@@ -1589,20 +1589,36 @@ async function getAnalyticsDashboard(params, headers) {
   const prevStartISO = prevStart.toISOString();
   const prevEndISO = prevEnd.toISOString();
 
+  // テスト商品を除外するため、先に有効商品IDを取得
+  // price > 0 の商品のみをKPI集計対象とする（テスト商品=¥0を除外）
+  const { data: allProducts } = await supabase
+    .from('products')
+    .select('id,name,price,status')
+    .eq('status', 'active');
+
+  const realProductIds = (allProducts || [])
+    .filter(p => (p.price || 0) > 0)
+    .map(p => p.id);
+
   const [
     purchasesRes, prevPurchasesRes,
     commissionsRes, prevCommissionsRes,
     clicksRes, prevClicksRes,
-    productsRes,
   ] = await Promise.all([
-    supabase.from('purchases').select('id,amount_total,status,purchased_at,affiliate_id,product_id').gte('purchased_at', startISO).lte('purchased_at', endISO),
-    supabase.from('purchases').select('id,amount_total,status').gte('purchased_at', prevStartISO).lte('purchased_at', prevEndISO),
+    // テスト商品(price=0)を除外してpurchasesを取得
+    realProductIds.length > 0
+      ? supabase.from('purchases').select('id,amount_total,status,purchased_at,affiliate_id,product_id').in('product_id', realProductIds).gte('purchased_at', startISO).lte('purchased_at', endISO)
+      : supabase.from('purchases').select('id,amount_total,status,purchased_at,affiliate_id,product_id').gte('purchased_at', startISO).lte('purchased_at', endISO),
+    realProductIds.length > 0
+      ? supabase.from('purchases').select('id,amount_total,status').in('product_id', realProductIds).gte('purchased_at', prevStartISO).lte('purchased_at', prevEndISO)
+      : supabase.from('purchases').select('id,amount_total,status').gte('purchased_at', prevStartISO).lte('purchased_at', prevEndISO),
     supabase.from('commissions').select('id,amount,status,created_at,affiliate_id').gte('created_at', startISO).lte('created_at', endISO),
     supabase.from('commissions').select('id,amount,status').gte('created_at', prevStartISO).lte('created_at', prevEndISO),
     supabase.from('clicks').select('id', { count: 'exact' }).gte('created_at', startISO).lte('created_at', endISO),
     supabase.from('clicks').select('id', { count: 'exact' }).gte('created_at', prevStartISO).lte('created_at', prevEndISO),
-    supabase.from('products').select('id,name,price,status').eq('status', 'active'),
   ]);
+
+  const productsRes = { data: allProducts };
 
   const purchases = purchasesRes.data || [];
   const prevPurchases = prevPurchasesRes.data || [];
