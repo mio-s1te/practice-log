@@ -8,10 +8,19 @@ import type { ProductPriceInfo } from '@/types';
 
 const PRODUCT_ID = 'a0000000-0000-0000-0000-000000000001';
 
-// ── Stripe Payment Links ──────────────────────────
-// 29,800円：Stripeダッシュボードの既存リンク（create-checkout-session で動的生成）
-const STRIPE_LINK_49800 = 'https://buy.stripe.com/8x200i2M11X0b6A1Si3sI01';
-const STRIPE_LINK_99800 = 'https://buy.stripe.com/3cI9AS0DTgRU1w07cC3sI02';
+// ── Stripe Payment Links（段階価格別・直リンク）──────────────────────────
+// 段階しきい値：0〜1,000部 / 1,001〜10,000部 / 10,001部以上
+const PRICE_TIERS = [
+  { min: 0,     max: 1000,  price: 29800, label: '0〜1,000部',      stripeUrl: 'https://buy.stripe.com/7sY8wO0DTgRU7UodB03sI00' },
+  { min: 1001,  max: 10000, price: 49800, label: '1,001〜10,000部',  stripeUrl: 'https://buy.stripe.com/8x200i2M11X0b6A1Si3sI01' },
+  { min: 10001, max: null,  price: 99800, label: '10,001部以上',      stripeUrl: 'https://buy.stripe.com/3cI9AS0DTgRU1w07cC3sI02' },
+];
+
+function getTier(salesCount: number) {
+  return PRICE_TIERS.find(
+    (t) => salesCount >= t.min && (t.max === null || salesCount <= t.max)
+  ) ?? PRICE_TIERS[0];
+}
 
 // ======================================================
 // 購入ボタン（共通）
@@ -97,58 +106,25 @@ export function LandingPageStartCourse() {
       recordClick({ ref: tracking.ref, campaignId: tracking.campaignId, productId: PRODUCT_ID, landingPage: '/start-course' });
     }
     fetchPriceInfo();
+    // 3分ごとに価格を自動更新
+    const intervalId = setInterval(fetchPriceInfo, 3 * 60 * 1000);
+    return () => clearInterval(intervalId);
   }, [fetchPriceInfo]);
 
-  const handlePurchase = async () => {
-    setCheckoutLoading(true);
-    try {
-      const tracking = getTrackingData();
-      const price = priceInfo?.current_price ?? 29800;
-      const stripePriceId = priceInfo?.current_stripe_price_id ?? null;
-
-      // 全価格帯をcreate-checkout-session経由にしてアフィリエイト追跡を維持
-      // affiliate_code を渡す → サーバー側で affiliate_id に解決
-      // line_user_id を渡す → サーバー側で attribution_events から自動復元
-      const res = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_id: PRODUCT_ID,
-          campaign_id: tracking.campaignId || searchParams.get('campaign'),
-          affiliate_code: tracking.ref || searchParams.get('ref') || null,
-          affiliate_id: null,  // サーバー側で affiliate_code から解決
-          click_id: tracking.clickId,
-          line_user_id: localStorage.getItem('line_user_id') || null,
-          lead_id: localStorage.getItem('lead_id') || null,
-          current_price: price,
-          current_stripe_price_id: stripePriceId,
-        }),
-      });
-      if (res.ok) {
-        const { url } = await res.json();
-        window.location.href = url;
-      } else {
-        // フォールバック：Price IDがない場合はPayment Linkへ
-        const fallbackUrl = price >= 99800 ? STRIPE_LINK_99800
-          : price >= 49800 ? STRIPE_LINK_49800
-          : null;
-        if (fallbackUrl) {
-          window.location.href = fallbackUrl;
-        } else {
-          alert('購入処理の開始に失敗しました。しばらくしてから再試行してください。');
-        }
-      }
-    } finally {
-      setCheckoutLoading(false);
-    }
+  const handlePurchase = () => {
+    // 現在の販売数からTierを決定してStripe直リンクへ遷移
+    const tier = getTier(salesCount);
+    window.location.href = tier.stripeUrl;
   };
 
   const salesCount = priceInfo?.valid_sales_count ?? 0;
-  const currentTier = priceInfo?.current_tier ?? null;
-  const nextTier = priceInfo?.next_tier ?? null;
-  const currentPrice = priceInfo?.current_price ?? 29800;
-  const tierLimit = currentTier?.max_valid_sales_count ?? 1000;
-  const remaining = Math.max(0, tierLimit - salesCount);
+  // フロントエンドのPRICE_TIERSで現在Tierを決定
+  const activeTier = getTier(salesCount);
+  const currentPrice = activeTier.price;
+  const activeTierIndex = PRICE_TIERS.indexOf(activeTier);
+  const nextTier = activeTierIndex < PRICE_TIERS.length - 1 ? PRICE_TIERS[activeTierIndex + 1] : null;
+  const tierLimit = activeTier.max ?? 10001;
+  const remaining = Math.max(0, tierLimit - salesCount + 1);
   const progress = Math.min(100, (salesCount / tierLimit) * 100);
   const isPriceLoading = priceLoading;
 
@@ -268,7 +244,7 @@ export function LandingPageStartCourse() {
                     <div>
                       <span className="text-blue-200 text-sm">次回価格</span>
                       <p className="text-xs text-blue-300 mt-0.5">
-                        {(currentTier?.max_valid_sales_count ?? tierLimit).toLocaleString()}部突破後に値上げ
+                        {(activeTier.max ?? 10000).toLocaleString()}部突破後に値上げ
                       </p>
                     </div>
                     <span className="text-xl font-bold text-red-300">¥{nextTier.price.toLocaleString()}</span>
@@ -279,7 +255,7 @@ export function LandingPageStartCourse() {
                 <div className="mb-2">
                   <div className="flex items-center justify-between text-sm mb-1.5">
                     <span className="text-blue-200">現在販売数</span>
-                    <span className="font-bold text-white">{salesCount.toLocaleString()} / {tierLimit.toLocaleString()}部</span>
+                    <span className="font-bold text-white">{salesCount.toLocaleString()} / {(activeTier.max ?? '∞').toLocaleString()}部</span>
                   </div>
                   <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
                     <div
@@ -295,7 +271,7 @@ export function LandingPageStartCourse() {
                     <span className="text-xl font-extrabold text-yellow-300">残り{remaining.toLocaleString()}部</span>
                   </div>
                 )}
-                {!nextTier && currentTier && (
+                {!nextTier && (
                   <p className="text-xs text-blue-300 mt-2 text-center">※ この価格は最終価格です</p>
                 )}
               </>
@@ -475,9 +451,14 @@ export function LandingPageStartCourse() {
 
             {/* 段階価格表示 */}
             <div className="space-y-2 mb-6">
-              <PriceTierBadge label="0〜1,000部" price={29800} active={salesCount < 1000} />
-              <PriceTierBadge label="1,001〜10,000部" price={49800} active={salesCount >= 1000 && salesCount < 10000} />
-              <PriceTierBadge label="10,001部以降" price={99800} active={salesCount >= 10000} />
+              {PRICE_TIERS.map((t) => (
+                <PriceTierBadge
+                  key={t.label}
+                  label={t.label}
+                  price={t.price}
+                  active={activeTier === t}
+                />
+              ))}
             </div>
 
             {/* 値上げアラート */}
@@ -488,7 +469,7 @@ export function LandingPageStartCourse() {
             )}
             {nextTier && remaining > 50 && (
               <div className="bg-white/10 rounded-xl p-3 mb-5 text-sm">
-                📈 {(currentTier?.max_valid_sales_count ?? tierLimit).toLocaleString()}部突破後に¥{nextTier.price.toLocaleString()}へ値上がり予定
+                📈 {(activeTier.max ?? 10000).toLocaleString()}部突破後に¥{nextTier.price.toLocaleString()}へ値上がり予定
               </div>
             )}
 
