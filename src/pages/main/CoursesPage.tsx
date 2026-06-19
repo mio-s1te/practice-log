@@ -99,7 +99,7 @@ export function CoursesPage() {
                       className="flex-1 text-center py-3 px-6 rounded-full bg-gray-900 text-white text-sm font-black hover:bg-gray-700 transition-colors shadow-md">
                       詳しく見る →
                     </Link>
-                    <a href="TODO_REPLACE_STRIPE_START_COURSE_URL" target="_blank" rel="noopener noreferrer"
+                    <a href="https://buy.stripe.com/7sY8wO0DTgRU7UodB03sI00" target="_blank" rel="noopener noreferrer"
                       className="shimmer-btn flex-1 text-center py-3 px-6 rounded-full text-white text-sm font-black shadow-md">
                       🛒 購入ページへ
                     </a>
@@ -150,7 +150,7 @@ export function CoursesPage() {
                       className="flex-1 text-center py-3 px-6 rounded-full bg-gray-900 text-white text-sm font-black hover:bg-gray-700 transition-colors shadow-md">
                       詳しく見る →
                     </Link>
-                    <a href="TODO_REPLACE_STRIPE_AFFILIATE_COURSE_URL" target="_blank" rel="noopener noreferrer"
+                    <a href="https://buy.stripe.com/28E4gycmB6dga2w9kK3sI03" target="_blank" rel="noopener noreferrer"
                       className="flex-1 text-center py-3 px-6 rounded-full text-white text-sm font-black transition-all shadow-md"
                       style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)' }}>
                       🛒 購入ページへ

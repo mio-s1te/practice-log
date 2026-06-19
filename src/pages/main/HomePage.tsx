@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { MainLayout } from '@/components/main/MainLayout';
 import { FadeIn } from '@/components/main/FadeIn';
 
-const TODO_CONTACT_LINE = 'TODO_REPLACE_CONTACT_LINE_URL';
+const TODO_CONTACT_LINE = 'https://lin.ee/nxWg5F3';
 
 // 無料講座URL
 const FREE_URL_START     = 'https://melodic-pony-33c4e9.netlify.app/';
@@ -415,7 +415,7 @@ export function HomePage() {
                       className="text-center py-3 rounded-full bg-gray-900 text-white text-sm font-black hover:bg-gray-700 transition-colors shadow-md">
                       詳しく見る →
                     </Link>
-                    <a href="TODO_REPLACE_STRIPE_START_COURSE_URL" target="_blank" rel="noopener noreferrer"
+                    <a href="https://buy.stripe.com/7sY8wO0DTgRU7UodB03sI00" target="_blank" rel="noopener noreferrer"
                       className="text-center py-3 rounded-full text-sm font-black transition-all shadow-md"
                       style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', color: 'white' }}>
                       🛒 購入ページへ
@@ -458,7 +458,7 @@ export function HomePage() {
                       className="text-center py-3 rounded-full bg-gray-900 text-white text-sm font-black hover:bg-gray-700 transition-colors shadow-md">
                       詳しく見る →
                     </Link>
-                    <a href="TODO_REPLACE_STRIPE_AFFILIATE_COURSE_URL" target="_blank" rel="noopener noreferrer"
+                    <a href="https://buy.stripe.com/28E4gycmB6dga2w9kK3sI03" target="_blank" rel="noopener noreferrer"
                       className="text-center py-3 rounded-full text-sm font-black transition-all shadow-md"
                       style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: 'white' }}>
                       🛒 購入ページへ

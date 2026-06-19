@@ -28,7 +28,7 @@ const SITE_URL = process.env.SITE_URL || 'https://localhost:3000';
 // 養成講座カードメッセージの設定
 const AFFILIATE_COURSE_URL       = 'https://beamish-gecko-f0cb60.netlify.app/';
 const AFFILIATE_COURSE_THUMBNAIL = 'https://www.genspark.ai/api/files/s/8Eug5mVj';
-const AFFILIATE_KEYWORD          = '本気でアフィリエイター';  // 購入完了メールに記載の合言葉
+const AFFILIATE_KEYWORD          = '本気でプロアフィリエイター';  // 購入完了メールに記載の合言葉
 const AFFILIATE_CODE_PREFIX      = 'affi_grow_';              // 購入コードのプレフィックス
 
 // キャッシュ: キーワード応答をメモリに一時保存（10分TTL）
@@ -168,7 +168,7 @@ ${SITE_URL}/seminar
 ・紹介 → 紹介制度の案内
 ・アフィリエイト参加 → 参加申請
 ・紹介者画面 → ダッシュボードを開く
-・本気でアフィリエイター＋購入コード → 養成講座を受け取る`,
+・本気でプロアフィリエイター＋購入コード → 養成講座を受け取る`,
         },
       ]);
     } else {
@@ -229,7 +229,7 @@ ${displayName}さん、ようこそ購入者専用LINEへ！
 ・紹介 → 紹介制度の案内
 ・アフィリエイト参加 → 参加申請
 ・紹介者画面 → ダッシュボードを開く
-・本気でアフィリエイター＋購入コード → 養成講座を受け取る`,
+・本気でプロアフィリエイター＋購入コード → 養成講座を受け取る`,
             },
           ]);
           return;

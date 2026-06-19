@@ -2,8 +2,8 @@ import { Link } from 'react-router-dom';
 import { MainLayout } from '@/components/main/MainLayout';
 import { FadeIn } from '@/components/main/FadeIn';
 
-const BUY_URL = 'TODO_REPLACE_STRIPE_AFFILIATE_COURSE_URL';
-const FREE_URL = 'TODO_REPLACE_AFFILIATE_FREE_NOTE_OR_LINE_URL';
+const BUY_URL = 'https://buy.stripe.com/28E4gycmB6dga2w9kK3sI03';
+const FREE_URL = 'https://note.com/preview/nae846da021d3?prev_access_key=ed5d20e9748fb66b4cf5008fb7a56677';
 
 export function CourseAffiliatePage() {
   const contents = [
