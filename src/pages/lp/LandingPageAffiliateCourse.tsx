@@ -10,12 +10,13 @@ const START_COURSE_PRODUCT_ID = 'a0000000-0000-0000-0000-000000000001';
 const NORMAL_PRICE = 99800;
 
 // 段階価格定義（Stripe直リンク付き）
+// しきい値：0-30 / 31-100 / 101-500 / 501-1000 / 1001-（スタート講座完差）
 const PRICE_TIERS = [
   { min: 0,    max: 30,   price: 4980,  label: '先着30名限定',   stripeUrl: 'https://buy.stripe.com/28E4gycmB6dga2w9kK3sI03' },
-  { min: 31,   max: 100,  price: 9800,  label: '31〜100名限定', stripeUrl: 'https://buy.stripe.com/00w8wOcmB59c4Ic40q3sI07' },
-  { min: 101,  max: 500,  price: 29800, label: '101〜500名',    stripeUrl: 'https://buy.stripe.com/5kQ00ifyN6dgdeIgNc3sI04' },
-  { min: 501,  max: 999,  price: 49800, label: '501〜999名',    stripeUrl: 'https://buy.stripe.com/bJe14mgCR1X0eiMdB03sI05' },
-  { min: 1000, max: null, price: 99800, label: '通常価格',       stripeUrl: 'https://buy.stripe.com/3cIaEW86ldFI1w01Si3sI06' },
+  { min: 31,   max: 100,  price: 9800,  label: '31〜100名限定',  stripeUrl: 'https://buy.stripe.com/00w8wOcmB59c4Ic40q3sI07' },
+  { min: 101,  max: 500,  price: 29800, label: '101〜500名',     stripeUrl: 'https://buy.stripe.com/5kQ00ifyN6dgdeIgNc3sI04' },
+  { min: 501,  max: 1000, price: 49800, label: '501〜1,000名',   stripeUrl: 'https://buy.stripe.com/bJe14mgCR1X0eiMdB03sI05' },
+  { min: 1001, max: null, price: 99800, label: '通常価格',        stripeUrl: 'https://buy.stripe.com/3cIaEW86ldFI1w01Si3sI06' },
 ];
 
 interface PriceState {
@@ -68,7 +69,7 @@ export function LandingPageAffiliateCourse() {
       const tier = PRICE_TIERS.find(t => affiliateSalesCount >= t.min && (t.max === null || affiliateSalesCount <= t.max)) || PRICE_TIERS[0];
       const tierIdx = PRICE_TIERS.indexOf(tier);
       const nextTier = PRICE_TIERS[tierIdx + 1] || null;
-      const startCourseDone = startCourseSalesCount >= 1000;  // 1,000部到達でプロジェクト終了
+      const startCourseDone = startCourseSalesCount >= 1001;  // 1,001部以上でスタート講座完差（1,000部まで販売）
 
       setPriceState({
         currentPrice: tier.price,

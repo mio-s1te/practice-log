@@ -1,9 +1,86 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MainLayout } from '@/components/main/MainLayout';
 import { FadeIn } from '@/components/main/FadeIn';
 
-const TODO_FREE_URL = 'TODO_REPLACE_FREE_LINE_OR_FREE_SEMINAR_URL';
 const TODO_CONTACT_LINE = 'TODO_REPLACE_CONTACT_LINE_URL';
+
+// 無料講座URL
+const FREE_URL_START     = 'https://melodic-pony-33c4e9.netlify.app/';
+const FREE_URL_AFFILIATE = 'https://note.com/preview/nae846da021d3?prev_access_key=ed5d20e9748fb66b4cf5008fb7a56677';
+
+/* ── 無料講座選択モーダル ── */
+function FreeCourseModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)' }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-7 relative"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none"
+          aria-label="閉じる"
+        >×</button>
+
+        <div className="text-center mb-6">
+          <div className="text-4xl mb-2">🎁</div>
+          <h2 className="text-xl font-black text-gray-900 mb-1">無料講座を選んでね</h2>
+          <p className="text-gray-500 text-sm">どちらの講座の無料版を見ますか？</p>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <a
+            href={FREE_URL_START}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-start gap-4 rounded-2xl border-2 border-amber-200 bg-amber-50 hover:border-amber-400 hover:bg-amber-100 transition-all p-4"
+          >
+            <span className="text-3xl flex-shrink-0 mt-0.5">🚀</span>
+            <div>
+              <p className="font-black text-gray-900 text-sm group-hover:text-amber-700 transition-colors">
+                AIスタート講座の無料セミナー
+              </p>
+              <p className="text-gray-500 text-xs mt-0.5 leading-relaxed">
+                副業の設計・収益化の土台を学ぶ<br />初心者向け無料講座
+              </p>
+            </div>
+            <span className="ml-auto text-amber-400 text-xl flex-shrink-0 mt-1">→</span>
+          </a>
+
+          <a
+            href={FREE_URL_AFFILIATE}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-start gap-4 rounded-2xl border-2 border-orange-200 bg-orange-50 hover:border-orange-400 hover:bg-orange-100 transition-all p-4"
+          >
+            <span className="text-3xl flex-shrink-0 mt-0.5">📣</span>
+            <div>
+              <p className="font-black text-gray-900 text-sm group-hover:text-orange-700 transition-colors">
+                アフィリエイト養成講座の無料講義
+              </p>
+              <p className="text-gray-500 text-xs mt-0.5 leading-relaxed">
+                AIアフィリエイターになるための<br />無料プレビュー講義（note）
+              </p>
+            </div>
+            <span className="ml-auto text-orange-400 text-xl flex-shrink-0 mt-1">→</span>
+          </a>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="mt-5 w-full text-center text-gray-400 text-sm hover:text-gray-600 transition-colors"
+        >
+          キャンセル
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /* ── ウェーブ区切り ── */
 function WaveBottom({ fill }: { fill: string }) {
@@ -39,6 +116,7 @@ function MioImage({ src, alt, className, style }: { src: string; alt: string; cl
 }
 
 export function HomePage() {
+  const [showFreeModal, setShowFreeModal] = useState(false);
   return (
     <MainLayout>
       <style>{`
@@ -124,12 +202,14 @@ export function HomePage() {
             </p>
 
             {/* CTAボタン */}
+            {showFreeModal && <FreeCourseModal onClose={() => setShowFreeModal(false)} />}
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
-              <a href={TODO_FREE_URL} target="_blank" rel="noopener noreferrer"
+              <button
+                onClick={() => setShowFreeModal(true)}
                 className="inline-flex justify-center items-center gap-2 px-7 py-4 rounded-full font-black text-sm text-white shadow-lg hover:-translate-y-1 transition-all duration-200"
                 style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)', boxShadow: '0 4px 20px rgba(245,158,11,0.4)' }}>
                 🎁 無料講座を見る
-              </a>
+              </button>
               <Link to="/courses"
                 className="inline-flex justify-center items-center gap-2 px-7 py-4 rounded-full border-2 border-gray-900 text-gray-900 font-bold text-sm hover:bg-gray-900 hover:text-white transition-all duration-200">
                 📚 講座一覧を見る
