@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { MainLayout } from '@/components/main/MainLayout';
 import { FadeIn } from '@/components/main/FadeIn';
 
-const TODO_CONTACT_LINE = 'https://lin.ee/nxWg5F3';
+const TODO_CONTACT_LINE = 'https://lin.ee/sSD9W7a';
 
 // 無料講座URL
 const FREE_URL_START     = 'https://melodic-pony-33c4e9.netlify.app/';

@@ -572,7 +572,7 @@ export function LandingPageAffiliateCourse() {
               { q: 'どんな案件でも使えますか？', a: '楽天・ASP・コンテンツ案件など幅広く対応できる設計です。特定ジャンルに縛られない汎用的な手法を学びます。' },
               { q: '購入後すぐに使えますか？', a: 'はい。購入完了後、すぐに講座にアクセスできます。' },
               { q: '価格はなぜ上がるのですか？', a: '参加者が増えるほど情報の希少性が下がるため、先に参加した方へのメリットとして段階的に価格を上げています。今が最安値です。' },
-              { q: 'お問い合わせはどこにすればいいですか？', a: 'このページ下部のLINEリンク、またはhttps://lin.ee/nxWg5F3からご連絡ください。購入前のご相談もお気軽にどうぞ🐱' },
+              { q: 'お問い合わせはどこにすればいいですか？', a: 'このページ下部のLINEリンク、またはhttps://lin.ee/sSD9W7aからご連絡ください。購入前のご相談もお気軽にどうぞ🐱' },
             ].map((item, i) => (
               <div key={i} className="faq-item">
                 <button
@@ -612,7 +612,7 @@ export function LandingPageAffiliateCourse() {
               どちらの講座を選ぶか迷ったら<br />お気軽にメッセージしてください😊
             </p>
             <a
-              href="https://lin.ee/nxWg5F3"
+              href="https://lin.ee/sSD9W7a"
               target="_blank"
               rel="noopener noreferrer"
               className="line-btn"

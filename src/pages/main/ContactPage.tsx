@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { MainLayout } from '@/components/main/MainLayout';
 import { FadeIn } from '@/components/main/FadeIn';
 
-const CONTACT_LINE = 'TODO_REPLACE_CONTACT_LINE_URL';
+const CONTACT_LINE = 'https://lin.ee/sSD9W7a';
 const CONTACT_EMAIL = 'TODO_REPLACE_CONTACT_EMAIL';
 
 export function ContactPage() {
