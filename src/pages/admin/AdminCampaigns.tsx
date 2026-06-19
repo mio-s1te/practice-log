@@ -43,13 +43,26 @@ export function AdminCampaigns() {
     try {
       const url = editCampaign.id ? `/api/admin-api/campaigns/${editCampaign.id}` : '/api/admin-api/campaigns';
       const method = editCampaign.id ? 'PUT' : 'POST';
+      // 新規作成時のデフォルト値を確実に設定
+      const payload = {
+        access_type: 'public',
+        status: 'active',
+        commission_type: 'fixed',
+        attribution_rule: 'same_campaign_only',
+        auto_stop_enabled: false,
+        ...editCampaign,
+      };
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editCampaign),
+        body: JSON.stringify(payload),
       });
       if (res.ok) { await fetchData(); setModalOpen(false); }
-    } catch {}
+      else {
+        const err = await res.json().catch(() => ({}));
+        alert('保存に失敗しました: ' + (err.message || err.error || res.status));
+      }
+    } catch (e: any) { alert('エラー: ' + e.message); }
   };
 
   if (loading) return <LoadingSpinner size="lg" />;
@@ -244,6 +257,31 @@ export function AdminCampaigns() {
               onChange={e => setEditCampaign((p: any) => ({ ...p, auto_stop_enabled: e.target.checked }))}
             />
             <label htmlFor="auto_stop" className="text-sm text-gray-700">自動停止を有効にする</label>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">アクセスタイプ</label>
+            <select
+              value={editCampaign.access_type || 'public'}
+              onChange={e => setEditCampaign((p: any) => ({ ...p, access_type: e.target.value }))}
+              className="select-field"
+            >
+              <option value="public">公開（全員アクセス可）</option>
+              <option value="tag_based">タグ限定</option>
+              <option value="approved_only">承認済みのみ</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">※「公開」にすると全紹介者が案件を確認できます</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">ステータス</label>
+            <select
+              value={editCampaign.status || 'active'}
+              onChange={e => setEditCampaign((p: any) => ({ ...p, status: e.target.value }))}
+              className="select-field"
+            >
+              <option value="active">稼働中</option>
+              <option value="paused">一時停止</option>
+              <option value="ended">終了</option>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">案件説明</label>

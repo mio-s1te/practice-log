@@ -479,10 +479,12 @@ export function AffiliateMaterials() {
 
   useEffect(() => {
     fetch('/api/affiliate-api/campaigns', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : [])
+      .then(r => r.ok ? r.json() : {})
       .then(data => {
-        setCampaigns(Array.isArray(data) ? data : []);
-        if (data.length > 0) setSelectedCampaign(data[0].campaign?.id || '');
+        // APIは { accessible_campaigns: [...], applicable_campaigns: [...] } を返す
+        const accessible = Array.isArray(data.accessible_campaigns) ? data.accessible_campaigns : [];
+        setCampaigns(accessible);
+        if (accessible.length > 0) setSelectedCampaign(accessible[0].id || '');
       })
       .catch(() => {});
   }, []);
@@ -514,7 +516,7 @@ export function AffiliateMaterials() {
             className="select-field"
           >
             {campaigns.map((ca: any) => (
-              <option key={ca.campaign?.id} value={ca.campaign?.id}>{ca.campaign?.name}</option>
+              <option key={ca.id} value={ca.id}>{ca.name}</option>
             ))}
           </select>
           {assets.length === 0 && <p className="text-gray-500 text-center py-8">素材が登録されていません</p>}
