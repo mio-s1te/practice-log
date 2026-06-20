@@ -192,6 +192,10 @@ export function CourseAffiliatePage() {
                 className="text-center py-3.5 px-8 rounded-full border-2 border-violet-300 text-violet-700 font-bold text-sm hover:border-violet-500 transition-colors bg-white">
                 🎁 無料教材を見る
               </a>
+              <a href="https://mio-affiliate.netlify.app/" target="_blank" rel="noopener noreferrer"
+                className="text-center py-3 px-8 rounded-full border-2 border-violet-200 text-violet-600 font-bold text-sm hover:border-violet-400 hover:bg-violet-50 transition-colors bg-white">
+                💰 この講座を紹介して稼ぐ（アフィリエイター登録）
+              </a>
               <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
                 ※収益を保証するものではありません。価格は決済ページでご確認ください。
               </p>

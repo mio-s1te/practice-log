@@ -25,6 +25,8 @@ export function MainFooter() {
             <ul className="space-y-2.5">
               {[
                 { label: 'Home', to: '/' },
+                { label: 'Concept', to: '/concept' },
+                { label: 'Profile', to: '/profile' },
                 { label: 'Courses', to: '/courses' },
                 { label: 'Contact', to: '/contact' },
               ].map((link) => (
@@ -34,6 +36,12 @@ export function MainFooter() {
                   </Link>
                 </li>
               ))}
+              <li>
+                <a href="https://mio-affiliate.netlify.app/" target="_blank" rel="noopener noreferrer"
+                  className="text-sm text-amber-400 hover:text-amber-300 transition-colors font-bold">
+                  💰 アフィリエイター登録
+                </a>
+              </li>
             </ul>
           </div>
 

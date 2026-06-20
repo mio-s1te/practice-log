@@ -579,6 +579,50 @@ export function HomePage() {
         <WaveBottom fill="#fef9c3" />
       </section>
 
+      {/* ========== AFFILIATE RECRUIT ========== */}
+      <section className="relative pt-20 pb-24"
+        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%)' }}>
+        <div className="max-w-4xl mx-auto px-5 md:px-8">
+          <FadeIn className="text-center mb-10">
+            <div className="inline-flex items-center gap-2 bg-white/10 text-amber-300 text-xs font-black px-5 py-2.5 rounded-full mb-5 border border-white/20">
+              💰 Affiliate Program
+            </div>
+            <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
+              みおの講座を紹介して<br className="sm:hidden" />一緒に稼ごう
+            </h2>
+            <p className="text-white/70 text-sm md:text-base leading-relaxed">
+              アフィリエイターとして登録すれば、専用リンクから紹介するだけで報酬が発生。<br className="hidden md:block" />
+              発信活動をしている方・副業実践者・受講生の方も大歓迎です。
+            </p>
+          </FadeIn>
+
+          <div className="grid sm:grid-cols-3 gap-4 mb-10">
+            {[
+              { emoji: '🔗', title: '専用リンクで紹介', desc: '登録後すぐに専用アフィリエイトリンクが発行されます。SNS・ブログ・LINEなど自由に使えます。' },
+              { emoji: '💸', title: '成果報酬で稼ぐ', desc: '紹介経由で購入があれば報酬が発生。ダッシュボードでリアルタイムに確認できます。' },
+              { emoji: '📊', title: '素材・データ完備', desc: '紹介用バナー・テキスト素材を用意。クリック数・成約数も管理画面で一目でわかります。' },
+            ].map((item, i) => (
+              <FadeIn key={i} delay={i * 80}>
+                <div className="bg-white/10 border border-white/20 rounded-2xl p-6 text-center hover:bg-white/15 transition-colors">
+                  <div className="text-4xl mb-3">{item.emoji}</div>
+                  <h3 className="text-white font-black text-sm mb-2">{item.title}</h3>
+                  <p className="text-white/60 text-xs leading-relaxed">{item.desc}</p>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+
+          <FadeIn className="text-center">
+            <a href="https://mio-affiliate.netlify.app/" target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-10 py-4 rounded-full font-black text-gray-900 text-base shadow-xl hover:-translate-y-1 transition-all"
+              style={{ background: 'linear-gradient(135deg, #fcd34d, #f59e0b)', boxShadow: '0 4px 24px rgba(245,158,11,0.5)' }}>
+              💰 アフィリエイター登録はこちら →
+            </a>
+            <p className="text-white/40 text-xs mt-4">登録無料・審査あり</p>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* ========== CTA ========== */}
       <section className="relative pt-24 pb-28 overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #fef9c3 0%, #fde68a 40%, #fcd34d 100%)' }}>

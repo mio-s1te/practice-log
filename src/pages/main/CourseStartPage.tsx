@@ -345,6 +345,10 @@ export function CourseStartPage() {
               >
                 🎁 無料講座を見る
               </button>
+              <a href="https://mio-affiliate.netlify.app/" target="_blank" rel="noopener noreferrer"
+                className="text-center py-3 px-8 rounded-full border-2 border-amber-300 text-amber-700 font-bold text-sm hover:border-amber-500 hover:bg-amber-50 transition-colors bg-white">
+                💰 この講座を紹介して稼ぐ（アフィリエイター登録）
+              </a>
               <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
                 ※収益を保証するものではありません。価格は決済ページでご確認ください。
               </p>
