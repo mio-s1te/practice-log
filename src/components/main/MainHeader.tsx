@@ -18,9 +18,9 @@ export function MainHeader() {
 
   const navLinks = [
     { label: 'Home', to: '/' },
-    { label: 'Concept', to: '/#concept' },
+    { label: 'Concept', to: '/concept' },
     { label: 'Courses', to: '/courses' },
-    { label: 'Profile', to: '/#profile' },
+    { label: 'Profile', to: '/profile' },
     { label: 'Contact', to: '/contact' },
   ];
 

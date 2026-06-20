@@ -3,12 +3,12 @@ import { FadeIn } from '@/components/main/FadeIn';
 
 export function TokushohoPage() {
   const rows = [
-    { label: '販売事業者', value: 'TODO_REPLACE_SELLER_NAME' },
-    { label: '運営責任者', value: 'TODO_REPLACE_MANAGER_NAME' },
-    { label: '所在地', value: 'TODO_REPLACE_ADDRESS\n※個人事業主で住所表示をどうするか未確定の場合は、法令上の表示義務を確認したうえで設定する必要があります。' },
-    { label: '電話番号', value: 'TODO_REPLACE_PHONE\n※必要に応じて「請求があった場合には遅滞なく開示します」等の記載可否を専門家に確認してください。' },
-    { label: 'メールアドレス', value: 'TODO_REPLACE_CONTACT_EMAIL' },
-    { label: '販売URL', value: 'TODO_REPLACE_SITE_URL' },
+    { label: '販売事業者', value: 'みお' },
+    { label: '運営責任者', value: 'みお' },
+    { label: '所在地', value: '請求があった場合には遅滞なく開示します。' },
+    { label: '電話番号', value: '請求があった場合には遅滞なく開示します。' },
+    { label: 'メールアドレス', value: 'info@mio-busi.com' },
+    { label: '販売URL', value: 'https://mio-mainsite.netlify.app' },
     { label: '販売価格', value: '各商品ページおよび決済ページに表示された金額をご確認ください。' },
     { label: '商品代金以外の必要料金', value: 'インターネット接続料金、通信料金、振込手数料等はお客様のご負担となります。' },
     { label: '支払方法', value: 'クレジットカード決済、その他決済ページに表示される方法' },

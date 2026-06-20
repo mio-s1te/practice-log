@@ -4,7 +4,7 @@ import { MainLayout } from '@/components/main/MainLayout';
 import { FadeIn } from '@/components/main/FadeIn';
 
 const CONTACT_LINE = 'https://lin.ee/sSD9W7a';
-const CONTACT_EMAIL = 'TODO_REPLACE_CONTACT_EMAIL';
+const CONTACT_EMAIL = 'info@mio-busi.com';
 
 export function ContactPage() {
   const [form, setForm] = useState({ name: '', email: '', type: '', message: '', agree: false });

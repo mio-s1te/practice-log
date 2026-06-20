@@ -65,6 +65,8 @@ import { CoursesPage } from '@/pages/main/CoursesPage';
 import { CourseStartPage } from '@/pages/main/CourseStartPage';
 import { CourseAffiliatePage } from '@/pages/main/CourseAffiliatePage';
 import { ContactPage } from '@/pages/main/ContactPage';
+import { ConceptPage } from '@/pages/main/ConceptPage';
+import { ProfilePage } from '@/pages/main/ProfilePage';
 import { TokushohoPage } from '@/pages/legal/TokushohoPage';
 import { PrivacyPage } from '@/pages/legal/PrivacyPage';
 import { TermsPage } from '@/pages/legal/TermsPage';
@@ -82,6 +84,8 @@ function App() {
             会社HP風 メインサイト（mio-mainsite.netlify.app）
            ======================================== */}
         <Route path="/" element={<HomePage />} />
+        <Route path="/concept" element={<ConceptPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/courses" element={<CoursesPage />} />
         <Route path="/courses/ai-1hour-start" element={<CourseStartPage />} />
         <Route path="/courses/pro-ai-affiliate" element={<CourseAffiliatePage />} />

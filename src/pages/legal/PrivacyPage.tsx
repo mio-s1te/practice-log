@@ -86,7 +86,7 @@ export function PrivacyPage() {
                 <h2 className="text-lg font-black text-gray-900 mb-3">8. お問い合わせ先</h2>
                 <p>本プライバシーポリシーに関するお問い合わせは、以下までご連絡ください。</p>
                 <p className="mt-2 text-sm font-mono bg-gray-50 px-3 py-2 rounded-lg inline-block">
-                  TODO_REPLACE_CONTACT_EMAIL
+                  info@mio-busi.com
                 </p>
               </div>
 

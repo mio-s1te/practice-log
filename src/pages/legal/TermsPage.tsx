@@ -104,7 +104,7 @@ export function TermsPage() {
                 <h2 className="text-base font-black text-gray-900 mb-3">第10条（お問い合わせ先）</h2>
                 <p>本規約に関するお問い合わせは、以下までご連絡ください。</p>
                 <p className="mt-2 font-mono bg-gray-50 px-3 py-2 rounded-lg inline-block text-xs">
-                  TODO_REPLACE_CONTACT_EMAIL
+                  info@mio-busi.com
                 </p>
               </div>
 
