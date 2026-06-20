@@ -138,19 +138,16 @@ export function CushionLP() {
             <p style={{ color: '#fb923c', fontSize: '11px', fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '12px', textAlign: 'center' }}>
               📖 無料noteの内容
             </p>
-            <h2 style={{ fontSize: '19px', fontWeight: 900, color: '#fff', lineHeight: 1.5, marginBottom: '8px', textAlign: 'center' }}>
-              「AIに紹介文を書かせても<br />売れない理由」を知っていますか？
+            <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#fff', lineHeight: 1.4, marginBottom: '16px', textAlign: 'center' }}>
+              「AIを使って副業月5万円を<br />最短ルートで達成する方法」
             </h2>
-            <p style={{ color: '#a16207', fontSize: '12px', textAlign: 'center', marginBottom: '20px', lineHeight: 1.7 }}>
-              ── 売れない原因は、才能でも文章力でもありませんでした ──
-            </p>
-            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
-                { emoji: '🧠', text: '多くの人が最初に選ぶ「案件の選び方」が、じつは逆効果な理由' },
-                { emoji: '🔗', text: 'リンクを貼る前に、すでに勝負は決まっている──その"前段階"とは？' },
-                { emoji: '🤖', text: 'AIに文章を書かせると薄くなる。最初にAIに頼むべき"別のこと"' },
-                { emoji: '📅', text: '3日間で紹介の流れを体験する、初心者向けの実践ロードマップ' },
-                { emoji: '💬', text: '実績がなくても信用される紹介と、実績があっても信用されない紹介の違い' },
+                { emoji: '🤖', text: 'AIツールを使った作業時間を1/3に短縮する具体的な方法' },
+                { emoji: '📡', text: 'SNSフォロワー0人でも売上を作れる導線設計の考え方' },
+                { emoji: '💰', text: 'アフィリエイトで初報酬を最速で出すための案件選び' },
+                { emoji: '⏰', text: '1日1時間だけで継続できる行動設計テンプレート' },
+                { emoji: '🗺️', text: '副業初心者が迷わず動ける14日間ロードマップ全公開' },
               ].map(item => (
                 <li key={item.text} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                   <span style={{ fontSize: '18px', flexShrink: 0, marginTop: '1px' }}>{item.emoji}</span>
@@ -158,30 +155,18 @@ export function CushionLP() {
                 </li>
               ))}
             </ul>
-            <div style={{
-              background: 'rgba(251,146,60,.08)',
-              borderRadius: '12px', padding: '12px 16px',
-              marginBottom: '20px',
-            }}>
-              <p style={{ color: '#fdba74', fontSize: '12px', lineHeight: 1.8, textAlign: 'center', margin: 0 }}>
-                「なんでAIで書いたのに売れないんだろう？」<br />
-                その答え、このnoteに全部書きました🐱<br />
-                <span style={{ color: '#6b7280', fontSize: '11px' }}>※ 無料・読了目安10〜15分</span>
-              </p>
-            </div>
 
             {/* 区切り */}
             <div style={{ borderTop: '1px solid rgba(251,146,60,.2)', margin: '0 0 24px' }} />
 
             {/* LINE CTA */}
             <p style={{ color: '#fde68a', fontSize: '15px', fontWeight: 900, textAlign: 'center', marginBottom: '8px' }}>
-              📩 このnoteを無料で読む
+              📩 無料で全文を受け取る
             </p>
             <p style={{ color: '#a16207', fontSize: '13px', lineHeight: 1.75, textAlign: 'center', marginBottom: '20px' }}>
               公式LINEに登録して<br />
               <strong style={{ color: '#fb923c', fontSize: '16px' }}>「本気」</strong>
-              と送るだけでURLが届きます🐱<br />
-              <span style={{ fontSize: '11px', color: '#6b7280' }}>※ 登録無料・広告なし・いつでも解除OK</span>
+              と送るだけで届きます🐱
             </p>
             <a
               href="https://lin.ee/sSD9W7a"
@@ -203,6 +188,9 @@ export function CushionLP() {
               </svg>
               公式LINEで「本気」と送る →
             </a>
+            <p style={{ color: '#6b7280', fontSize: '11px', textAlign: 'center', marginTop: '10px' }}>
+              ※ 登録無料・すぐに届きます
+            </p>
           </div>
         </section>
 

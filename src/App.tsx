@@ -50,6 +50,7 @@ import { PartnerNotices } from '@/pages/partner/PartnerNotices';
 // 販売ページ（新規追加）
 import { LandingPageAffiliateCourse } from '@/pages/lp/LandingPageAffiliateCourse';
 import { CushionLP } from '@/pages/lp/CushionLP';
+import { FreeNoteLP } from '@/pages/lp/FreeNoteLP';
 // 既存ページ（start-course として流用）
 import { LandingPageStartCourse } from '@/pages/lp/LandingPageStartCourse';
 import { LandingPageFreeGift } from '@/pages/lp/LandingPageFreeGift';
@@ -101,8 +102,11 @@ function App() {
         {/* ルート: アフィリエイト講座ページへリダイレクト（mio-affiliateサイト用パス） */}
         <Route path="/affiliate-top" element={<AffiliateTop />} />
 
-        {/* クッションLP（無料note → 2択導線） */}
+        {/* クッションLP（無料noteを読んだ人向け → 2択導線） */}
         <Route path="/cushion-lp" element={<CushionLP />} />
+
+        {/* 無料note配布LP（note未読者 → LINE登録 → 本気送信 → note受け取り） */}
+        <Route path="/free-note" element={<FreeNoteLP />} />
 
         {/* AIアフィリエイト実践講座（通常¥29,800 / キャンペーン¥4,980） */}
         <Route path="/affiliate-course" element={<LandingPageAffiliateCourse />} />
