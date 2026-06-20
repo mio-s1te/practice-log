@@ -104,6 +104,10 @@ export function CoursesPage() {
                       🛒 購入ページへ
                     </a>
                   </div>
+                  <a href="https://mio-affiliate.netlify.app/" target="_blank" rel="noopener noreferrer"
+                    className="block text-center py-2.5 px-6 rounded-full border border-amber-300 text-amber-700 text-xs font-bold hover:bg-amber-50 transition-colors mt-2">
+                    💰 この講座を紹介して稼ぐ（アフィリエイター登録）
+                  </a>
                 </div>
               </div>
             </div>
@@ -156,6 +160,10 @@ export function CoursesPage() {
                       🛒 購入ページへ
                     </a>
                   </div>
+                  <a href="https://mio-affiliate.netlify.app/" target="_blank" rel="noopener noreferrer"
+                    className="block text-center py-2.5 px-6 rounded-full border border-violet-300 text-violet-600 text-xs font-bold hover:bg-violet-50 transition-colors mt-2">
+                    💰 この講座を紹介して稼ぐ（アフィリエイター登録）
+                  </a>
                 </div>
               </div>
             </div>

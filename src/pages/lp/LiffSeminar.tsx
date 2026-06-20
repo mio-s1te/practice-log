@@ -422,6 +422,30 @@ export function PurchaseComplete() {
             </p>
           </div>
 
+          {/* 講座コンテンツ直リンク */}
+          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 rounded-2xl p-5 mb-5 text-left">
+            <p className="text-xs font-bold text-indigo-700 uppercase tracking-widest mb-3">📚 講座コンテンツ</p>
+            <p className="text-xs text-gray-600 mb-4">LINEでURLを受け取った方はこちらからも直接アクセスできます。</p>
+            <div className="flex flex-col gap-3">
+              <a href="https://beamish-gecko-f0cb60.netlify.app/#ch0" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-amber-200 hover:border-amber-400 transition-colors shadow-sm">
+                <span className="text-2xl">🚀</span>
+                <div>
+                  <p className="font-black text-gray-900 text-sm">AI副業1時間化スタート講座</p>
+                  <p className="text-xs text-gray-500">コンテンツを開く →</p>
+                </div>
+              </a>
+              <a href="https://celadon-brioche-b5ab0a.netlify.app/" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-violet-200 hover:border-violet-400 transition-colors shadow-sm">
+                <span className="text-2xl">💎</span>
+                <div>
+                  <p className="font-black text-gray-900 text-sm">プロAIアフィリエイター養成講座</p>
+                  <p className="text-xs text-gray-500">コンテンツを開く →</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
           <a href="/" className="text-sm text-gray-400 hover:text-gray-600 underline">
             トップページへ戻る
           </a>

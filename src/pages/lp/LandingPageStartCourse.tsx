@@ -517,6 +517,22 @@ export function LandingPageStartCourse() {
       </section>
 
       {/* ============================================================
+          アフィリエイター募集バナー
+          ============================================================ */}
+      <section className="py-10 px-4" style={{ background: 'linear-gradient(135deg, #1e1b4b, #0f172a)' }}>
+        <div className="max-w-xl mx-auto text-center">
+          <p className="text-amber-400 text-xs font-black uppercase tracking-widest mb-2">Affiliate Program</p>
+          <p className="text-white font-black text-lg mb-3">この講座を紹介して一緒に稼ごう</p>
+          <p className="text-white/60 text-xs mb-5">アフィリエイター登録すれば専用リンクで紹介するだけで報酬が発生します。</p>
+          <a href="https://mio-affiliate.netlify.app/" target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-8 py-3 rounded-full font-black text-gray-900 text-sm"
+            style={{ background: 'linear-gradient(135deg, #fcd34d, #f59e0b)' }}>
+            💰 アフィリエイター登録はこちら →
+          </a>
+        </div>
+      </section>
+
+      {/* ============================================================
           フッター
           ============================================================ */}
       <footer className="bg-gray-950 text-gray-500 py-10 px-4 text-center text-sm">

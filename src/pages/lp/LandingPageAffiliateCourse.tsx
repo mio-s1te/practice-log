@@ -680,6 +680,17 @@ export function LandingPageAffiliateCourse() {
         </div>
       </section>
 
+      {/* アフィリエイター募集バナー */}
+      <section style={{ padding: '40px 20px', background: 'linear-gradient(135deg, #1e1b4b, #0f172a)', textAlign: 'center' }}>
+        <p style={{ color: '#fbbf24', fontSize: '11px', fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '8px' }}>Affiliate Program</p>
+        <p style={{ color: '#fff', fontWeight: 900, fontSize: '18px', marginBottom: '8px' }}>この講座を紹介して一緒に稼ごう</p>
+        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '12px', marginBottom: '20px' }}>登録無料・専用リンクで紹介するだけで報酬発生</p>
+        <a href="https://mio-affiliate.netlify.app/" target="_blank" rel="noopener noreferrer"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 32px', borderRadius: '9999px', fontWeight: 900, fontSize: '14px', color: '#1f2937', background: 'linear-gradient(135deg, #fcd34d, #f59e0b)', textDecoration: 'none' }}>
+          💰 アフィリエイター登録はこちら →
+        </a>
+      </section>
+
       {/* footer */}
       <footer style={{
         borderTop: '1px solid rgba(251,146,60,.08)',
