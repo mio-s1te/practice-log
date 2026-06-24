@@ -227,15 +227,15 @@ function App() {
               <Route path="achievements" element={<AuthGuard><AchievementsPage /></AuthGuard>} />
               <Route path="badges" element={<AuthGuard><BadgesPage /></AuthGuard>} />
 
-              {/* 管理者向けページ（要admin権限） */}
-              <Route path="admin" element={<AuthGuard requiredRole="admin"><PracticeAdminDashboard /></AuthGuard>} />
-              <Route path="admin/members" element={<AuthGuard requiredRole="admin"><AdminMembers /></AuthGuard>} />
-              <Route path="admin/members/:id" element={<AuthGuard requiredRole="admin"><AdminMemberDetail /></AuthGuard>} />
-              <Route path="admin/questions" element={<AuthGuard requiredRole="admin"><AdminQuestions /></AuthGuard>} />
-              <Route path="admin/unreported" element={<AuthGuard requiredRole="admin"><AdminUnreported /></AuthGuard>} />
-              <Route path="admin/encourage" element={<AuthGuard requiredRole="admin"><AdminEncourage /></AuthGuard>} />
-              <Route path="admin/stuck" element={<AuthGuard requiredRole="admin"><AdminStuck /></AuthGuard>} />
-              <Route path="admin/achievements" element={<AuthGuard requiredRole="admin"><PracticeAdminAchievements /></AuthGuard>} />
+              {/* staff以上が見られる画面（閲覧・分析・質問対応） */}
+              <Route path="admin" element={<AuthGuard requiredRole="staff"><PracticeAdminDashboard /></AuthGuard>} />
+              <Route path="admin/members" element={<AuthGuard requiredRole="staff"><AdminMembers /></AuthGuard>} />
+              <Route path="admin/members/:id" element={<AuthGuard requiredRole="staff"><AdminMemberDetail /></AuthGuard>} />
+              <Route path="admin/questions" element={<AuthGuard requiredRole="staff"><AdminQuestions /></AuthGuard>} />
+              <Route path="admin/unreported" element={<AuthGuard requiredRole="staff"><AdminUnreported /></AuthGuard>} />
+              <Route path="admin/encourage" element={<AuthGuard requiredRole="staff"><AdminEncourage /></AuthGuard>} />
+              <Route path="admin/stuck" element={<AuthGuard requiredRole="staff"><AdminStuck /></AuthGuard>} />
+              <Route path="admin/achievements" element={<AuthGuard requiredRole="staff"><PracticeAdminAchievements /></AuthGuard>} />
 
               {/* デフォルト: ダッシュボードへ */}
               <Route path="*" element={<Navigate to="/practice-log/dashboard" replace />} />

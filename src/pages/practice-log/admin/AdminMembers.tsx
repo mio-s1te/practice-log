@@ -2,10 +2,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/practice-log/supabase';
+import { usePracticeLogAuth } from '@/hooks/practice-log/useAuth';
 import { PracticeLogLayout } from '@/components/practice-log/Layout';
 import { Profile, Role, Status, Stage, STAGES } from '@/types/practice-log';
 
 export function AdminMembers() {
+  const { profile: myProfile } = usePracticeLogAuth();
+  const isAdmin = myProfile?.role === 'admin';
   const [members, setMembers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState<string | null>(null);
@@ -42,11 +45,13 @@ export function AdminMembers() {
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#1c1c1c' }}>👥 メンバー管理</h1>
-          <button onClick={() => setShowAdd(!showAdd)} style={{
-            background: 'linear-gradient(135deg,#f97316,#fb923c)', color: '#fff',
-            fontWeight: 800, fontSize: '13px', padding: '8px 14px',
-            borderRadius: '10px', border: 'none', cursor: 'pointer',
-          }}>+ 追加</button>
+          {isAdmin && (
+            <button onClick={() => setShowAdd(!showAdd)} style={{
+              background: 'linear-gradient(135deg,#f97316,#fb923c)', color: '#fff',
+              fontWeight: 800, fontSize: '13px', padding: '8px 14px',
+              borderRadius: '10px', border: 'none', cursor: 'pointer',
+            }}>+ 追加</button>
+          )}
         </div>
 
         {/* フィルター */}
@@ -90,25 +95,41 @@ export function AdminMembers() {
                         <input value={editData.generation ?? m.generation ?? ''} onChange={e => setEditData({ ...editData, generation: e.target.value })}
                           placeholder="例：1期生" style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px', boxSizing: 'border-box' }} />
                       </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#6b7280', fontWeight: 700 }}>権限</label>
-                        <select value={editData.role ?? m.role} onChange={e => setEditData({ ...editData, role: e.target.value as Role })}
-                          style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px' }}>
-                          <option value="member">member</option>
-                          <option value="staff">staff</option>
-                          <option value="admin">admin</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '11px', color: '#6b7280', fontWeight: 700 }}>ステータス</label>
-                        <select value={editData.status ?? m.status} onChange={e => setEditData({ ...editData, status: e.target.value as Status })}
-                          style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px' }}>
-                          <option value="active">active</option>
-                          <option value="paused">paused</option>
-                          <option value="graduated">graduated</option>
-                          <option value="cancelled">cancelled</option>
-                        </select>
-                      </div>
+                      {/* 権限・ステータス変更はadminのみ */}
+                      {isAdmin ? (
+                        <>
+                          <div>
+                            <label style={{ fontSize: '11px', color: '#6b7280', fontWeight: 700 }}>権限</label>
+                            <select value={editData.role ?? m.role} onChange={e => setEditData({ ...editData, role: e.target.value as Role })}
+                              style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px' }}>
+                              <option value="member">member</option>
+                              <option value="staff">staff</option>
+                              <option value="admin">admin</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '11px', color: '#6b7280', fontWeight: 700 }}>ステータス</label>
+                            <select value={editData.status ?? m.status} onChange={e => setEditData({ ...editData, status: e.target.value as Status })}
+                              style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1.5px solid #e5e7eb', fontSize: '13px' }}>
+                              <option value="active">active</option>
+                              <option value="paused">paused</option>
+                              <option value="graduated">graduated</option>
+                              <option value="cancelled">cancelled</option>
+                            </select>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <label style={{ fontSize: '11px', color: '#6b7280', fontWeight: 700 }}>権限</label>
+                            <p style={{ fontSize: '13px', fontWeight: 700, color: '#374151', padding: '8px 0' }}>{m.role}（変更不可）</p>
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '11px', color: '#6b7280', fontWeight: 700 }}>ステータス</label>
+                            <p style={{ fontSize: '13px', fontWeight: 700, color: '#374151', padding: '8px 0' }}>{m.status}（変更不可）</p>
+                          </div>
+                        </>
+                      )}
                       <div>
                         <label style={{ fontSize: '11px', color: '#6b7280', fontWeight: 700 }}>現在地</label>
                         <select value={editData.current_stage ?? m.current_stage ?? '土台づくり中'} onChange={e => setEditData({ ...editData, current_stage: e.target.value as Stage })}
