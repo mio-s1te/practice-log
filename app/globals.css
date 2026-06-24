@@ -1,26 +1,38 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@layer base {
+  body {
+    background-color: theme(--color-stone-50);
+    color: theme(--color-stone-800);
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', Meiryo, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  * {
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .stat-card {
+    background-color: white;
+    border-radius: 1rem;
+    border: 1px solid theme(--color-stone-100);
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    padding: 1rem;
+  }
+
+  .progress-bar {
+    height: 0.5rem;
+    border-radius: 9999px;
+    background-color: theme(--color-stone-100);
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 9999px;
+    background-color: theme(--color-amber-600);
+    transition: width 500ms;
+  }
 }
