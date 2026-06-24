@@ -60,6 +60,25 @@ import { Contact } from '@/pages/lp/Contact';
 import { Tokushoho } from '@/pages/lp/Tokushoho';
 import { Privacy } from '@/pages/lp/Privacy';
 
+// ==================== Practice Log Pages ====================
+import { PracticeLogAuthProvider } from '@/hooks/practice-log/useAuth';
+import { AuthGuard } from '@/components/practice-log/AuthGuard';
+import { PracticeLogLogin } from '@/pages/practice-log/LoginPage';
+import { DashboardPage } from '@/pages/practice-log/DashboardPage';
+import { CheckinPage } from '@/pages/practice-log/CheckinPage';
+import { CalendarPage } from '@/pages/practice-log/CalendarPage';
+import { HistoryPage } from '@/pages/practice-log/HistoryPage';
+import { AchievementsPage } from '@/pages/practice-log/AchievementsPage';
+import { BadgesPage } from '@/pages/practice-log/BadgesPage';
+import { AdminDashboard as PracticeAdminDashboard } from '@/pages/practice-log/admin/AdminDashboard';
+import { AdminMembers } from '@/pages/practice-log/admin/AdminMembers';
+import { AdminMemberDetail } from '@/pages/practice-log/admin/AdminMemberDetail';
+import { AdminQuestions } from '@/pages/practice-log/admin/AdminQuestions';
+import { AdminUnreported } from '@/pages/practice-log/admin/AdminUnreported';
+import { AdminEncourage } from '@/pages/practice-log/admin/AdminEncourage';
+import { AdminStuck } from '@/pages/practice-log/admin/AdminStuck';
+import { AdminAchievements as PracticeAdminAchievements } from '@/pages/practice-log/admin/AdminAchievements';
+
 // ==================== Main Site Pages ====================
 import { HomePage } from '@/pages/main/HomePage';
 import { CoursesPage } from '@/pages/main/CoursesPage';
@@ -190,6 +209,39 @@ function App() {
           <Route path="csv" element={<PartnerCsvExport />} />
           <Route path="notices" element={<PartnerNotices />} />
         </Route>
+
+        {/* ========================================
+            実践ログアプリ（みお革命 実践ログ）
+           ======================================== */}
+        <Route path="/practice-log/*" element={
+          <PracticeLogAuthProvider>
+            <Routes>
+              {/* ログイン（認証不要） */}
+              <Route path="login" element={<PracticeLogLogin />} />
+
+              {/* メンバー向けページ（要ログイン） */}
+              <Route path="dashboard" element={<AuthGuard><DashboardPage /></AuthGuard>} />
+              <Route path="checkin" element={<AuthGuard><CheckinPage /></AuthGuard>} />
+              <Route path="calendar" element={<AuthGuard><CalendarPage /></AuthGuard>} />
+              <Route path="history" element={<AuthGuard><HistoryPage /></AuthGuard>} />
+              <Route path="achievements" element={<AuthGuard><AchievementsPage /></AuthGuard>} />
+              <Route path="badges" element={<AuthGuard><BadgesPage /></AuthGuard>} />
+
+              {/* 管理者向けページ（要admin権限） */}
+              <Route path="admin" element={<AuthGuard requiredRole="admin"><PracticeAdminDashboard /></AuthGuard>} />
+              <Route path="admin/members" element={<AuthGuard requiredRole="admin"><AdminMembers /></AuthGuard>} />
+              <Route path="admin/members/:id" element={<AuthGuard requiredRole="admin"><AdminMemberDetail /></AuthGuard>} />
+              <Route path="admin/questions" element={<AuthGuard requiredRole="admin"><AdminQuestions /></AuthGuard>} />
+              <Route path="admin/unreported" element={<AuthGuard requiredRole="admin"><AdminUnreported /></AuthGuard>} />
+              <Route path="admin/encourage" element={<AuthGuard requiredRole="admin"><AdminEncourage /></AuthGuard>} />
+              <Route path="admin/stuck" element={<AuthGuard requiredRole="admin"><AdminStuck /></AuthGuard>} />
+              <Route path="admin/achievements" element={<AuthGuard requiredRole="admin"><PracticeAdminAchievements /></AuthGuard>} />
+
+              {/* デフォルト: ダッシュボードへ */}
+              <Route path="*" element={<Navigate to="/practice-log/dashboard" replace />} />
+            </Routes>
+          </PracticeLogAuthProvider>
+        } />
 
         {/* 404 → トップへ */}
         <Route path="*" element={<Navigate to="/" replace />} />
