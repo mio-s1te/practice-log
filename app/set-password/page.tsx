@@ -112,7 +112,7 @@ export default function SetPasswordPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-700 rounded-2xl shadow-lg mb-4">
             <BookOpen className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-black text-amber-900">みお革命</h1>
+          <h1 className="text-2xl font-black text-amber-900">みおコミュニティ</h1>
           <p className="text-sm text-stone-500 mt-1">実践ログ・進捗ダッシュボード</p>
         </div>
 

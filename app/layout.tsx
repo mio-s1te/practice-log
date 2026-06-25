@@ -4,7 +4,7 @@ import './globals.css'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'みお革命 実践ログ',
+  title: 'みおコミュニティ',
   description: '毎日の実践を記録し、止まっている場所と成長を見える化する専用ダッシュボード',
 }
 

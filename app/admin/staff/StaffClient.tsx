@@ -52,16 +52,22 @@ export default function StaffClient({ initialStaff, isAdmin }: StaffClientProps)
   }
 
   const handleRoleChange = async (id: string, newRole: string) => {
-    const res = await fetch('/api/admin/set-password', {
+    setMsg('')
+    const res = await fetch('/api/admin/update-role', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: id, role: newRole }),
     })
+    const json = await res.json()
     if (res.ok) {
+      // メンバーに戻した場合はリストから除外、それ以外はロール更新
       setStaffList(prev => newRole === 'member'
         ? prev.filter(s => s.id !== id)
         : prev.map(s => s.id === id ? { ...s, role: newRole as any } : s)
       )
+      setMsg(newRole === 'member' ? '✅ メンバーに戻しました' : '✅ ロールを変更しました')
+    } else {
+      setMsg(`❌ ${json.error ?? 'ロール変更に失敗しました'}`)
     }
   }
 

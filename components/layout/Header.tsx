@@ -53,7 +53,7 @@ export function Header({ profile }: HeaderProps) {
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         {/* ロゴ */}
         <Link href={isAdmin ? '/admin' : '/dashboard'} className="flex items-center gap-2">
-          <span className="text-lg font-black text-amber-800">みお革命</span>
+          <span className="text-lg font-black text-amber-800">みおコミュニティ</span>
           <span className="hidden sm:block text-xs text-stone-400 font-medium">実践ログ</span>
         </Link>
 
