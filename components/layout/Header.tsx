@@ -18,6 +18,7 @@ export function Header({ profile }: HeaderProps) {
   const supabase = createClient()
 
   const isAdmin = profile.role === 'admin' || profile.role === 'staff'
+  const isOnlyAdmin = profile.role === 'admin'
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -34,16 +35,18 @@ export function Header({ profile }: HeaderProps) {
   ]
 
   const adminLinks = [
-    { href: '/admin', label: '管理ダッシュボード', icon: LayoutDashboard },
-    { href: '/admin/members', label: 'メンバー管理', icon: Settings },
-    { href: '/admin/staff', label: 'スタッフ管理', icon: Users },
-    { href: '/admin/questions', label: '質問一覧', icon: ClipboardList },
-    { href: '/admin/encourage', label: '励まし希望', icon: Star },
-    { href: '/admin/stuck', label: 'つまずき分析', icon: Calendar },
-    { href: '/admin/achievements', label: '成果報告一覧', icon: Award },
+    { href: '/admin', label: '管理ダッシュボード', icon: LayoutDashboard, adminOnly: false },
+    { href: '/admin/members', label: 'メンバー管理', icon: Settings, adminOnly: false },
+    { href: '/admin/staff', label: 'スタッフ管理', icon: Users, adminOnly: true },
+    { href: '/admin/questions', label: '質問一覧', icon: ClipboardList, adminOnly: false },
+    { href: '/admin/encourage', label: '励まし希望', icon: Star, adminOnly: false },
+    { href: '/admin/stuck', label: 'つまずき分析', icon: Calendar, adminOnly: false },
+    { href: '/admin/achievements', label: '成果報告一覧', icon: Award, adminOnly: false },
   ]
 
-  const links = isAdmin ? adminLinks : memberLinks
+  const links = isAdmin
+    ? adminLinks.filter(l => !l.adminOnly || isOnlyAdmin)
+    : memberLinks
 
   return (
     <header className="bg-white border-b border-stone-100 sticky top-0 z-50">

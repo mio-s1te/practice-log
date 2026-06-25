@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { format, subDays, parseISO } from 'date-fns'
 import { Card } from '@/components/ui/Card'
 import { CATEGORIES } from '@/types/database'
@@ -51,7 +52,11 @@ const MOOD_COLOR: Record<string, string> = {
 
 // ─── SVG レーダーチャート ────────────────────────────────────
 function RadarChart({ data }: { data: { label: string; value: number; max: number }[] }) {
-  const cx = 120, cy = 120, r = 90
+  // viewBox を広げてラベルが確実に収まるようにする
+  const vw = 320, vh = 320
+  const cx = vw / 2, cy = vh / 2
+  const r = 100  // チャート半径
+  const labelOffset = 38  // ラベルを軸端からさらに離す距離
   const n = data.length
   if (n === 0) return null
 
@@ -61,8 +66,8 @@ function RadarChart({ data }: { data: { label: string; value: number; max: numbe
     return {
       x: cx + r * ratio * Math.cos(angle),
       y: cy + r * ratio * Math.sin(angle),
-      lx: cx + (r + 24) * Math.cos(angle),
-      ly: cy + (r + 24) * Math.sin(angle),
+      lx: cx + (r + labelOffset) * Math.cos(angle),
+      ly: cy + (r + labelOffset) * Math.sin(angle),
       angle,
       ...d,
     }
@@ -81,7 +86,7 @@ function RadarChart({ data }: { data: { label: string; value: number; max: numbe
   const polyPoints = points.map(p => `${p.x},${p.y}`).join(' ')
 
   return (
-    <svg viewBox="0 0 240 240" className="w-full max-w-xs mx-auto">
+    <svg viewBox={`0 0 ${vw} ${vh}`} className="w-full max-w-sm mx-auto">
       {/* グリッド */}
       {gridPolygons.map((pts, i) => (
         <polygon key={i} points={pts} fill="none" stroke="#e7e5e4" strokeWidth="1" />
@@ -104,16 +109,24 @@ function RadarChart({ data }: { data: { label: string; value: number; max: numbe
       {points.map((p, i) => (
         <circle key={i} cx={p.x} cy={p.y} r="4" fill="#d97706" />
       ))}
-      {/* ラベル */}
+      {/* ラベル：ラベルが長い場合は2行に分割 */}
       {points.map((p, i) => {
-        const anchor = p.lx < cx - 5 ? 'end' : p.lx > cx + 5 ? 'start' : 'middle'
-        const shortLabel = p.label.length > 6 ? p.label.slice(0, 6) + '…' : p.label
+        const anchor = p.lx < cx - 8 ? 'end' : p.lx > cx + 8 ? 'start' : 'middle'
+        // 6文字超は前半・後半の2行表示
+        const label = p.label
+        const line1 = label.length > 6 ? label.slice(0, Math.ceil(label.length / 2)) : label
+        const line2 = label.length > 6 ? label.slice(Math.ceil(label.length / 2)) : null
         return (
           <g key={i}>
-            <text x={p.lx} y={p.ly - 4} textAnchor={anchor} fontSize="9" fill="#57534e" fontWeight="600">
-              {shortLabel}
+            <text x={p.lx} y={p.ly - (line2 ? 6 : 3)} textAnchor={anchor} fontSize="10" fill="#57534e" fontWeight="600">
+              {line1}
             </text>
-            <text x={p.lx} y={p.ly + 7} textAnchor={anchor} fontSize="9" fill="#d97706" fontWeight="700">
+            {line2 && (
+              <text x={p.lx} y={p.ly + 8} textAnchor={anchor} fontSize="10" fill="#57534e" fontWeight="600">
+                {line2}
+              </text>
+            )}
+            <text x={p.lx} y={p.ly + (line2 ? 22 : 12)} textAnchor={anchor} fontSize="10" fill="#d97706" fontWeight="700">
               {p.value}件
             </text>
           </g>
@@ -377,7 +390,17 @@ export default function StuckClient({ items, allItems, allCheckins30, members = 
       {/* メンバー絞り込み */}
       {members.length > 0 && (
         <div className="bg-white border border-stone-100 rounded-2xl p-4">
-          <p className="text-xs font-bold text-stone-600 mb-2">👤 メンバーで絞り込み</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-stone-600">👤 メンバーで絞り込み</p>
+            {selectedMemberId !== 'all' && (
+              <Link
+                href={`/admin/members/${selectedMemberId}`}
+                className="text-xs text-amber-700 hover:underline flex items-center gap-0.5"
+              >
+                詳細ページへ →
+              </Link>
+            )}
+          </div>
           <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setSelectedMemberId('all')}
@@ -570,9 +593,12 @@ export default function StuckClient({ items, allItems, allCheckins30, members = 
             filteredItems.map(item => (
               <Card key={item.id} padding="sm">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span className="text-sm font-medium text-stone-700">
+                  <Link
+                    href={`/admin/members/${item.user_id}`}
+                    className="text-sm font-medium text-amber-800 hover:underline"
+                  >
                     {(item.profiles as any)?.name}
-                  </span>
+                  </Link>
                   {(item.profiles as any)?.generation && (
                     <span className="text-[10px] bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">
                       {(item.profiles as any).generation}
