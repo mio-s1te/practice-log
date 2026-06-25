@@ -1,113 +1,193 @@
 -- ============================================================
--- みお革命 実践ログ - Row Level Security
+-- みお革命 実践ログ - Row Level Security (RLS) 設定
 -- ============================================================
-
--- RLS有効化
-alter table public.profiles enable row level security;
-alter table public.checkins enable row level security;
-alter table public.achievements enable row level security;
-alter table public.badges enable row level security;
-alter table public.user_badges enable row level security;
-alter table public.staff_notes enable row level security;
-alter table public.question_statuses enable row level security;
 
 -- ============================================================
 -- ヘルパー関数
 -- ============================================================
-create or replace function public.get_my_role()
-returns text language sql security definer stable as $$
-  select role from public.profiles where id = auth.uid();
-$$;
+
+-- 現在のユーザーのroleを取得
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS text AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid();
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- admin かどうか
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- staff 以上かどうか
+CREATE OR REPLACE FUNCTION public.is_staff_or_above()
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('staff', 'admin')
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- ============================================================
--- profiles ポリシー
+-- profiles テーブル RLS
 -- ============================================================
-create policy "profiles: 自分は参照可" on public.profiles
-  for select using (id = auth.uid());
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-create policy "profiles: staff/adminは全員参照可" on public.profiles
-  for select using (public.get_my_role() in ('staff','admin'));
+-- 自分自身は常に参照可能
+CREATE POLICY "profiles_select_own" ON public.profiles
+  FOR SELECT USING (id = auth.uid());
 
-create policy "profiles: 自分のみ更新可" on public.profiles
-  for update using (id = auth.uid());
+-- staff/admin は全員参照可能
+CREATE POLICY "profiles_select_staff" ON public.profiles
+  FOR SELECT USING (public.is_staff_or_above());
 
-create policy "profiles: adminのみ全更新可" on public.profiles
-  for update using (public.get_my_role() = 'admin');
+-- 自分のプロフィールは自分で更新可能（role/status/generation は除く）
+CREATE POLICY "profiles_update_own" ON public.profiles
+  FOR UPDATE USING (id = auth.uid())
+  WITH CHECK (
+    id = auth.uid() AND
+    role = (SELECT role FROM public.profiles WHERE id = auth.uid()) AND
+    status = (SELECT status FROM public.profiles WHERE id = auth.uid()) AND
+    generation = (SELECT generation FROM public.profiles WHERE id = auth.uid())
+  );
 
-create policy "profiles: adminのみ挿入可" on public.profiles
-  for insert with check (public.get_my_role() = 'admin');
+-- admin は全員更新可能
+CREATE POLICY "profiles_update_admin" ON public.profiles
+  FOR UPDATE USING (public.is_admin());
 
--- ============================================================
--- checkins ポリシー
--- ============================================================
-create policy "checkins: 自分のみ参照可" on public.checkins
-  for select using (user_id = auth.uid());
-
-create policy "checkins: staff/adminは全員参照可" on public.checkins
-  for select using (public.get_my_role() in ('staff','admin'));
-
-create policy "checkins: 自分のみ作成可" on public.checkins
-  for insert with check (user_id = auth.uid());
-
-create policy "checkins: 自分のみ更新可" on public.checkins
-  for update using (user_id = auth.uid());
-
--- ============================================================
--- achievements ポリシー
--- ============================================================
-create policy "achievements: 自分のみ参照可" on public.achievements
-  for select using (user_id = auth.uid());
-
-create policy "achievements: staff/adminは全員参照可" on public.achievements
-  for select using (public.get_my_role() in ('staff','admin'));
-
-create policy "achievements: 自分のみ作成可" on public.achievements
-  for insert with check (user_id = auth.uid());
-
-create policy "achievements: adminのみ更新可(メモ等)" on public.achievements
-  for update using (public.get_my_role() = 'admin');
+-- admin だけが挿入可能（新規メンバー追加）
+-- ※ on_auth_user_created トリガーが SECURITY DEFINER で動くため、
+--    通常ユーザーの INSERT は不要
+CREATE POLICY "profiles_insert_admin" ON public.profiles
+  FOR INSERT WITH CHECK (public.is_admin());
 
 -- ============================================================
--- badges ポリシー（全員参照可・adminのみ編集）
+-- checkins テーブル RLS
 -- ============================================================
-create policy "badges: 全員参照可" on public.badges
-  for select using (true);
+ALTER TABLE public.checkins ENABLE ROW LEVEL SECURITY;
 
-create policy "badges: adminのみ作成" on public.badges
-  for insert with check (public.get_my_role() = 'admin');
+-- 自分のチェックインは参照可能
+CREATE POLICY "checkins_select_own" ON public.checkins
+  FOR SELECT USING (user_id = auth.uid());
 
--- ============================================================
--- user_badges ポリシー
--- ============================================================
-create policy "user_badges: 自分のみ参照可" on public.user_badges
-  for select using (user_id = auth.uid());
+-- staff/admin は全チェックイン参照可能
+CREATE POLICY "checkins_select_staff" ON public.checkins
+  FOR SELECT USING (public.is_staff_or_above());
 
-create policy "user_badges: staff/adminは全員参照可" on public.user_badges
-  for select using (public.get_my_role() in ('staff','admin'));
+-- 自分のチェックインは作成可能（1日1回はアプリ側で制御）
+CREATE POLICY "checkins_insert_own" ON public.checkins
+  FOR INSERT WITH CHECK (user_id = auth.uid());
 
-create policy "user_badges: adminのみ付与可" on public.user_badges
-  for insert with check (public.get_my_role() = 'admin');
+-- 自分のチェックインは当日のみ更新可能
+CREATE POLICY "checkins_update_own" ON public.checkins
+  FOR UPDATE USING (
+    user_id = auth.uid() AND date = CURRENT_DATE
+  );
 
--- ============================================================
--- staff_notes ポリシー
--- ============================================================
-create policy "staff_notes: staff/adminのみ参照可" on public.staff_notes
-  for select using (public.get_my_role() in ('staff','admin'));
-
-create policy "staff_notes: staff/adminのみ作成可" on public.staff_notes
-  for insert with check (public.get_my_role() in ('staff','admin'));
-
-create policy "staff_notes: staff/adminのみ更新可" on public.staff_notes
-  for update using (public.get_my_role() in ('staff','admin'));
+-- admin は全チェックイン更新可能
+CREATE POLICY "checkins_update_admin" ON public.checkins
+  FOR UPDATE USING (public.is_admin());
 
 -- ============================================================
--- question_statuses ポリシー
+-- achievements テーブル RLS
 -- ============================================================
-create policy "question_statuses: staff/adminのみ参照可" on public.question_statuses
-  for select using (public.get_my_role() in ('staff','admin'));
+ALTER TABLE public.achievements ENABLE ROW LEVEL SECURITY;
 
-create policy "question_statuses: staff/adminのみ作成可" on public.question_statuses
-  for insert with check (public.get_my_role() in ('staff','admin'));
+-- 自分の成果は参照可能
+CREATE POLICY "achievements_select_own" ON public.achievements
+  FOR SELECT USING (user_id = auth.uid());
 
-create policy "question_statuses: staff/adminのみ更新可" on public.question_statuses
-  for update using (public.get_my_role() in ('staff','admin'));
+-- staff/admin は全成果参照可能
+CREATE POLICY "achievements_select_staff" ON public.achievements
+  FOR SELECT USING (public.is_staff_or_above());
+
+-- 自分の成果は作成可能
+CREATE POLICY "achievements_insert_own" ON public.achievements
+  FOR INSERT WITH CHECK (user_id = auth.uid());
+
+-- admin は成果のメモを更新可能
+CREATE POLICY "achievements_update_admin" ON public.achievements
+  FOR UPDATE USING (public.is_admin());
+
+-- ============================================================
+-- badges テーブル RLS（マスタ：全員参照可能）
+-- ============================================================
+ALTER TABLE public.badges ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "badges_select_all" ON public.badges
+  FOR SELECT USING (true);
+
+-- admin だけが作成・更新可能
+CREATE POLICY "badges_insert_admin" ON public.badges
+  FOR INSERT WITH CHECK (public.is_admin());
+
+CREATE POLICY "badges_update_admin" ON public.badges
+  FOR UPDATE USING (public.is_admin());
+
+-- ============================================================
+-- user_badges テーブル RLS
+-- ============================================================
+ALTER TABLE public.user_badges ENABLE ROW LEVEL SECURITY;
+
+-- 自分のバッジは参照可能
+CREATE POLICY "user_badges_select_own" ON public.user_badges
+  FOR SELECT USING (user_id = auth.uid());
+
+-- staff/admin は全バッジ参照可能
+CREATE POLICY "user_badges_select_staff" ON public.user_badges
+  FOR SELECT USING (public.is_staff_or_above());
+
+-- システムによる自動付与（SECURITY DEFINER 関数から）と admin のみ INSERT
+CREATE POLICY "user_badges_insert_admin" ON public.user_badges
+  FOR INSERT WITH CHECK (public.is_admin());
+
+-- ============================================================
+-- staff_notes テーブル RLS
+-- ============================================================
+ALTER TABLE public.staff_notes ENABLE ROW LEVEL SECURITY;
+
+-- staff/admin は全メモ参照可能
+CREATE POLICY "staff_notes_select_staff" ON public.staff_notes
+  FOR SELECT USING (public.is_staff_or_above());
+
+-- staff/admin はメモ作成可能
+CREATE POLICY "staff_notes_insert_staff" ON public.staff_notes
+  FOR INSERT WITH CHECK (public.is_staff_or_above());
+
+-- 自分が書いたメモ or admin は更新可能
+CREATE POLICY "staff_notes_update" ON public.staff_notes
+  FOR UPDATE USING (
+    staff_id = auth.uid() OR public.is_admin()
+  );
+
+-- admin のみ削除可能
+CREATE POLICY "staff_notes_delete_admin" ON public.staff_notes
+  FOR DELETE USING (public.is_admin());
+
+-- ============================================================
+-- question_statuses テーブル RLS
+-- ============================================================
+ALTER TABLE public.question_statuses ENABLE ROW LEVEL SECURITY;
+
+-- 質問したユーザー本人は参照可能
+CREATE POLICY "question_statuses_select_own" ON public.question_statuses
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.checkins
+      WHERE id = checkin_id AND user_id = auth.uid()
+    )
+  );
+
+-- staff/admin は全対応状況参照可能
+CREATE POLICY "question_statuses_select_staff" ON public.question_statuses
+  FOR SELECT USING (public.is_staff_or_above());
+
+-- staff/admin は更新可能
+CREATE POLICY "question_statuses_update_staff" ON public.question_statuses
+  FOR UPDATE USING (public.is_staff_or_above());
+
+-- トリガー（SECURITY DEFINER）が INSERT するため、ポリシーは管理者のみ
+CREATE POLICY "question_statuses_insert_admin" ON public.question_statuses
+  FOR INSERT WITH CHECK (public.is_admin());
