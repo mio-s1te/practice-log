@@ -4,8 +4,10 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AppShell } from '@/components/layout/AppShell'
 import { Card } from '@/components/ui/Card'
+import { GenerationWebhookSettings } from './GenerationWebhookSettings'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import { createServerClient } from '@supabase/ssr'
 
 export default async function GenerationsPage() {
   const supabase = await createClient()
@@ -16,6 +18,12 @@ export default async function GenerationsPage() {
   if (!profile || !['admin', 'staff'].includes(profile.role)) redirect('/dashboard')
 
   const today = format(new Date(), 'yyyy-MM-dd')
+
+  const adminClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { cookies: { getAll: () => [], setAll: () => {} } }
+  )
 
   const { data: members } = await supabase
     .from('profiles')
@@ -30,7 +38,12 @@ export default async function GenerationsPage() {
 
   const todayIds = new Set((todayCheckins ?? []).map((c) => c.user_id))
 
-  const generations = [...new Set((members ?? []).map((m) => m.generation ?? '未設定'))]
+  const generations = [...new Set((members ?? []).map((m) => m.generation ?? '未設定'))].filter(g => g !== '未設定')
+
+  // Webhook URL 設定を取得（generation_settings テーブル）
+  const { data: webhookSettings } = await adminClient
+    .from('generation_settings')
+    .select('generation, discord_webhook_url')
 
   return (
     <AppShell profile={profile}>
@@ -98,6 +111,14 @@ export default async function GenerationsPage() {
             )
           })}
         </div>
+
+        {/* Discord Webhook URL 設定（管理者のみ） */}
+        {profile.role === 'admin' && generations.length > 0 && (
+          <GenerationWebhookSettings
+            generations={generations}
+            webhookSettings={webhookSettings ?? []}
+          />
+        )}
       </div>
     </AppShell>
   )
