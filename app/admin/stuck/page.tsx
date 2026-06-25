@@ -14,11 +14,19 @@ export default async function StuckPage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile || !['admin', 'staff'].includes(profile.role)) redirect('/dashboard')
 
+  // メンバー一覧（フィルター用）
+  const { data: members } = await supabase
+    .from('profiles')
+    .select('id, name, generation')
+    .eq('role', 'member')
+    .eq('status', 'active')
+    .order('generation')
+
   // 過去30日のつまずきデータ
   const since = format(subDays(new Date(), 30), 'yyyy-MM-dd')
   const { data: items } = await supabase
     .from('checkins')
-    .select(`id, date, category, stuck_text, mood, profiles!inner(name, generation)`)
+    .select(`id, date, category, stuck_text, mood, user_id, profiles!inner(name, generation)`)
     .not('stuck_text', 'is', null)
     .neq('stuck_text', '')
     .gte('date', since)
@@ -27,7 +35,7 @@ export default async function StuckPage() {
   // 全期間のつまずきデータ（集計用）
   const { data: allItems } = await supabase
     .from('checkins')
-    .select(`id, date, category, mood, profiles!inner(name, generation)`)
+    .select(`id, date, category, mood, user_id, profiles!inner(name, generation)`)
     .not('stuck_text', 'is', null)
     .neq('stuck_text', '')
     .order('date', { ascending: true })
@@ -35,7 +43,7 @@ export default async function StuckPage() {
   // 過去30日の全チェックイン数（分母用）
   const { data: allCheckins30 } = await supabase
     .from('checkins')
-    .select('date, category')
+    .select('date, category, user_id')
     .gte('date', since)
 
   return (
@@ -44,6 +52,7 @@ export default async function StuckPage() {
         items={items ?? []}
         allItems={allItems ?? []}
         allCheckins30={allCheckins30 ?? []}
+        members={members ?? []}
       />
     </AppShell>
   )

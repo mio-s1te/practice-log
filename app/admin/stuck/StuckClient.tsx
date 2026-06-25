@@ -12,13 +12,21 @@ type Item = {
   category: string
   stuck_text?: string | null
   mood: string
+  user_id?: string
   profiles: { name: string; generation: string | null } | null
+}
+
+type Member = {
+  id: string
+  name: string
+  generation: string | null
 }
 
 interface Props {
   items: Item[]          // 過去30日・stuck_textあり
   allItems: Item[]       // 全期間・stuck_textあり（集計用）
-  allCheckins30: { date: string; category: string }[]
+  allCheckins30: { date: string; category: string; user_id?: string }[]
+  members?: Member[]     // メンバー一覧（個人フィルター用）
 }
 
 // ─── カテゴリ色 ──────────────────────────────────────────────
@@ -254,18 +262,34 @@ function GroupedBar({ generations, data }: {
 }
 
 // ─── メインコンポーネント ────────────────────────────────────
-export default function StuckClient({ items, allItems, allCheckins30 }: Props) {
+export default function StuckClient({ items, allItems, allCheckins30, members = [] }: Props) {
   const [tab, setTab] = useState<'overview' | 'timeline' | 'list'>('overview')
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('all')
+
+  // 選択中メンバーでフィルター
+  const filteredItems = useMemo(() =>
+    selectedMemberId === 'all' ? items : items.filter(i => i.user_id === selectedMemberId)
+  , [items, selectedMemberId])
+
+  const filteredAllItems = useMemo(() =>
+    selectedMemberId === 'all' ? allItems : allItems.filter(i => i.user_id === selectedMemberId)
+  , [allItems, selectedMemberId])
+
+  const filteredCheckins30 = useMemo(() =>
+    selectedMemberId === 'all' ? allCheckins30 : allCheckins30.filter(i => i.user_id === selectedMemberId)
+  , [allCheckins30, selectedMemberId])
+
+  const selectedMember = members.find(m => m.id === selectedMemberId)
 
   // ── カテゴリ別集計 ──
   const categoryCount = useMemo(() => {
-    return allItems.reduce((acc, item) => {
+    return filteredAllItems.reduce((acc, item) => {
       if (item.category !== '今日はできなかった') {
         acc[item.category] = (acc[item.category] ?? 0) + 1
       }
       return acc
     }, {} as Record<string, number>)
-  }, [allItems])
+  }, [filteredAllItems])
 
   const sortedCategories = useMemo(() =>
     Object.entries(categoryCount).sort((a, b) => b[1] - a[1]),
@@ -286,7 +310,7 @@ export default function StuckClient({ items, allItems, allCheckins30 }: Props) {
 
   // ── つまずき率（過去30日・カテゴリ別） ──
   const stuckRateData = useMemo(() => {
-    const checkinCatCount = allCheckins30.reduce((acc, c) => {
+    const checkinCatCount = filteredCheckins30.reduce((acc, c) => {
       acc[c.category] = (acc[c.category] ?? 0) + 1
       return acc
     }, {} as Record<string, number>)
@@ -299,43 +323,43 @@ export default function StuckClient({ items, allItems, allCheckins30 }: Props) {
         return { cat, stuckCnt, total, rate }
       })
       .sort((a, b) => b.rate - a.rate)
-  }, [categoryCount, allCheckins30])
+  }, [categoryCount, filteredCheckins30])
 
   // ── 時系列（過去14日） ──
   const timelineData = useMemo(() => {
     return Array.from({ length: 14 }, (_, i) => {
       const d = subDays(new Date(), 13 - i)
       const dateStr = format(d, 'yyyy-MM-dd')
-      const count = items.filter(it => it.date === dateStr).length
+      const count = filteredItems.filter(it => it.date === dateStr).length
       return { label: format(d, 'M/d'), count }
     })
-  }, [items])
+  }, [filteredItems])
 
   // ── 気分別集計 ──
   const moodCount = useMemo(() => {
-    return allItems.reduce((acc, item) => {
+    return filteredAllItems.reduce((acc, item) => {
       acc[item.mood] = (acc[item.mood] ?? 0) + 1
       return acc
     }, {} as Record<string, number>)
-  }, [allItems])
+  }, [filteredAllItems])
   const totalMood = Object.values(moodCount).reduce((a, b) => a + b, 0)
 
   // ── 期別比較 ──
   const generations = useMemo(() => {
-    const gens = new Set(allItems.map(it => (it.profiles as any)?.generation).filter(Boolean))
+    const gens = new Set(filteredAllItems.map(it => (it.profiles as any)?.generation).filter(Boolean))
     return Array.from(gens).sort() as string[]
-  }, [allItems])
+  }, [filteredAllItems])
 
   const genCatData = useMemo(() => {
     const data: Record<string, Record<string, number>> = {}
-    allItems.forEach(item => {
+    filteredAllItems.forEach(item => {
       const gen = (item.profiles as any)?.generation
       if (!gen || item.category === '今日はできなかった') return
       if (!data[item.category]) data[item.category] = {}
       data[item.category][gen] = (data[item.category][gen] ?? 0) + 1
     })
     return data
-  }, [allItems])
+  }, [filteredAllItems])
 
   return (
     <div className="space-y-5">
@@ -343,9 +367,44 @@ export default function StuckClient({ items, allItems, allCheckins30 }: Props) {
       <div>
         <h1 className="text-xl font-bold text-stone-800">📊 つまずき分析</h1>
         <p className="text-sm text-stone-500 mt-0.5">
-          過去30日 {items.length}件 ／ 全期間 {allItems.length}件
+          {selectedMemberId === 'all'
+            ? `全体 ／ 過去30日 ${filteredItems.length}件 ／ 全期間 ${filteredAllItems.length}件`
+            : `${selectedMember?.name ?? ''} ／ 過去30日 ${filteredItems.length}件 ／ 全期間 ${filteredAllItems.length}件`
+          }
         </p>
       </div>
+
+      {/* メンバー絞り込み */}
+      {members.length > 0 && (
+        <div className="bg-white border border-stone-100 rounded-2xl p-4">
+          <p className="text-xs font-bold text-stone-600 mb-2">👤 メンバーで絞り込み</p>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setSelectedMemberId('all')}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                selectedMemberId === 'all'
+                  ? 'bg-amber-700 text-white border-amber-700'
+                  : 'bg-white text-stone-600 border-stone-200 hover:border-amber-300'
+              }`}
+            >
+              全体
+            </button>
+            {members.map(m => (
+              <button
+                key={m.id}
+                onClick={() => setSelectedMemberId(m.id)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                  selectedMemberId === m.id
+                    ? 'bg-amber-700 text-white border-amber-700'
+                    : 'bg-white text-stone-600 border-stone-200 hover:border-amber-300'
+                }`}
+              >
+                {m.name}{m.generation ? ` (${m.generation})` : ''}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* タブ */}
       <div className="flex gap-1 bg-stone-100 rounded-xl p-1">
@@ -373,11 +432,11 @@ export default function StuckClient({ items, allItems, allCheckins30 }: Props) {
           {/* KPI */}
           <div className="grid grid-cols-3 gap-3">
             <div className="stat-card text-center">
-              <div className="text-2xl font-black text-amber-700">{allItems.length}</div>
+              <div className="text-2xl font-black text-amber-700">{filteredAllItems.length}</div>
               <div className="text-[10px] text-stone-400 mt-0.5">全期間つまずき</div>
             </div>
             <div className="stat-card text-center">
-              <div className="text-2xl font-black text-blue-600">{items.length}</div>
+              <div className="text-2xl font-black text-blue-600">{filteredItems.length}</div>
               <div className="text-[10px] text-stone-400 mt-0.5">過去30日</div>
             </div>
             <div className="stat-card text-center">
@@ -505,10 +564,10 @@ export default function StuckClient({ items, allItems, allCheckins30 }: Props) {
       {/* ── 一覧タブ ── */}
       {tab === 'list' && (
         <div className="space-y-3">
-          {items.length === 0 ? (
+          {filteredItems.length === 0 ? (
             <p className="text-sm text-stone-400 text-center py-10">過去30日のつまずきデータはありません</p>
           ) : (
-            items.map(item => (
+            filteredItems.map(item => (
               <Card key={item.id} padding="sm">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <span className="text-sm font-medium text-stone-700">

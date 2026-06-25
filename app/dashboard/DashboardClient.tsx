@@ -16,9 +16,10 @@ interface Props {
   allCheckins: { date: string }[]
   userBadges: (UserBadge & { badges: { name: string; icon: string; description: string } })[]
   achievements: Achievement[]
+  myStuckItems?: { id: string; date: string; category: string; stuck_text?: string | null; mood: string }[]
 }
 
-export function DashboardClient({ profile, checkins, allCheckins, userBadges, achievements }: Props) {
+export function DashboardClient({ profile, checkins, allCheckins, userBadges, achievements, myStuckItems = [] }: Props) {
   const today = format(new Date(), 'yyyy-MM-dd')
   const now = new Date()
   const todayCheckin = checkins.find((c) => c.date === today)
@@ -351,6 +352,60 @@ export function DashboardClient({ profile, checkins, allCheckins, userBadges, ac
                     <p className="text-xs text-stone-700 mt-0.5 truncate">✓ {checkin.done_text}</p>
                   )}
                 </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* 自分のつまずき分析 */}
+      {myStuckItems.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-stone-700">🤔 私のつまずき傾向</h2>
+            <span className="text-xs text-stone-400">全期間 {myStuckItems.length}件</span>
+          </div>
+
+          {/* カテゴリ別集計 */}
+          {(() => {
+            const catCount = myStuckItems.reduce((acc, item) => {
+              if (item.category !== '今日はできなかった') {
+                acc[item.category] = (acc[item.category] ?? 0) + 1
+              }
+              return acc
+            }, {} as Record<string, number>)
+            const sorted = Object.entries(catCount).sort((a, b) => b[1] - a[1])
+            const max = sorted[0]?.[1] ?? 1
+            return (
+              <div className="space-y-2 mb-4">
+                {sorted.slice(0, 5).map(([cat, count]) => (
+                  <div key={cat}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-stone-600 truncate">{cat}</span>
+                      <span className="text-stone-500 ml-2 flex-shrink-0">{count}件</span>
+                    </div>
+                    <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-amber-400 rounded-full"
+                        style={{ width: `${(count / max) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* 直近のつまずき */}
+          <p className="text-xs font-bold text-stone-600 mb-2">最近のつまずき</p>
+          <div className="space-y-2">
+            {myStuckItems.slice(0, 3).map(item => (
+              <div key={item.id} className="bg-red-50 rounded-xl px-3 py-2">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs text-stone-400">{item.date}</span>
+                  <span className="text-xs text-stone-500">{item.category}</span>
+                </div>
+                <p className="text-xs text-stone-700">{item.stuck_text}</p>
               </div>
             ))}
           </div>

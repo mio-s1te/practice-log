@@ -56,6 +56,15 @@ export default async function DashboardPage() {
     .order('date', { ascending: false })
     .limit(3)
 
+  // 自分のつまずきデータ（全期間）
+  const { data: myStuckItems } = await supabase
+    .from('checkins')
+    .select('id, date, category, stuck_text, mood')
+    .eq('user_id', user.id)
+    .not('stuck_text', 'is', null)
+    .neq('stuck_text', '')
+    .order('date', { ascending: false })
+
   return (
     <AppShell profile={profile}>
       <DashboardClient
@@ -64,6 +73,7 @@ export default async function DashboardPage() {
         allCheckins={allCheckins ?? []}
         userBadges={userBadges ?? []}
         achievements={achievements ?? []}
+        myStuckItems={myStuckItems ?? []}
       />
     </AppShell>
   )

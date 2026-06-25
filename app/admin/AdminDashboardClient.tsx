@@ -35,6 +35,7 @@ export function AdminDashboardClient({
   generations,
   allCheckins = [],
 }: Props) {
+  const isAdmin = profile.role === 'admin'
   const today = format(new Date(), 'yyyy年M月d日（EEEE）', { locale: ja })
   const reportRate = activeMembers.length > 0
     ? Math.round((todayCheckins.length / activeMembers.length) * 100)
@@ -375,13 +376,16 @@ export function AdminDashboardClient({
       {/* クイックリンク */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { href: '/admin/members', label: 'メンバー管理', icon: '👥' },
-          { href: '/admin/questions', label: '質問一覧', icon: '❓' },
-          { href: '/admin/encourage', label: '励まし希望', icon: '💛' },
-          { href: '/admin/stuck', label: 'つまずき分析', icon: '🤔' },
-          { href: '/admin/achievements', label: '成果報告', icon: '⭐' },
-          { href: '/admin/generations', label: '期生別', icon: '📊' },
-        ].map((link) => (
+          { href: '/admin/members', label: 'メンバー管理', icon: '👥', adminOnly: false },
+          { href: '/admin/questions', label: '質問一覧', icon: '❓', adminOnly: false },
+          { href: '/admin/encourage', label: '励まし希望', icon: '💛', adminOnly: false },
+          { href: '/admin/stuck', label: 'つまずき分析', icon: '🤔', adminOnly: false },
+          { href: '/admin/achievements', label: '成果報告', icon: '⭐', adminOnly: false },
+          { href: '/admin/generations', label: '期生別', icon: '📊', adminOnly: false },
+          { href: '/admin/staff', label: 'スタッフ管理', icon: '🛠️', adminOnly: true },
+        ]
+          .filter(link => !link.adminOnly || isAdmin)
+          .map((link) => (
           <Link
             key={link.href}
             href={link.href}
