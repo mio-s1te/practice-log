@@ -28,6 +28,8 @@ interface Props {
   allItems: Item[]       // 全期間・stuck_textあり（集計用）
   allCheckins30: { date: string; category: string; user_id?: string }[]
   members?: Member[]     // メンバー一覧（個人フィルター用）
+  allCheckinsForGen?: { date: string; category: string; mood: string; user_id: string }[]
+  generationList?: string[]
 }
 
 // ─── カテゴリ色 ──────────────────────────────────────────────
@@ -275,7 +277,10 @@ function GroupedBar({ generations, data }: {
 }
 
 // ─── メインコンポーネント ────────────────────────────────────
-export default function StuckClient({ items, allItems, allCheckins30, members = [] }: Props) {
+export default function StuckClient({
+  items, allItems, allCheckins30, members = [],
+  allCheckinsForGen = [], generationList = [],
+}: Props) {
   const [tab, setTab] = useState<'overview' | 'timeline' | 'list'>('overview')
   const [selectedMemberId, setSelectedMemberId] = useState<string>('all')
 
