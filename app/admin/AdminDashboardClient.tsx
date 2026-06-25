@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { format } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -20,6 +20,7 @@ interface Props {
   encourageNeeded: any[]
   recentAchievements: any[]
   generations: string[]
+  allCheckins?: { date: string; mood: string }[]
 }
 
 export function AdminDashboardClient({
@@ -32,6 +33,7 @@ export function AdminDashboardClient({
   encourageNeeded,
   recentAchievements,
   generations,
+  allCheckins = [],
 }: Props) {
   const today = format(new Date(), 'yyyy年M月d日（EEEE）', { locale: ja })
   const reportRate = activeMembers.length > 0
@@ -41,6 +43,23 @@ export function AdminDashboardClient({
   const questionCount = openQuestions.filter((q) =>
     !q.question_statuses || q.question_statuses?.status === '未対応'
   ).length
+
+  // 過去7日間の日別チェックイン数を集計
+  const last7days = Array.from({ length: 7 }, (_, i) => {
+    const d = subDays(new Date(), 6 - i)
+    const dateStr = format(d, 'yyyy-MM-dd')
+    const label = format(d, 'M/d')
+    const count = allCheckins.filter(c => c.date === dateStr).length
+    return { label, count, dateStr }
+  })
+  const maxCount = Math.max(...last7days.map(d => d.count), 1)
+
+  // 気分別集計（今日）
+  const moodCounts = todayCheckins.reduce((acc, c) => {
+    acc[c.mood] = (acc[c.mood] ?? 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+  const moodEntries = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])
 
   return (
     <div className="space-y-5">
@@ -142,6 +161,68 @@ export function AdminDashboardClient({
               )
             })}
           </div>
+        </Card>
+      )}
+
+      {/* 📊 分析グラフ */}
+      <Card>
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="h-4 w-4 text-amber-600" />
+          <h2 className="text-sm font-bold text-stone-800">過去7日間のチェックイン数</h2>
+        </div>
+        {/* 棒グラフ */}
+        <div className="flex items-end gap-1.5 h-28">
+          {last7days.map((d) => {
+            const heightPct = maxCount > 0 ? Math.round((d.count / maxCount) * 100) : 0
+            const isToday = d.dateStr === format(new Date(), 'yyyy-MM-dd')
+            return (
+              <div key={d.label} className="flex-1 flex flex-col items-center gap-1">
+                <span className="text-xs font-bold text-stone-700">{d.count > 0 ? d.count : ''}</span>
+                <div className="w-full rounded-t-lg transition-all" style={{
+                  height: `${Math.max(heightPct, 4)}%`,
+                  minHeight: '4px',
+                  background: isToday
+                    ? 'linear-gradient(to top, #d97706, #fbbf24)'
+                    : d.count > 0 ? 'linear-gradient(to top, #a78bfa, #c4b5fd)' : '#e7e5e4',
+                }} />
+                <span className={`text-[10px] ${isToday ? 'font-bold text-amber-700' : 'text-stone-400'}`}>{d.label}</span>
+              </div>
+            )
+          })}
+        </div>
+        <p className="text-[10px] text-stone-400 mt-2 text-center">※ 今日は黄色・過去は紫で表示</p>
+      </Card>
+
+      {/* 🎭 今日の気分分布 */}
+      {todayCheckins.length > 0 && (
+        <Card>
+          <h2 className="text-sm font-bold text-stone-800 mb-3">😊 今日の気分分布</h2>
+          <div className="space-y-2">
+            {moodEntries.map(([mood, cnt]) => {
+              const pct = Math.round((cnt / todayCheckins.length) * 100)
+              return (
+                <div key={mood} className="flex items-center gap-2">
+                  <span className="text-xs text-stone-600 w-24 flex-shrink-0">
+                    {MOOD_EMOJI[mood as keyof typeof MOOD_EMOJI] ?? '😐'} {mood}
+                  </span>
+                  <div className="flex-1 h-4 bg-stone-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        background: mood === '絶好調' ? '#10b981' :
+                          mood === '順調' ? '#60a5fa' :
+                          mood === '励ましがほしい' ? '#fbbf24' :
+                          mood === 'しんどい' ? '#f87171' : '#a78bfa'
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-stone-500 w-10 text-right">{cnt}名 ({pct}%)</span>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-[10px] text-stone-400 mt-3">本日チェックイン済み {todayCheckins.length}名</p>
         </Card>
       )}
 

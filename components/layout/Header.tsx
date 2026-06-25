@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { LogOut, Menu, X, ClipboardList, LayoutDashboard, Calendar, Star, Award, Settings } from 'lucide-react'
+import { LogOut, Menu, X, ClipboardList, LayoutDashboard, Calendar, Star, Award, Settings, Users } from 'lucide-react'
 import type { Profile } from '@/types/database'
 import { getRoleLabel } from '@/lib/utils'
 
@@ -36,6 +36,7 @@ export function Header({ profile }: HeaderProps) {
   const adminLinks = [
     { href: '/admin', label: '管理ダッシュボード', icon: LayoutDashboard },
     { href: '/admin/members', label: 'メンバー管理', icon: Settings },
+    { href: '/admin/staff', label: 'スタッフ管理', icon: Users },
     { href: '/admin/questions', label: '質問一覧', icon: ClipboardList },
     { href: '/admin/encourage', label: '励まし希望', icon: Star },
     { href: '/admin/stuck', label: 'つまずき分析', icon: Calendar },

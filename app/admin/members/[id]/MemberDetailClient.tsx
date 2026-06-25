@@ -67,6 +67,38 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
   const earnedBadgeIds = new Set(userBadges.map((ub) => ub.badge_id))
   const [earnedIds, setEarnedIds] = useState(earnedBadgeIds)
 
+  // パスワード設定
+  const [showPwForm, setShowPwForm] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwMsg, setPwMsg] = useState('')
+
+  const handleSetPassword = async () => {
+    if (!newPassword || newPassword.length < 8) {
+      setPwMsg('❌ パスワードは8文字以上で入力してください')
+      return
+    }
+    setPwLoading(true)
+    setPwMsg('')
+    try {
+      const res = await fetch('/api/admin/set-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: member.id, password: newPassword }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '設定失敗')
+      setPwMsg('✅ パスワードを設定しました')
+      setNewPassword('')
+      setShowPwForm(false)
+    } catch (e: any) {
+      setPwMsg(`❌ ${e.message}`)
+    } finally {
+      setPwLoading(false)
+      setTimeout(() => setPwMsg(''), 4000)
+    }
+  }
+
   const streak = calcStreak(checkins)
   const { reported, total, rate } = calcMonthlyRate(checkins)
 
@@ -159,9 +191,14 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
             </div>
           </div>
           {isAdmin && (
-            <Button size="sm" variant="secondary" onClick={() => setEditing(!editing)}>
-              {editing ? 'キャンセル' : '編集'}
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="secondary" onClick={() => { setShowPwForm(!showPwForm); setEditing(false) }}>
+                🔑 PW設定
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => { setEditing(!editing); setShowPwForm(false) }}>
+                {editing ? 'キャンセル' : '編集'}
+              </Button>
+            </div>
           )}
         </div>
 
@@ -245,6 +282,29 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
           </div>
         )}
       </Card>
+
+      {/* パスワード設定フォーム */}
+      {showPwForm && isAdmin && (
+        <Card className="border-amber-200 bg-amber-50">
+          <p className="text-sm font-bold text-stone-700 mb-1">🔑 パスワードを設定する</p>
+          <p className="text-xs text-stone-500 mb-3">管理者が初期パスワードを設定できます（8文字以上）</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              placeholder="新しいパスワード（8文字以上）"
+              className="flex-1 px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:border-amber-400 bg-white"
+            />
+            <Button size="sm" onClick={handleSetPassword} disabled={pwLoading}>
+              {pwLoading ? '設定中...' : '設定する'}
+            </Button>
+          </div>
+          {pwMsg && (
+            <p className={`text-xs mt-2 ${pwMsg.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>{pwMsg}</p>
+          )}
+        </Card>
+      )}
 
       {/* 統計 */}
       <div className="grid grid-cols-3 gap-3">

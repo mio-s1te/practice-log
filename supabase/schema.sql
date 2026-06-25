@@ -142,8 +142,8 @@ INSERT INTO public.badges (code, name, description, icon, is_auto) VALUES
   ('first_click',        '初クリック',            '初めてクリックが出た', '👆', false),
   ('first_line',         '初LINE登録',           '初めてLINE登録が入った', '💚', false),
   ('first_reward',       '初報酬',               '初めて報酬が発生した', '💰', false),
-  ('month_1',            '1ヶ月完走',            '1ヶ月間プログラムを完走した', '🎖️', false),
-  ('month_2',            '2ヶ月完走',            '2ヶ月間プログラムを完走した', '🏆', false)
+  ('month_1',            '1ヶ月完走',            '参加から30日間、毎日チェックインを継続した', '🎖️', true),
+  ('month_2',            '2ヶ月完走',            '参加から60日間（累計50日以上報告）プログラムを継続した', '🏆', true)
 ON CONFLICT (code) DO NOTHING;
 
 -- ============================================================

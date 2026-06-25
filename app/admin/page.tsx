@@ -63,6 +63,13 @@ export default async function AdminPage() {
   // 未報告者（active memberで今日未報告）
   const notReportedToday = activeMembers.filter((m) => !todayCheckinIds.has(m.id))
 
+  // 過去7日間のチェックイン（グラフ用）
+  const { data: allCheckins } = await supabase
+    .from('checkins')
+    .select('date, mood')
+    .gte('date', sevenDaysAgo)
+    .order('date')
+
   return (
     <AppShell profile={profile}>
       <AdminDashboardClient
@@ -75,6 +82,7 @@ export default async function AdminPage() {
         encourageNeeded={encourageNeeded ?? []}
         recentAchievements={recentAchievements ?? []}
         generations={generations}
+        allCheckins={allCheckins ?? []}
       />
     </AppShell>
   )

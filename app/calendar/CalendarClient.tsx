@@ -12,9 +12,10 @@ import type { Checkin, Profile } from '@/types/database'
 interface Props {
   checkins: Checkin[]
   profile: Profile
+  achievementDates?: string[]
 }
 
-export function CalendarClient({ checkins, profile }: Props) {
+export function CalendarClient({ checkins, profile, achievementDates = [] }: Props) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedCheckin, setSelectedCheckin] = useState<Checkin | null>(null)
 
@@ -25,6 +26,7 @@ export function CalendarClient({ checkins, profile }: Props) {
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd })
 
   const checkinMap = new Map(checkins.map((c) => [c.date, c]))
+  const achievementSet = new Set(achievementDates)
 
   const handleDayClick = (dayStr: string) => {
     const c = checkinMap.get(dayStr)
@@ -89,7 +91,9 @@ export function CalendarClient({ checkins, profile }: Props) {
           {days.map((day) => {
             const dayStr = format(day, 'yyyy-MM-dd')
             const checkin = checkinMap.get(dayStr)
-            const stamp = getCheckinStamp(checkin ?? null)
+            const stamp = achievementSet.has(dayStr)
+              ? '⭐'
+              : getCheckinStamp(checkin ?? null)
             const isCurrentDay = isToday(day)
             const isFuture = day > new Date()
             const isSelected = selectedCheckin?.date === dayStr

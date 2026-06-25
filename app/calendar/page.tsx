@@ -19,9 +19,23 @@ export default async function CalendarPage() {
     .eq('user_id', user.id)
     .order('date', { ascending: false })
 
+  // 成果報告のある日付を取得（⭐スタンプ用）
+  const { data: achievements } = await supabase
+    .from('achievements')
+    .select('created_at')
+    .eq('user_id', user.id)
+
+  const achievementDates = new Set(
+    (achievements ?? []).map((a: any) => a.created_at.slice(0, 10))
+  )
+
   return (
     <AppShell profile={profile}>
-      <CalendarClient checkins={checkins ?? []} profile={profile} />
+      <CalendarClient
+        checkins={checkins ?? []}
+        profile={profile}
+        achievementDates={[...achievementDates]}
+      />
     </AppShell>
   )
 }
