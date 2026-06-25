@@ -164,33 +164,78 @@ export function AdminDashboardClient({
         </Card>
       )}
 
-      {/* 📊 分析グラフ */}
+      {/* 📊 過去7日間 SVG棒グラフ */}
       <Card>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-3">
           <TrendingUp className="h-4 w-4 text-amber-600" />
           <h2 className="text-sm font-bold text-stone-800">過去7日間のチェックイン数</h2>
         </div>
-        {/* 棒グラフ */}
-        <div className="flex items-end gap-1.5 h-28">
-          {last7days.map((d) => {
-            const heightPct = maxCount > 0 ? Math.round((d.count / maxCount) * 100) : 0
-            const isToday = d.dateStr === format(new Date(), 'yyyy-MM-dd')
-            return (
-              <div key={d.label} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-xs font-bold text-stone-700">{d.count > 0 ? d.count : ''}</span>
-                <div className="w-full rounded-t-lg transition-all" style={{
-                  height: `${Math.max(heightPct, 4)}%`,
-                  minHeight: '4px',
-                  background: isToday
-                    ? 'linear-gradient(to top, #d97706, #fbbf24)'
-                    : d.count > 0 ? 'linear-gradient(to top, #a78bfa, #c4b5fd)' : '#e7e5e4',
-                }} />
-                <span className={`text-[10px] ${isToday ? 'font-bold text-amber-700' : 'text-stone-400'}`}>{d.label}</span>
-              </div>
-            )
-          })}
+        {(() => {
+          const W = 320, H = 110, padL = 24, padR = 8, padT = 16, padB = 22
+          const innerW = W - padL - padR
+          const innerH = H - padT - padB
+          const barW = innerW / last7days.length
+          const todayStr = format(new Date(), 'yyyy-MM-dd')
+          return (
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+              {/* グリッド線 */}
+              {[0, 0.5, 1].map((r, i) => {
+                const y = padT + innerH - innerH * r
+                return (
+                  <g key={i}>
+                    <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="#f5f5f4" strokeWidth="1" />
+                    <text x={padL - 3} y={y + 3} textAnchor="end" fontSize="8" fill="#d6d3d1">
+                      {Math.round(maxCount * r)}
+                    </text>
+                  </g>
+                )
+              })}
+              {/* バー */}
+              {last7days.map((d, i) => {
+                const isToday = d.dateStr === todayStr
+                const barH = maxCount > 0 ? (d.count / maxCount) * innerH : 0
+                const x = padL + i * barW + barW * 0.15
+                const bw = barW * 0.7
+                const y = padT + innerH - barH
+                return (
+                  <g key={d.label}>
+                    <defs>
+                      <linearGradient id={`bar-${i}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={isToday ? '#fbbf24' : '#c4b5fd'} />
+                        <stop offset="100%" stopColor={isToday ? '#d97706' : '#7c3aed'} />
+                      </linearGradient>
+                    </defs>
+                    <rect
+                      x={x} y={d.count > 0 ? y : padT + innerH - 2}
+                      width={bw} height={Math.max(barH, 2)}
+                      fill={d.count > 0 ? `url(#bar-${i})` : '#e7e5e4'}
+                      rx="3"
+                    />
+                    {d.count > 0 && (
+                      <text x={x + bw / 2} y={y - 3} textAnchor="middle" fontSize="9" fill={isToday ? '#92400e' : '#5b21b6'} fontWeight="700">
+                        {d.count}
+                      </text>
+                    )}
+                    <text x={x + bw / 2} y={H - 4} textAnchor="middle" fontSize="9"
+                      fill={isToday ? '#d97706' : '#a8a29e'} fontWeight={isToday ? '700' : '400'}>
+                      {d.label}
+                    </text>
+                  </g>
+                )
+              })}
+            </svg>
+          )
+        })()}
+        <div className="flex justify-center gap-4 mt-1">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-2 rounded-sm" style={{ background: 'linear-gradient(#fbbf24,#d97706)' }} />
+            <span className="text-[10px] text-stone-400">今日</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-2 rounded-sm" style={{ background: 'linear-gradient(#c4b5fd,#7c3aed)' }} />
+            <span className="text-[10px] text-stone-400">過去6日</span>
+          </div>
         </div>
-        <p className="text-[10px] text-stone-400 mt-2 text-center">※ 今日は黄色・過去は紫で表示</p>
       </Card>
 
       {/* 🎭 今日の気分分布 */}
