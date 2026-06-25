@@ -113,6 +113,9 @@ export default async function DashboardPage() {
     answeredCount = count ?? 0
   }
 
+  // LINE連携済みかどうか（URLパラメータで連携完了も検知）
+  const lineConnected = !!(profile as any).line_user_id
+
   return (
     <AppShell profile={profile}>
       <DashboardClient
@@ -125,6 +128,7 @@ export default async function DashboardPage() {
         allMyCheckins={allMyCheckins ?? []}
         generationCheckins={generationCheckins ?? []}
         answeredQuestionCount={answeredCount}
+        lineConnected={lineConnected}
       />
     </AppShell>
   )

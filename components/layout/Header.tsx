@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { LogOut, Menu, X, ClipboardList, LayoutDashboard, Calendar, Star, Award, Settings, Users, MessageSquare } from 'lucide-react'
+import { LogOut, Menu, X, ClipboardList, LayoutDashboard, Calendar, Star, Award, Settings, Users, MessageSquare, Bell } from 'lucide-react'
 import type { Profile } from '@/types/database'
 import { getRoleLabel } from '@/lib/utils'
 
@@ -33,6 +33,7 @@ export function Header({ profile }: HeaderProps) {
     { href: '/calendar', label: '報告カレンダー', icon: Calendar },
     { href: '/achievements', label: '成果報告', icon: Star },
     { href: '/badges', label: 'バッジ', icon: Award },
+    { href: '/settings', label: '設定', icon: Bell },
   ]
 
   const adminLinks = [

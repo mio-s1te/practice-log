@@ -82,7 +82,36 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
   // 招待再送信
   const [reinviteLoading, setReinviteLoading] = useState(false)
   const [reinviteMsg, setReinviteMsg] = useState('')
-  // 再招待ボタンは常に表示（期限切れかどうか管理者が判断）
+
+  // LINE手動送信
+  const [showLineForm, setShowLineForm] = useState(false)
+  const [lineMsg, setLineMsgText] = useState('')
+  const [lineLoading, setLineLoading] = useState(false)
+  const [lineResult, setLineResult] = useState('')
+  const lineUserId = (member as any).line_user_id as string | null
+
+  const handleLineSend = async () => {
+    if (!lineMsg.trim()) return
+    setLineLoading(true)
+    setLineResult('')
+    try {
+      const res = await fetch('/api/line/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId: member.id, message: lineMsg }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '送信失敗')
+      setLineResult('✅ LINEを送信しました')
+      setLineMsgText('')
+      setShowLineForm(false)
+    } catch (e: any) {
+      setLineResult(`❌ ${e.message}`)
+    } finally {
+      setLineLoading(false)
+      setTimeout(() => setLineResult(''), 5000)
+    }
+  }
 
   const handleSetPassword = async () => {
     if (!newPassword || newPassword.length < 8) {
@@ -256,6 +285,16 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
           </div>
           {isAdmin && (
             <div className="flex gap-2 flex-wrap justify-end">
+              {lineUserId && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => { setShowLineForm(!showLineForm) }}
+                  className="text-green-600 border-green-200 hover:bg-green-50"
+                >
+                  💬 LINEを送る
+                </Button>
+              )}
               <Button
                   size="sm"
                   variant="secondary"
@@ -363,6 +402,37 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
       {reinviteMsg && (
         <div className={`text-sm px-4 py-3 rounded-xl ${reinviteMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
           {reinviteMsg}
+        </div>
+      )}
+
+      {/* LINE手動送信フォーム */}
+      {showLineForm && lineUserId && (
+        <Card className="border-green-100">
+          <p className="text-sm font-bold text-green-800 mb-1">💬 {member.name}さんにLINEを送る</p>
+          <p className="text-xs text-stone-400 mb-3">LINE連携済み ✅</p>
+          <textarea
+            value={lineMsg}
+            onChange={e => setLineMsgText(e.target.value)}
+            placeholder={`${member.name}さん、こんにちは！\n\n（メッセージを入力）`}
+            rows={4}
+            className="w-full text-sm border border-stone-200 rounded-xl px-3 py-2 focus:outline-none focus:border-green-400 resize-none"
+          />
+          <div className="flex gap-2 mt-2">
+            <Button size="sm" loading={lineLoading} onClick={handleLineSend} disabled={!lineMsg.trim()}>
+              送信
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => { setShowLineForm(false); setLineMsgText('') }}>
+              キャンセル
+            </Button>
+          </div>
+          {lineResult && (
+            <p className={`text-xs mt-2 ${lineResult.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>{lineResult}</p>
+          )}
+        </Card>
+      )}
+      {!lineUserId && isAdmin && (
+        <div className="text-xs text-stone-400 bg-stone-50 rounded-xl px-3 py-2">
+          📵 このメンバーはまだLINE連携していません
         </div>
       )}
 
