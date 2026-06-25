@@ -82,8 +82,7 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
   // 招待再送信
   const [reinviteLoading, setReinviteLoading] = useState(false)
   const [reinviteMsg, setReinviteMsg] = useState('')
-  // created_at と updated_at が同じ = まだログインしてパスワード設定をしていない
-  const neverLoggedIn = member.created_at === member.updated_at
+  // 再招待ボタンは常に表示（期限切れかどうか管理者が判断）
 
   const handleSetPassword = async () => {
     if (!newPassword || newPassword.length < 8) {
@@ -255,8 +254,7 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
           </div>
           {isAdmin && (
             <div className="flex gap-2 flex-wrap justify-end">
-              {neverLoggedIn && (
-                <Button
+              <Button
                   size="sm"
                   variant="secondary"
                   onClick={handleReinvite}
@@ -265,7 +263,6 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
                 >
                   {reinviteLoading ? '送信中...' : '📧 招待を再送信'}
                 </Button>
-              )}
               <Button size="sm" variant="secondary" onClick={() => { setShowEmailForm(!showEmailForm); setShowPwForm(false); setEditing(false) }}>
                 ✉️ メアド変更
               </Button>
@@ -368,22 +365,7 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
       )}
 
       {/* 未ログインバナー */}
-      {neverLoggedIn && isAdmin && (
-        <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-bold text-orange-700">⏳ まだログインしていません</p>
-            <p className="text-xs text-orange-600 mt-0.5">招待メールの期限が切れている可能性があります</p>
-          </div>
-          <Button
-            size="sm"
-            onClick={handleReinvite}
-            disabled={reinviteLoading}
-            className="flex-shrink-0 bg-orange-500 hover:bg-orange-600 text-white border-0"
-          >
-            {reinviteLoading ? '送信中...' : '再送信'}
-          </Button>
-        </div>
-      )}
+
 
       {/* メールアドレス変更メッセージ */}
       {emailMsg && (
@@ -459,7 +441,8 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
             バッジ管理
           </h2>
           <div className="grid grid-cols-2 gap-2">
-            {allBadges.map((badge) => {
+            {/* code重複を除去して表示 */}
+            {Array.from(new Map(allBadges.map(b => [b.code, b])).values()).map((badge) => {
               const earned = earnedIds.has(badge.id)
               return (
                 <button
