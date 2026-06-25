@@ -73,6 +73,12 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
   const [pwLoading, setPwLoading] = useState(false)
   const [pwMsg, setPwMsg] = useState('')
 
+  // 招待再送信
+  const [reinviteLoading, setReinviteLoading] = useState(false)
+  const [reinviteMsg, setReinviteMsg] = useState('')
+  // created_at と updated_at が同じ = まだログインしてパスワード設定をしていない
+  const neverLoggedIn = member.created_at === member.updated_at
+
   const handleSetPassword = async () => {
     if (!newPassword || newPassword.length < 8) {
       setPwMsg('❌ パスワードは8文字以上で入力してください')
@@ -101,6 +107,27 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
 
   const streak = calcStreak(checkins)
   const { reported, total, rate } = calcMonthlyRate(checkins)
+
+  const handleReinvite = async () => {
+    if (!confirm(`${member.name}（${member.email}）に招待メールを再送信しますか？\n\n※現在のアカウントは一旦削除され、新しい招待メールが送られます。`)) return
+    setReinviteLoading(true)
+    setReinviteMsg('')
+    try {
+      const res = await fetch('/api/admin/reinvite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: member.id, email: member.email, name: member.name }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '再送信失敗')
+      setReinviteMsg(`✅ ${member.email} に招待メールを再送信しました`)
+    } catch (e: any) {
+      setReinviteMsg(`❌ ${e.message}`)
+    } finally {
+      setReinviteLoading(false)
+      setTimeout(() => setReinviteMsg(''), 5000)
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -191,7 +218,18 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
             </div>
           </div>
           {isAdmin && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap justify-end">
+              {neverLoggedIn && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleReinvite}
+                  disabled={reinviteLoading}
+                  className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                >
+                  {reinviteLoading ? '送信中...' : '📧 招待を再送信'}
+                </Button>
+              )}
               <Button size="sm" variant="secondary" onClick={() => { setShowPwForm(!showPwForm); setEditing(false) }}>
                 🔑 PW設定
               </Button>
@@ -282,6 +320,31 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
           </div>
         )}
       </Card>
+
+      {/* 招待再送信メッセージ */}
+      {reinviteMsg && (
+        <div className={`text-sm px-4 py-3 rounded-xl ${reinviteMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {reinviteMsg}
+        </div>
+      )}
+
+      {/* 未ログインバナー */}
+      {neverLoggedIn && isAdmin && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-orange-700">⏳ まだログインしていません</p>
+            <p className="text-xs text-orange-600 mt-0.5">招待メールの期限が切れている可能性があります</p>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleReinvite}
+            disabled={reinviteLoading}
+            className="flex-shrink-0 bg-orange-500 hover:bg-orange-600 text-white border-0"
+          >
+            {reinviteLoading ? '送信中...' : '再送信'}
+          </Button>
+        </div>
+      )}
 
       {/* パスワード設定フォーム */}
       {showPwForm && isAdmin && (
