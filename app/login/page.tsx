@@ -18,16 +18,31 @@ export default function LoginPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    // 招待リンク・パスワードリセットリンクのハッシュトークンを検出
     const hash = window.location.hash
+
+    // 招待リンク・パスワードリセットリンクのハッシュトークンを検出
     if (hash && hash.includes('access_token')) {
       const params = new URLSearchParams(hash.replace('#', ''))
       const type = params.get('type')
       if (type === 'invite' || type === 'recovery' || type === 'signup') {
         setRedirecting(true)
         router.replace('/set-password' + hash)
+        return
       }
     }
+
+    // ハッシュなし → 既存セッションがあればダッシュボードへ
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.session.user.id)
+          .single()
+        const role = profile?.role ?? 'member'
+        router.replace(role === 'admin' || role === 'staff' ? '/admin' : '/dashboard')
+      }
+    })
   }, [router])
 
   // ハッシュトークン検出時はローディングだけ表示
