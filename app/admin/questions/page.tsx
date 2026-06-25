@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { AppShell } from '@/components/layout/AppShell'
 import { QuestionsClient } from './QuestionsClient'
 
@@ -23,9 +24,30 @@ export default async function QuestionsPage() {
     .eq('has_question', true)
     .order('date', { ascending: false })
 
+  // 回答データを取得（メンバー返信含む）
+  const adminClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { cookies: { getAll: () => [], setAll: () => {} } }
+  )
+  const checkinIds = (questions ?? []).map((q: { id: string }) => q.id)
+  const { data: replies } = checkinIds.length > 0
+    ? await adminClient
+        .from('question_replies')
+        .select('id, checkin_id, reply_text, created_at')
+        .in('checkin_id', checkinIds)
+        .order('created_at', { ascending: true })
+    : { data: [] }
+
+  // 質問にrepliesをマージ
+  const questionsWithReplies = (questions ?? []).map((q: any) => ({
+    ...q,
+    replies: (replies ?? []).filter((r: any) => r.checkin_id === q.id),
+  }))
+
   return (
     <AppShell profile={profile}>
-      <QuestionsClient questions={questions ?? []} />
+      <QuestionsClient questions={questionsWithReplies} />
     </AppShell>
   )
 }

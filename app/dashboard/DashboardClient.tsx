@@ -94,11 +94,13 @@ interface Props {
   myStuckItems?: { id: string; date: string; category: string; stuck_text?: string | null; mood: string }[]
   allMyCheckins?: { id: string; date: string; category: string; mood: string; stuck_text?: string | null }[]
   generationCheckins?: { date: string; category: string; mood: string; user_id: string }[]
+  answeredQuestionCount?: number
 }
 
 export function DashboardClient({
   profile, checkins, allCheckins, userBadges, achievements,
   myStuckItems = [], allMyCheckins = [], generationCheckins = [],
+  answeredQuestionCount = 0,
 }: Props) {
   const today = format(new Date(), 'yyyy-MM-dd')
   const now = new Date()
@@ -201,6 +203,20 @@ export function DashboardClient({
         </div>
       )}
 
+      {/* スタッフからの回答通知 */}
+      {answeredQuestionCount > 0 && (
+        <Link href="/questions" className="block">
+          <div className="bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-300 rounded-2xl p-4 flex items-center gap-3 hover:opacity-90 transition-opacity">
+            <div className="text-2xl">✉️</div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-emerald-900">スタッフから回答が届いています</p>
+              <p className="text-xs text-emerald-700 mt-0.5">質問への回答 {answeredQuestionCount}件 → タップして確認</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-emerald-600" />
+          </div>
+        </Link>
+      )}
+
       {/* 成果報告ボタン（目立つ位置） */}
       <Link href="/achievements" className="block">
         <div className="bg-gradient-to-r from-yellow-400 to-amber-500 rounded-2xl p-4 flex items-center gap-3 hover:opacity-90 transition-opacity shadow-md">
@@ -232,10 +248,8 @@ export function DashboardClient({
         </div>
       </div>
 
-      {/* 同期タイムライン */}
-      {profile.generation && (
-        <GenerationTimeline myUserId={profile.id} />
-      )}
+      {/* 同期タイムライン（generationがない場合も表示・メッセージで案内） */}
+      <GenerationTimeline myUserId={profile.id} generation={profile.generation ?? null} />
 
       {/* ━━━ 分析グラフ ━━━ */}
       {/* 過去14日間の出席スタンプ */}

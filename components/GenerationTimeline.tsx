@@ -31,7 +31,7 @@ const EVENT_BG: Record<TimelineEvent['event_type'], string> = {
   staff_reply: 'bg-emerald-50 border-emerald-100',
 }
 
-export default function GenerationTimeline({ myUserId }: { myUserId: string }) {
+export default function GenerationTimeline({ myUserId, generation }: { myUserId: string; generation: string | null }) {
   const [events, setEvents] = useState<TimelineEvent[]>([])
   const [emojiMap, setEmojiMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -65,6 +65,21 @@ export default function GenerationTimeline({ myUserId }: { myUserId: string }) {
   }
 
   const getEmoji = (userId: string) => emojiMap[userId] ?? '🐾'
+
+  // generationが未設定の場合
+  if (!generation) {
+    return (
+      <div className="bg-white border border-stone-100 rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-base">🌿</span>
+          <h2 className="text-sm font-bold text-stone-700">同期タイムライン</h2>
+        </div>
+        <p className="text-xs text-stone-400 text-center py-3">
+          期生が設定されると同期のタイムラインが表示されます
+        </p>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

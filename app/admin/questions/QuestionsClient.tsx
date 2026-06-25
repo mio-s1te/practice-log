@@ -6,14 +6,24 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Select } from '@/components/ui/Input'
 import { formatDate, getQuestionStatusColor } from '@/lib/utils'
+import { formatDistanceToNow } from 'date-fns'
+import { ja } from 'date-fns/locale'
 import type { QuestionStatusType } from '@/types/database'
-import { MessageSquare, Filter } from 'lucide-react'
+import { MessageSquare, Filter, ChevronDown, ChevronUp } from 'lucide-react'
 
 const STATUS_OPTIONS: QuestionStatusType[] = [
   '未対応', '対応中', 'Discordで回答済み', '個別回答済み', 'FAQ化済み', '個別相談へ案内'
 ]
 
 const STATUS_SELECT_OPTIONS = STATUS_OPTIONS.map((s) => ({ value: s, label: s }))
+
+type Reply = {
+  id: string
+  checkin_id: string
+  reply_text: string
+  created_at: string
+  from_member?: boolean  // 013マイグレーション後に有効
+}
 
 interface QuestionItem {
   id: string
@@ -23,6 +33,7 @@ interface QuestionItem {
   mood: string
   profiles: { name: string; generation: string | null; discord_name: string | null }
   question_statuses: { id: string; status: string; memo: string | null } | null
+  replies?: Reply[]
 }
 
 interface Props {
@@ -37,10 +48,19 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
   const [replyingId, setReplyingId] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
   const [replying, setReplying] = useState(false)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   const filtered = filterStatus === 'all'
     ? questions
     : questions.filter((q) => q.question_statuses?.status === filterStatus || (!q.question_statuses && filterStatus === '未対応'))
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
 
   const handleStatusChange = async (questionId: string, checkinId: string, newStatus: QuestionStatusType) => {
     setUpdating(questionId)
@@ -49,13 +69,11 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
     const existing = questions.find((q) => q.id === questionId)?.question_statuses
 
     if (existing?.id) {
-      // 既存レコードはUPDATE（staffはRLSで許可済み）
       await supabaseClient
         .from('question_statuses')
         .update({ status: newStatus })
         .eq('id', existing.id)
     } else {
-      // 新規レコードはAPIルート経由（Service Role Keyでstaff/adminどちらもINSERT可）
       await fetch('/api/admin/question-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -82,20 +100,32 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
       body: JSON.stringify({ checkinId: questionId, replyText }),
     })
     if (res.ok) {
+      const json = await res.json()
       setReplyingId(null)
       setReplyText('')
-      // ステータスを「個別回答済み」に更新（UI反映）
+      // 回答をUIに追加
       setQuestions(prev => prev.map(q =>
         q.id === questionId
-          ? { ...q, question_statuses: { ...(q.question_statuses ?? { id: '', memo: null }), status: '個別回答済み' } }
+          ? {
+              ...q,
+              question_statuses: { ...(q.question_statuses ?? { id: '', memo: null }), status: '個別回答済み' },
+              replies: [...(q.replies ?? []), { ...json.reply, from_member: false }],
+            }
           : q
       ))
+      // 展開して回答を見せる
+      setExpandedIds(prev => new Set(prev).add(questionId))
     }
     setReplying(false)
   }
 
   const unopenedCount = questions.filter(
     (q) => !q.question_statuses || q.question_statuses.status === '未対応'
+  ).length
+
+  // メンバーからの返信がある質問
+  const memberRepliedCount = questions.filter(
+    (q) => (q.replies ?? []).some(r => r.from_member)
   ).length
 
   return (
@@ -106,6 +136,9 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
           全 {questions.length} 件
           {unopenedCount > 0 && (
             <span className="ml-2 text-red-500 font-medium">未対応 {unopenedCount} 件</span>
+          )}
+          {memberRepliedCount > 0 && (
+            <span className="ml-2 text-blue-500 font-medium">💬 メンバー返信あり {memberRepliedCount} 件</span>
           )}
         </p>
       </div>
@@ -140,6 +173,9 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
         <div className="space-y-3">
           {filtered.map((q) => {
             const status = q.question_statuses?.status ?? '未対応'
+            const isExpanded = expandedIds.has(q.id)
+            const hasMemberReply = (q.replies ?? []).some(r => r.from_member)
+
             return (
               <Card key={q.id} className={status === '未対応' ? 'border-red-100' : ''}>
                 <div className="flex items-start justify-between gap-3 mb-3">
@@ -150,6 +186,11 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
                     )}
                     {q.profiles?.discord_name && (
                       <span className="text-xs text-stone-400">@{q.profiles.discord_name}</span>
+                    )}
+                    {hasMemberReply && (
+                      <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">
+                        💬 メンバー返信あり
+                      </span>
                     )}
                   </div>
                   <span className="text-xs text-stone-400 flex-shrink-0">{formatDate(q.date, 'M/d')}</span>
@@ -177,7 +218,45 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
                   >
                     💬 回答する
                   </button>
+                  {/* スレッドの展開・折りたたみ */}
+                  {(q.replies ?? []).length > 0 && (
+                    <button
+                      onClick={() => toggleExpand(q.id)}
+                      className="text-xs px-2 py-1 rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-50 flex items-center gap-1 transition-colors"
+                    >
+                      {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      返信 {(q.replies ?? []).length} 件
+                    </button>
+                  )}
                 </div>
+
+                {/* 返信スレッド（展開時） */}
+                {isExpanded && (q.replies ?? []).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-stone-100 space-y-2">
+                    {(q.replies ?? []).map((reply) => (
+                      <div
+                        key={reply.id}
+                        className={`rounded-xl p-3 ${
+                          reply.from_member
+                            ? 'bg-blue-50 border border-blue-100 ml-4'
+                            : 'bg-emerald-50 border border-emerald-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-bold">
+                            {reply.from_member ? '🙋 メンバー' : '👨‍💼 スタッフ'}
+                          </span>
+                          <span className="text-[10px] text-stone-400">
+                            {formatDistanceToNow(new Date(reply.created_at), { addSuffix: true, locale: ja })}
+                          </span>
+                        </div>
+                        <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap">
+                          {reply.reply_text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* 回答フォーム */}
                 {replyingId === q.id && (
