@@ -220,10 +220,20 @@ DECLARE
   v_has_done bool;
   v_has_achievement bool;
   v_badge_id uuid;
+  v_joined_at date;
+  v_days_since_join int;
+  v_monthly_count int;
 BEGIN
   -- チェックイン総数
   SELECT COUNT(*) INTO v_checkin_count
   FROM public.checkins WHERE user_id = p_user_id;
+
+  -- 参加日（最初のチェックイン日）
+  SELECT MIN(date)::date INTO v_joined_at
+  FROM public.checkins WHERE user_id = p_user_id;
+
+  -- 参加からの経過日数
+  v_days_since_join := CURRENT_DATE - v_joined_at;
 
   -- 連続日数計算（簡易版）
   WITH dates AS (
@@ -330,6 +340,27 @@ BEGIN
       ON CONFLICT (user_id, badge_id) DO NOTHING;
     END IF;
   END IF;
+
+  -- 1ヶ月完走（参加から30日以上経過 かつ 累計30日以上チェックイン）
+  IF v_days_since_join >= 30 AND v_checkin_count >= 30 THEN
+    SELECT id INTO v_badge_id FROM public.badges WHERE code = 'month_1';
+    IF v_badge_id IS NOT NULL THEN
+      INSERT INTO public.user_badges (user_id, badge_id, is_manual)
+      VALUES (p_user_id, v_badge_id, false)
+      ON CONFLICT (user_id, badge_id) DO NOTHING;
+    END IF;
+  END IF;
+
+  -- 2ヶ月完走（参加から60日以上経過 かつ 累計50日以上チェックイン）
+  IF v_days_since_join >= 60 AND v_checkin_count >= 50 THEN
+    SELECT id INTO v_badge_id FROM public.badges WHERE code = 'month_2';
+    IF v_badge_id IS NOT NULL THEN
+      INSERT INTO public.user_badges (user_id, badge_id, is_manual)
+      VALUES (p_user_id, v_badge_id, false)
+      ON CONFLICT (user_id, badge_id) DO NOTHING;
+    END IF;
+  END IF;
+
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
