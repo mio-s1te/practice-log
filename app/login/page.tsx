@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
@@ -15,6 +15,20 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    // 招待リンク・パスワードリセットリンクのハッシュトークンを検出
+    // 例: https://mioprocess.netlify.app/login#access_token=xxx&type=invite
+    const hash = window.location.hash
+    if (hash && hash.includes('access_token')) {
+      const params = new URLSearchParams(hash.replace('#', ''))
+      const type = params.get('type')
+      // invite または recovery の場合は set-password へ飛ばす
+      if (type === 'invite' || type === 'recovery' || type === 'signup') {
+        router.replace('/set-password' + hash)
+      }
+    }
+  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()

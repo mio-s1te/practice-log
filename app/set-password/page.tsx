@@ -19,6 +19,7 @@ export default function SetPasswordPage() {
 
   useEffect(() => {
     // URLハッシュにaccess_tokenが含まれる場合（Implicit Flow）を処理
+    // login/page.tsx から /set-password#access_token=xxx として飛んでくる
     const hash = window.location.hash
     if (hash && hash.includes('access_token')) {
       const params = new URLSearchParams(hash.replace('#', ''))
