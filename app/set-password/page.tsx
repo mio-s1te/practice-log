@@ -18,7 +18,20 @@ export default function SetPasswordPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    // Supabaseの招待リンクはURLのhashにtokenが含まれる
+    // URLハッシュにaccess_tokenが含まれる場合（Implicit Flow）を処理
+    const hash = window.location.hash
+    if (hash && hash.includes('access_token')) {
+      const params = new URLSearchParams(hash.replace('#', ''))
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+      if (accessToken && refreshToken) {
+        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+          .then(({ error }) => {
+            if (!error) setSessionReady(true)
+          })
+      }
+    }
+
     // onAuthStateChangeでセッションが確立されるのを待つ
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY' || event === 'INITIAL_SESSION') {

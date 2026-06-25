@@ -16,12 +16,19 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${origin}/set-password`)
       }
 
-      // role別にリダイレクト先を決定
+      // typeがなくてもパスワード未設定（招待ユーザー）の場合はset-passwordへ
       if (data.session) {
+        const user = data.session.user
+        // invited_at があってパスワードが未設定のユーザーはset-passwordへ
+        const isInvited = user.invited_at && !user.last_sign_in_at
+        if (isInvited) {
+          return NextResponse.redirect(`${origin}/set-password`)
+        }
+
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
-          .eq('id', data.session.user.id)
+          .eq('id', user.id)
           .single()
         const role = profile?.role ?? 'member'
         const dest = next ?? (role === 'admin' || role === 'staff' ? '/admin' : '/dashboard')
