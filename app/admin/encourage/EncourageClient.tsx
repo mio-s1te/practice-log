@@ -37,32 +37,35 @@ interface Props {
 
 export function EncourageClient({ items, eventMap: initialEventMap, emojiMap, myUserId }: Props) {
   const [eventMap, setEventMap] = useState(initialEventMap)
+  // stampingId は checkinId を保持（timeline_event IDが未確定の場合もあるため）
   const [stampingId, setStampingId] = useState<string | null>(null)
 
-  const handleStamp = async (timelineEventId: string, checkinId: string, stamp: Stamp) => {
-    setStampingId(timelineEventId)
-    const res = await fetch('/api/timeline/stamp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ timelineEventId, stamp }),
-    })
-    if (res.ok) {
-      const { action } = await res.json()
-      // ローカルのスタンプ状態を更新
-      setEventMap(prev => {
-        const ev = prev[checkinId]
-        if (!ev) return prev
-        let stamps = [...ev.encourage_stamps]
-        const myIdx = stamps.findIndex(s => s.user_id === myUserId)
-        if (action === 'removed') {
-          stamps = stamps.filter(s => s.user_id !== myUserId)
-        } else if (action === 'changed') {
-          if (myIdx >= 0) stamps[myIdx] = { ...stamps[myIdx], stamp }
-        } else {
-          stamps.push({ id: Date.now().toString(), stamp, user_id: myUserId })
-        }
-        return { ...prev, [checkinId]: { ...ev, encourage_stamps: stamps } }
+  /**
+   * handleStamp
+   * - timeline_events レコードが存在する場合でもしない場合でも
+   *   /api/admin/encourage-stamp を呼び出す。
+   * - APIがオンデマンドで timeline_event を作成して返してくれるので
+   *   レスポンスの event で eventMap を更新する。
+   */
+  const handleStamp = async (checkinId: string, stamp: Stamp) => {
+    setStampingId(checkinId)
+    try {
+      const res = await fetch('/api/admin/encourage-stamp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkinId, stamp }),
       })
+      if (res.ok) {
+        const { event } = await res.json()
+        if (event) {
+          setEventMap(prev => ({ ...prev, [checkinId]: event }))
+        }
+      } else {
+        const body = await res.json().catch(() => ({}))
+        console.error('encourage-stamp error:', body)
+      }
+    } catch (e) {
+      console.error('encourage-stamp fetch error:', e)
     }
     setStampingId(null)
   }
@@ -95,6 +98,7 @@ export function EncourageClient({ items, eventMap: initialEventMap, emojiMap, my
             })
 
             const memberEmoji = emojiMap[item.user_id] ?? '🐾'
+            const isStamping = stampingId === item.id
 
             return (
               <Card key={item.id} className="border-amber-100">
@@ -125,55 +129,49 @@ export function EncourageClient({ items, eventMap: initialEventMap, emojiMap, my
                   <p className="text-xs text-stone-400 mb-3">Discord: @{item.profiles.discord_name}</p>
                 )}
 
-                {/* スタンプエリア */}
-                {event ? (
-                  <div className="pt-3 border-t border-stone-100">
-                    {/* 既存スタンプ集計 */}
-                    {Object.keys(stampCounts).length > 0 && (
-                      <div className="flex gap-1.5 mb-2 flex-wrap">
-                        {Object.entries(stampCounts).map(([s, cnt]) => (
-                          <span
-                            key={s}
-                            className={`text-xs px-2 py-0.5 rounded-full border ${
-                              myStamp === s
-                                ? 'bg-amber-100 border-amber-300 font-bold'
-                                : 'bg-white border-stone-200'
-                            }`}
-                          >
-                            {s} {cnt}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {/* スタンプボタン */}
-                    <div className="flex gap-1.5 flex-wrap items-center">
-                      <span className="text-xs text-stone-500 mr-1">スタンプを送る：</span>
-                      {STAMPS.map(s => (
-                        <button
+                {/* スタンプエリア（timeline_eventの有無にかかわらず常に表示） */}
+                <div className="pt-3 border-t border-stone-100">
+                  {/* 既存スタンプ集計 */}
+                  {Object.keys(stampCounts).length > 0 && (
+                    <div className="flex gap-1.5 mb-2 flex-wrap">
+                      {Object.entries(stampCounts).map(([s, cnt]) => (
+                        <span
                           key={s}
-                          disabled={stampingId === event.id}
-                          onClick={() => handleStamp(event.id, item.id, s)}
-                          className={`text-base px-2 py-1 rounded-xl border transition-all active:scale-95 ${
+                          className={`text-xs px-2 py-0.5 rounded-full border ${
                             myStamp === s
-                              ? 'bg-amber-100 border-amber-300 scale-110'
-                              : 'bg-white border-stone-200 hover:border-amber-300 hover:bg-amber-50'
+                              ? 'bg-amber-100 border-amber-300 font-bold'
+                              : 'bg-white border-stone-200'
                           }`}
                         >
-                          {s}
-                        </button>
+                          {s} {cnt}
+                        </span>
                       ))}
                     </div>
-                    <p className="text-[10px] text-stone-400 mt-1.5">
-                      {memberEmoji}さんのタイムラインに表示されます
-                    </p>
+                  )}
+                  {/* スタンプボタン */}
+                  <div className="flex gap-1.5 flex-wrap items-center">
+                    <span className="text-xs text-stone-500 mr-1">スタンプを送る：</span>
+                    {STAMPS.map(s => (
+                      <button
+                        key={s}
+                        disabled={isStamping}
+                        onClick={() => handleStamp(item.id, s)}
+                        className={`text-base px-2 py-1 rounded-xl border transition-all active:scale-95 ${
+                          isStamping
+                            ? 'opacity-50 cursor-not-allowed'
+                            : myStamp === s
+                              ? 'bg-amber-100 border-amber-300 scale-110'
+                              : 'bg-white border-stone-200 hover:border-amber-300 hover:bg-amber-50'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
                   </div>
-                ) : (
-                  <div className="pt-3 border-t border-stone-100">
-                    <p className="text-xs text-stone-400">
-                      ⚠️ タイムラインイベントが未作成です（気分の複数選択が古い形式の可能性があります）
-                    </p>
-                  </div>
-                )}
+                  <p className="text-[10px] text-stone-400 mt-1.5">
+                    {memberEmoji}さんのタイムラインに表示されます
+                  </p>
+                </div>
               </Card>
             )
           })}

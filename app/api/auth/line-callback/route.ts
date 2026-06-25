@@ -10,7 +10,15 @@ export async function GET(req: NextRequest) {
   const state = searchParams.get('state')
   const error = searchParams.get('error')
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!
+  // ベースURLを決定（line-connect と同じロジック）
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.URL_PRODUCTION ||
+    (() => {
+      const host = req.headers.get('host') ?? 'localhost:3000'
+      const proto = req.headers.get('x-forwarded-proto') ?? 'https'
+      return `${proto}://${host}`
+    })()
 
   if (error || !code || !state) {
     return NextResponse.redirect(`${appUrl}/dashboard?line_error=cancelled`)
@@ -28,19 +36,24 @@ export async function GET(req: NextRequest) {
   }
 
   // LINE Loginのtokenエンドポイントでアクセストークン取得
+  // redirect_uri は line-connect で使ったものと完全一致させる
+  const redirectUri = `${appUrl}/api/auth/line-callback`
+
   const tokenRes = await fetch('https://api.line.me/oauth2/v2.1/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: `${appUrl}/api/auth/line-callback`,
+      redirect_uri: redirectUri,
       client_id: process.env.LINE_LOGIN_CHANNEL_ID!,
       client_secret: process.env.LINE_LOGIN_CHANNEL_SECRET!,
     }),
   })
 
   if (!tokenRes.ok) {
+    const body = await tokenRes.text()
+    console.error('LINE token error:', body)
     return NextResponse.redirect(`${appUrl}/dashboard?line_error=token_failed`)
   }
 
@@ -72,6 +85,7 @@ export async function GET(req: NextRequest) {
     .eq('id', userId)
 
   if (dbError) {
+    console.error('DB update error:', dbError)
     return NextResponse.redirect(`${appUrl}/dashboard?line_error=db_failed`)
   }
 
