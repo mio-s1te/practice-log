@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo } from 'react'
+import GenerationTimeline from '@/components/GenerationTimeline'
 import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval, isToday } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { ClipboardList, Flame, Calendar, Star, ChevronRight, TrendingUp, AlertCircle, Trophy } from 'lucide-react'
@@ -230,6 +231,11 @@ export function DashboardClient({
           <div className="text-xs text-stone-500 mt-0.5">累計報告数</div>
         </div>
       </div>
+
+      {/* 同期タイムライン */}
+      {profile.generation && (
+        <GenerationTimeline myUserId={profile.id} />
+      )}
 
       {/* ━━━ 分析グラフ ━━━ */}
       {/* 過去14日間の出席スタンプ */}

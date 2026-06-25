@@ -249,7 +249,9 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
             </div>
             <div>
               <h1 className="text-lg font-bold text-stone-800">{member.name}</h1>
-              <p className="text-sm text-stone-500">{member.email}</p>
+              <p className="text-sm text-stone-500">
+                {isAdmin ? member.email : '●●●@●●●●●●'}
+              </p>
             </div>
           </div>
           {isAdmin && (

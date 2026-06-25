@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
-import { CheckCircle, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle, MessageSquare } from 'lucide-react'
 import type { Profile, Checkin, CategoryType, MoodType, DiscordShareType } from '@/types/database'
 import { CATEGORIES, MOODS, MOOD_EMOJI } from '@/types/database'
 import { format } from 'date-fns'
@@ -24,6 +24,18 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
   const supabase = createClient()
   const today = format(new Date(), 'yyyy-MM-dd')
   const todayLabel = format(new Date(), 'M月d日（EEEE）', { locale: ja })
+  const isEdit = !!todayCheckin
+
+  // 気分：複数選択対応
+  const parseMoods = (m: MoodType | string | null): MoodType[] => {
+    if (!m) return ['順調']
+    try {
+      const parsed = JSON.parse(m as string)
+      return Array.isArray(parsed) ? parsed : [m as MoodType]
+    } catch {
+      return [m as MoodType]
+    }
+  }
 
   const [category, setCategory] = useState<CategoryType>(todayCheckin?.category ?? 'その他')
   const [section, setSection] = useState(todayCheckin?.section ?? '')
@@ -31,17 +43,30 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
   const [stuckText, setStuckText] = useState(todayCheckin?.stuck_text ?? '')
   const [hasQuestion, setHasQuestion] = useState(todayCheckin?.has_question ?? false)
   const [questionText, setQuestionText] = useState(todayCheckin?.question_text ?? '')
+  const [questionPublicOk, setQuestionPublicOk] = useState<boolean | null>(null)
   const [nextText, setNextText] = useState(todayCheckin?.next_text ?? '')
-  const [mood, setMood] = useState<MoodType>(todayCheckin?.mood ?? '順調')
+  const [moods, setMoods] = useState<MoodType[]>(parseMoods(todayCheckin?.mood ?? '順調'))
   const [discordShare, setDiscordShare] = useState<DiscordShareType>(todayCheckin?.discord_share ?? '共有OK')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
+  const [savedCheckinId, setSavedCheckinId] = useState<string | null>(null)
+
+  const toggleMood = (m: MoodType) => {
+    setMoods(prev =>
+      prev.includes(m)
+        ? prev.length > 1 ? prev.filter(x => x !== m) : prev  // 最低1つは残す
+        : [...prev, m]
+    )
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+
+    // moodは複数選択をJSON文字列で保存（後方互換：1つの場合はそのまま）
+    const moodValue = moods.length === 1 ? moods[0] : JSON.stringify(moods)
 
     const payload = {
       user_id: profile.id,
@@ -52,29 +77,41 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
       stuck_text: stuckText,
       has_question: hasQuestion,
       question_text: hasQuestion ? questionText : '',
+      question_public_ok: hasQuestion ? (questionPublicOk ?? false) : false,
       next_text: nextText,
-      mood,
+      mood: moodValue as MoodType,
       discord_share: discordShare,
     }
 
-    let queryError
-    if (todayCheckin) {
-      // 更新
+    let checkinId = todayCheckin?.id ?? null
+
+    if (isEdit) {
       const { error } = await supabase
         .from('checkins')
         .update(payload)
-        .eq('id', todayCheckin.id)
-      queryError = error
+        .eq('id', todayCheckin!.id)
+      if (error) { setError('送信に失敗しました。もう一度お試しください。'); setLoading(false); return }
     } else {
-      // 新規作成
-      const { error } = await supabase.from('checkins').insert(payload)
-      queryError = error
+      const { data, error } = await supabase
+        .from('checkins')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (error) { setError('送信に失敗しました。もう一度お試しください。'); setLoading(false); return }
+      checkinId = data?.id ?? null
     }
 
-    if (queryError) {
-      setError('送信に失敗しました。もう一度お試しください。')
-      setLoading(false)
-      return
+    setSavedCheckinId(checkinId)
+
+    // 新規チェックインの時のみタイムラインイベントを作成
+    if (!isEdit && checkinId && profile.generation) {
+      const hasEncourage = moods.includes('励ましがほしい')
+      const eventType = hasEncourage ? 'encourage' : hasQuestion ? 'question' : 'checkin'
+      await fetch('/api/timeline/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkinId, eventType, moodList: moods }),
+      }).catch(() => {})
     }
 
     setDone(true)
@@ -90,13 +127,10 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
           <p className="text-sm text-stone-600 mb-2">
             報告した日としてスタンプが記録されました。
           </p>
-          <p className="text-sm text-stone-500 mb-6">
-            今日も実践お疲れ様です 🌟
-          </p>
+          <p className="text-sm text-stone-500 mb-6">今日も実践お疲れ様です 🌟</p>
 
-          {/* Discord案内 */}
-          {(hasQuestion || mood === '質問したい') && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-left">
+          {(hasQuestion || moods.includes('質問したい')) && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4 text-left">
               <p className="text-sm font-bold text-blue-800 mb-1">
                 <MessageSquare className="h-4 w-4 inline mr-1" />
                 Discordにも投稿しましょう
@@ -106,11 +140,11 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
               </p>
             </div>
           )}
-          {mood === '励ましがほしい' && (
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-6 text-left">
-              <p className="text-sm font-bold text-amber-800 mb-1">💛 サポートします</p>
+          {moods.includes('励ましがほしい') && (
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-4 text-left">
+              <p className="text-sm font-bold text-amber-800 mb-1">💛 同期に届けました</p>
               <p className="text-xs text-amber-700">
-                運営が確認します。必要があればDiscordのサポート部屋にも顔を出してください。
+                同期のタイムラインに通知されました。応援スタンプが届くかも！
               </p>
             </div>
           )}
@@ -119,9 +153,7 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
             <Button variant="secondary" onClick={() => router.push('/dashboard')}>
               マイページへ
             </Button>
-            <Button onClick={() => { setDone(false) }}>
-              修正する
-            </Button>
+            <Button onClick={() => { setDone(false) }}>修正する</Button>
           </div>
         </div>
       </div>
@@ -133,14 +165,15 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
       <div className="mb-5">
         <p className="text-sm text-stone-500">{todayLabel}</p>
         <h1 className="text-xl font-bold text-stone-800 mt-0.5">
-          {todayCheckin ? '今日の報告を修正' : '今日のチェックイン'}
+          {isEdit ? '今日の報告を修正' : '今日のチェックイン'}
         </h1>
-        {todayCheckin && (
+        {isEdit && (
           <p className="text-xs text-stone-400 mt-1">今日すでに報告済みです。修正できます。</p>
         )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+
         {/* 今日進めたもの */}
         <Card>
           <p className="text-sm font-bold text-stone-700 mb-3">
@@ -222,14 +255,44 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
             ))}
           </div>
           {hasQuestion && (
-            <Textarea
-              label="質問内容"
-              value={questionText}
-              onChange={(e) => setQuestionText(e.target.value)}
-              placeholder="具体的な質問を書いてください。スクショがある場合はDiscordに貼ってください"
-              rows={3}
-              required
-            />
+            <div className="space-y-3">
+              <Textarea
+                label="質問内容"
+                value={questionText}
+                onChange={(e) => setQuestionText(e.target.value)}
+                placeholder="具体的な質問を書いてください。スクショがある場合はDiscordに貼ってください"
+                rows={3}
+                required
+              />
+              {/* 匿名公開の確認 */}
+              <div className="bg-blue-50 rounded-xl p-3">
+                <p className="text-xs font-bold text-blue-800 mb-2">
+                  💡 この質問を匿名でFAQとして公開してもいいですか？
+                </p>
+                <p className="text-[10px] text-blue-600 mb-2">
+                  同じ疑問を持つ他のメンバーの役に立てます（名前は表示されません）
+                </p>
+                <div className="flex gap-2">
+                  {[
+                    { val: true,  label: 'OK！公開して 👍' },
+                    { val: false, label: 'このままでいい' },
+                  ].map(({ val, label }) => (
+                    <button
+                      key={String(val)}
+                      type="button"
+                      onClick={() => setQuestionPublicOk(val)}
+                      className={`flex-1 py-2 rounded-xl text-xs border transition-all ${
+                        questionPublicOk === val
+                          ? 'bg-blue-600 text-white border-blue-600 font-medium'
+                          : 'bg-white text-stone-600 border-stone-200 hover:border-blue-300'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
         </Card>
 
@@ -244,25 +307,30 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
           />
         </Card>
 
-        {/* 今の状態 */}
+        {/* 今の状態（複数選択） */}
         <Card>
-          <p className="text-sm font-bold text-stone-700 mb-3">💭 今の状態</p>
+          <p className="text-sm font-bold text-stone-700 mb-1">💭 今の状態</p>
+          <p className="text-[10px] text-stone-400 mb-3">複数選択できます</p>
           <div className="space-y-2">
-            {MOODS.map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMood(m)}
-                className={`w-full px-4 py-2.5 rounded-xl text-sm text-left flex items-center gap-2 border transition-all ${
-                  mood === m
-                    ? 'bg-amber-700 text-white border-amber-700 font-medium'
-                    : 'bg-stone-50 text-stone-700 border-stone-100 hover:border-amber-200'
-                }`}
-              >
-                <span>{MOOD_EMOJI[m]}</span>
-                <span>{m}</span>
-              </button>
-            ))}
+            {MOODS.map((m) => {
+              const selected = moods.includes(m)
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => toggleMood(m)}
+                  className={`w-full px-4 py-2.5 rounded-xl text-sm text-left flex items-center gap-2 border transition-all ${
+                    selected
+                      ? 'bg-amber-700 text-white border-amber-700 font-medium'
+                      : 'bg-stone-50 text-stone-700 border-stone-100 hover:border-amber-200'
+                  }`}
+                >
+                  <span>{MOOD_EMOJI[m]}</span>
+                  <span className="flex-1">{m}</span>
+                  {selected && <span className="text-white text-xs">✓</span>}
+                </button>
+              )
+            })}
           </div>
         </Card>
 
@@ -295,7 +363,7 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
 
         <Button type="submit" loading={loading} className="w-full" size="lg">
           <CheckCircle className="h-5 w-5" />
-          {todayCheckin ? '報告を更新する' : '報告する'}
+          {isEdit ? '報告を更新する' : '報告する'}
         </Button>
 
         <p className="text-xs text-center text-stone-400 pb-6">

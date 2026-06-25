@@ -34,6 +34,9 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
   const [questions, setQuestions] = useState(initialQuestions)
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [updating, setUpdating] = useState<string | null>(null)
+  const [replyingId, setReplyingId] = useState<string | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const [replying, setReplying] = useState(false)
 
   const filtered = filterStatus === 'all'
     ? questions
@@ -68,6 +71,27 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
       )
     )
     setUpdating(null)
+  }
+
+  const handleReply = async (questionId: string) => {
+    if (!replyText.trim()) return
+    setReplying(true)
+    const res = await fetch('/api/admin/question-reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkinId: questionId, replyText }),
+    })
+    if (res.ok) {
+      setReplyingId(null)
+      setReplyText('')
+      // ステータスを「個別回答済み」に更新（UI反映）
+      setQuestions(prev => prev.map(q =>
+        q.id === questionId
+          ? { ...q, question_statuses: { ...(q.question_statuses ?? { id: '', memo: null }), status: '個別回答済み' } }
+          : q
+      ))
+    }
+    setReplying(false)
   }
 
   const unopenedCount = questions.filter(
@@ -136,7 +160,7 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
                   <p className="text-xs text-stone-400 mt-1.5">{q.category}</p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <Select
                     options={STATUS_SELECT_OPTIONS}
                     value={status}
@@ -147,7 +171,42 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
                     {status}
                   </span>
                   {updating === q.id && <span className="text-xs text-stone-400">更新中...</span>}
+                  <button
+                    onClick={() => { setReplyingId(replyingId === q.id ? null : q.id); setReplyText('') }}
+                    className="text-xs px-2 py-1 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors"
+                  >
+                    💬 回答する
+                  </button>
                 </div>
+
+                {/* 回答フォーム */}
+                {replyingId === q.id && (
+                  <div className="mt-3 pt-3 border-t border-stone-100">
+                    <p className="text-xs font-bold text-stone-600 mb-2">💬 アプリ内回答</p>
+                    <textarea
+                      value={replyText}
+                      onChange={e => setReplyText(e.target.value)}
+                      placeholder="回答内容を入力してください..."
+                      rows={3}
+                      className="w-full text-sm border border-stone-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-400 resize-none"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => handleReply(q.id)}
+                        disabled={replying || !replyText.trim()}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white disabled:opacity-50 hover:bg-blue-700 transition-colors"
+                      >
+                        {replying ? '送信中...' : '回答を送信'}
+                      </button>
+                      <button
+                        onClick={() => { setReplyingId(null); setReplyText('') }}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-50"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  </div>
+                )}
               </Card>
             )
           })}

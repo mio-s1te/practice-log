@@ -148,7 +148,9 @@ export function MembersClient({ members, currentUserId, isAdmin, todayCheckinIds
                           {getStatusLabel(member.status)}
                         </span>
                       </div>
-                      <p className="text-xs text-stone-400 mt-0.5 truncate">{member.email}</p>
+                      <p className="text-xs text-stone-400 mt-0.5 truncate">
+                        {isAdmin ? member.email : '●●●@●●●●●●'}
+                      </p>
 
                       <div className="flex items-center gap-3 mt-2">
                         <span className="text-xs text-stone-500">
