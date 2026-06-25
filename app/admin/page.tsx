@@ -39,11 +39,11 @@ export default async function AdminPage() {
     .order('date', { ascending: false })
     .limit(5)
 
-  // 励まし希望
+  // 励まし希望（mood は単一 or JSON配列文字列の両方があるので ilike）
   const { data: encourageNeeded } = await supabase
     .from('checkins')
     .select('id, user_id, date, profiles(name, generation)')
-    .eq('mood', '励ましがほしい')
+    .ilike('mood', '%励ましがほしい%')
     .gte('date', threeDaysAgo)
     .order('date', { ascending: false })
 

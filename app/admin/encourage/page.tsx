@@ -2,10 +2,9 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { AppShell } from '@/components/layout/AppShell'
-import { Card } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/Badge'
-import { formatDate } from '@/lib/utils'
+import { EncourageClient } from './EncourageClient'
 
 export default async function EncouragePage() {
   const supabase = await createClient()
@@ -15,60 +14,59 @@ export default async function EncouragePage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile || !['admin', 'staff'].includes(profile.role)) redirect('/dashboard')
 
-  const { data: items } = await supabase
+  const adminClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { cookies: { getAll: () => [], setAll: () => {} } }
+  )
+
+  // 直近7日の「励ましがほしい」チェックインを取得
+  const since = new Date()
+  since.setDate(since.getDate() - 7)
+
+  // mood は単一文字列 or JSON配列文字列 の両方があるので ilike で検索
+  const { data: items } = await adminClient
     .from('checkins')
     .select(`
-      id, date, done_text, stuck_text, next_text,
+      id, date, done_text, stuck_text, next_text, user_id,
       profiles!inner(name, generation, discord_name)
     `)
-    .eq('mood', '励ましがほしい')
+    .ilike('mood', '%励ましがほしい%')
+    .gte('date', since.toISOString().split('T')[0])
     .order('date', { ascending: false })
+
+  // 該当チェックインのタイムラインイベントを取得
+  const checkinIds = (items ?? []).map((i: any) => i.id)
+  const { data: timelineEvents } = checkinIds.length > 0
+    ? await adminClient
+        .from('timeline_events')
+        .select('id, checkin_id, user_id, generation, encourage_stamps(id, stamp, user_id)')
+        .in('checkin_id', checkinIds)
+        .eq('event_type', 'encourage')
+    : { data: [] }
+
+  // checkinId → timelineEvent のマップ
+  const eventMap: Record<string, any> = {}
+  ;(timelineEvents ?? []).forEach((e: any) => {
+    if (e.checkin_id) eventMap[e.checkin_id] = e
+  })
+
+  // 絵文字マップを取得（全世代）
+  const { data: emojiRows } = await adminClient
+    .from('emoji_assignments')
+    .select('user_id, emoji')
+
+  const emojiMap: Record<string, string> = {}
+  ;(emojiRows ?? []).forEach((r: any) => { emojiMap[r.user_id] = r.emoji })
 
   return (
     <AppShell profile={profile}>
-      <div className="space-y-5">
-        <div>
-          <h1 className="text-xl font-bold text-stone-800">励まし希望一覧</h1>
-          <p className="text-sm text-stone-500 mt-0.5">💛 {(items ?? []).length} 件</p>
-        </div>
-
-        {(items ?? []).length === 0 ? (
-          <Card className="text-center py-12">
-            <p className="text-4xl mb-3">💛</p>
-            <p className="text-stone-500 text-sm">励まし希望はありません</p>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {(items ?? []).map((item: any) => (
-              <Card key={item.id} className="border-amber-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-lg">💛</span>
-                  <span className="text-sm font-bold text-stone-800">{item.profiles?.name}</span>
-                  {item.profiles?.generation && (
-                    <Badge size="sm" variant="outline">{item.profiles.generation}</Badge>
-                  )}
-                  <span className="text-xs text-stone-400 ml-auto">{formatDate(item.date, 'M/d')}</span>
-                </div>
-                {item.done_text && (
-                  <div className="bg-stone-50 rounded-xl p-3 mb-2">
-                    <p className="text-xs text-stone-500 mb-1">今日できたこと</p>
-                    <p className="text-sm text-stone-800">{item.done_text}</p>
-                  </div>
-                )}
-                {item.stuck_text && (
-                  <div className="bg-amber-50 rounded-xl p-3 mb-2">
-                    <p className="text-xs text-amber-700 mb-1">つまずき</p>
-                    <p className="text-sm text-stone-800">{item.stuck_text}</p>
-                  </div>
-                )}
-                {item.profiles?.discord_name && (
-                  <p className="text-xs text-stone-400 mt-2">Discord: @{item.profiles.discord_name}</p>
-                )}
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+      <EncourageClient
+        items={items ?? []}
+        eventMap={eventMap}
+        emojiMap={emojiMap}
+        myUserId={user.id}
+      />
     </AppShell>
   )
 }
