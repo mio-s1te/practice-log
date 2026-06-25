@@ -11,13 +11,16 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.21.0",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "tailwind-merge": "^3.6.0"
+    "stripe": "^22.3.0",
+    "tailwind-merge": "^3.6.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@netlify/plugin-nextjs": "^5.15.12",

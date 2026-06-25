@@ -15,3 +15,4 @@
 
 [functions]
   included_files = ["node_modules/@supabase/**"]
+  external_node_modules = ["bcryptjs", "stripe", "ws"]
