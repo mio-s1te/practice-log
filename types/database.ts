@@ -353,7 +353,7 @@ export const MOOD_EMOJI: Record<MoodType, string> = {
 }
 
 export const CHECKIN_STAMP: Record<string, string> = {
-  default: '✅',
+  default: '🐱',
   question: '❓',
   encourage: '💛',
   achievement: '⭐',

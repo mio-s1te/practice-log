@@ -123,7 +123,7 @@ export function CalendarClient({ checkins, profile, achievementDates = [] }: Pro
 
         {/* 凡例 */}
         <div className="flex flex-wrap items-center gap-3 mt-4 pt-3 border-t border-stone-100 text-xs text-stone-500">
-          <span>✅ 通常報告</span>
+          <span>🐱 通常報告</span>
           <span>❓ 質問した日</span>
           <span>💛 励まし希望</span>
           <span>🌱 できなかった日</span>

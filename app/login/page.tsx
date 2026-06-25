@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error, data } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError('メールアドレスまたはパスワードが正しくありません')
@@ -29,7 +29,19 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard')
+    // roleを取得してリダイレクト先を振り分け
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single()
+
+    const role = profile?.role ?? 'member'
+    if (role === 'admin' || role === 'staff') {
+      router.push('/admin')
+    } else {
+      router.push('/dashboard')
+    }
     router.refresh()
   }
 
@@ -93,6 +105,25 @@ export default function LoginPage() {
             <Button type="submit" loading={loading} className="w-full mt-2">
               ログイン
             </Button>
+
+            {/* パスワードを忘れた場合 */}
+            <button
+              type="button"
+              onClick={async () => {
+                if (!email) { setError('メールアドレスを入力してください'); return }
+                setLoading(true)
+                const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                  redirectTo: `${window.location.origin}/set-password`,
+                })
+                setLoading(false)
+                if (error) { setError('送信に失敗しました'); return }
+                setError('')
+                alert(`${email} にパスワードリセットメールを送信しました`)
+              }}
+              className="w-full text-xs text-stone-400 hover:text-amber-700 underline mt-1"
+            >
+              パスワードを忘れた方はこちら
+            </button>
           </form>
         </div>
 
