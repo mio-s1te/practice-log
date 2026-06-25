@@ -46,14 +46,18 @@ export function QuestionsClient({ questions: initialQuestions }: Props) {
     const existing = questions.find((q) => q.id === questionId)?.question_statuses
 
     if (existing?.id) {
+      // 既存レコードはUPDATE（staffはRLSで許可済み）
       await supabaseClient
         .from('question_statuses')
         .update({ status: newStatus })
         .eq('id', existing.id)
     } else {
-      await supabaseClient
-        .from('question_statuses')
-        .insert({ checkin_id: checkinId, status: newStatus })
+      // 新規レコードはAPIルート経由（Service Role Keyでstaff/adminどちらもINSERT可）
+      await fetch('/api/admin/question-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkinId, status: newStatus }),
+      })
     }
 
     setQuestions((prev) =>

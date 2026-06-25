@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { AppShell } from '@/components/layout/AppShell'
 import StuckClient from './StuckClient'
 import { subDays, format } from 'date-fns'
@@ -14,8 +15,15 @@ export default async function StuckPage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile || !['admin', 'staff'].includes(profile.role)) redirect('/dashboard')
 
+  // Service Role Key でメンバー一覧を確実に取得（RLSを回避してスタッフでも取得可能にする）
+  const adminClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { cookies: { getAll: () => [], setAll: () => {} } }
+  )
+
   // メンバー一覧（フィルター用・generation付き）
-  const { data: members } = await supabase
+  const { data: members } = await adminClient
     .from('profiles')
     .select('id, name, generation')
     .eq('role', 'member')
