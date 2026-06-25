@@ -13,22 +13,34 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [redirecting, setRedirecting] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     // 招待リンク・パスワードリセットリンクのハッシュトークンを検出
-    // 例: https://mioprocess.netlify.app/login#access_token=xxx&type=invite
     const hash = window.location.hash
     if (hash && hash.includes('access_token')) {
       const params = new URLSearchParams(hash.replace('#', ''))
       const type = params.get('type')
-      // invite または recovery の場合は set-password へ飛ばす
       if (type === 'invite' || type === 'recovery' || type === 'signup') {
+        setRedirecting(true)
         router.replace('/set-password' + hash)
       }
     }
   }, [router])
+
+  // ハッシュトークン検出時はローディングだけ表示
+  if (redirecting) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-stone-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-10 w-10 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-3" />
+          <p className="text-sm text-stone-400">読み込み中...</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
