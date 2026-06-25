@@ -3,9 +3,9 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AppShell } from '@/components/layout/AppShell'
-import StaffClient from './StaffClient'
+import NewMemberClient from './NewMemberClient'
 
-export default async function StaffPage() {
+export default async function NewMemberPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -13,15 +13,9 @@ export default async function StaffPage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile || profile.role !== 'admin') redirect('/dashboard')
 
-  const { data: staffList } = await supabase
-    .from('profiles')
-    .select('id, name, email, role, generation, status, created_at')
-    .in('role', ['staff', 'admin'])
-    .order('role', { ascending: true })
-
   return (
     <AppShell profile={profile}>
-      <StaffClient initialStaff={staffList ?? []} isAdmin={profile.role === 'admin'} />
+      <NewMemberClient />
     </AppShell>
   )
 }
