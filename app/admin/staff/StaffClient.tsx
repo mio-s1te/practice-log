@@ -27,6 +27,7 @@ export default function StaffClient({ initialStaff, isAdmin }: StaffClientProps)
   const [inviteRole, setInviteRole] = useState<'staff' | 'admin'>('staff')
   const [inviting, setInviting] = useState(false)
   const [msg, setMsg] = useState('')
+  const [reinvitingId, setReinvitingId] = useState<string | null>(null)
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,7 +61,6 @@ export default function StaffClient({ initialStaff, isAdmin }: StaffClientProps)
     })
     const json = await res.json()
     if (res.ok) {
-      // メンバーに戻した場合はリストから除外、それ以外はロール更新
       setStaffList(prev => newRole === 'member'
         ? prev.filter(s => s.id !== id)
         : prev.map(s => s.id === id ? { ...s, role: newRole as any } : s)
@@ -68,6 +68,26 @@ export default function StaffClient({ initialStaff, isAdmin }: StaffClientProps)
       setMsg(newRole === 'member' ? '✅ メンバーに戻しました' : '✅ ロールを変更しました')
     } else {
       setMsg(`❌ ${json.error ?? 'ロール変更に失敗しました'}`)
+    }
+  }
+
+  const handleReinvite = async (staff: StaffMember) => {
+    if (!confirm(`${staff.name}（${staff.email}）に招待メールを再送信しますか？\n\n※現在のアカウントは一旦削除され、新しい招待メールが送られます。`)) return
+    setReinvitingId(staff.id)
+    setMsg('')
+    try {
+      const res = await fetch('/api/admin/reinvite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: staff.id, email: staff.email, name: staff.name, role: staff.role }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '再送信失敗')
+      setMsg(`✅ ${staff.email} に招待メールを再送信しました`)
+    } catch (e: any) {
+      setMsg(`❌ ${e.message}`)
+    } finally {
+      setReinvitingId(null)
     }
   }
 
@@ -158,8 +178,8 @@ export default function StaffClient({ initialStaff, isAdmin }: StaffClientProps)
             {staffList.map(staff => {
               const rl = roleLabel(staff.role)
               return (
-                <div key={staff.id} className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl">
-                  <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-base flex-shrink-0">
+                <div key={staff.id} className="flex items-start gap-3 p-3 bg-stone-50 rounded-xl">
+                  <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-base flex-shrink-0 mt-0.5">
                     {staff.role === 'admin' ? '👑' : '🙋'}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -170,20 +190,27 @@ export default function StaffClient({ initialStaff, isAdmin }: StaffClientProps)
                       </span>
                     </div>
                     <p className="text-xs text-stone-500 truncate">{staff.email}</p>
+                    {isAdmin && (
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <select
+                          value={staff.role}
+                          onChange={e => handleRoleChange(staff.id, e.target.value)}
+                          className="text-xs border border-stone-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-amber-400"
+                        >
+                          <option value="staff">スタッフ</option>
+                          <option value="admin">管理者</option>
+                          <option value="member">メンバーに戻す</option>
+                        </select>
+                        <button
+                          onClick={() => handleReinvite(staff)}
+                          disabled={reinvitingId === staff.id}
+                          className="text-xs px-2 py-1 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 disabled:opacity-50 transition-colors"
+                        >
+                          {reinvitingId === staff.id ? '送信中...' : '📧 招待を再送信'}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {isAdmin && (
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <select
-                        value={staff.role}
-                        onChange={e => handleRoleChange(staff.id, e.target.value)}
-                        className="text-xs border border-stone-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-amber-400"
-                      >
-                        <option value="staff">スタッフ</option>
-                        <option value="admin">管理者</option>
-                        <option value="member">メンバーに戻す</option>
-                      </select>
-                    </div>
-                  )}
                 </div>
               )
             })}

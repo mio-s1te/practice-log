@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export async function POST(req: NextRequest) {
-  const { userId, email, name } = await req.json()
+  const { userId, email, name, role } = await req.json()
   if (!userId || !email) {
     return NextResponse.json({ error: 'userId と email は必須です' }, { status: 400 })
   }
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   // 再招待
   const { data, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    data: { name }
+    data: { name, role: role ?? 'member' }
   })
   if (inviteError) {
     return NextResponse.json({ error: '招待メールの送信に失敗しました: ' + inviteError.message }, { status: 500 })
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       id: data.user.id,
       email,
       name,
-      role: 'member',
+      role: role ?? 'member',
     })
     // 古いIDのプロフィールを削除（残っていれば）
     if (data.user.id !== userId) {
