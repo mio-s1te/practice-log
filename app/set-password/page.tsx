@@ -21,22 +21,27 @@ export default function SetPasswordPage() {
     const hash = window.location.hash
 
     if (hash && hash.includes('access_token')) {
-      // URLにハッシュトークンがある場合 → 招待 or パスワードリセット
       const params = new URLSearchParams(hash.replace('#', ''))
       const accessToken = params.get('access_token')
       const refreshToken = params.get('refresh_token')
 
       if (accessToken && refreshToken) {
-        // 既存セッションを一旦クリアしてから新しいセッションを確立
-        supabase.auth.signOut().then(() => {
-          supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-            .then(({ error }) => {
-              if (!error) setSessionReady(true)
-            })
+        // signOut()は使わない（リダイレクトが走る可能性がある）
+        // 直接setSessionで上書きする
+        supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        }).then(({ error }) => {
+          if (!error) {
+            setSessionReady(true)
+          } else {
+            setError('招待リンクの認証に失敗しました。リンクが期限切れの可能性があります。')
+            setSessionReady(false)
+          }
         })
       }
     } else {
-      // ハッシュなし → パスワード変更などで既にセッションがある場合
+      // ハッシュなし → 既にセッションがある場合（パスワード変更など）
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY' || event === 'INITIAL_SESSION') {
           if (session) setSessionReady(true)
@@ -117,7 +122,15 @@ export default function SetPasswordPage() {
             はじめてのログイン用パスワードを設定してください。8文字以上で入力してください。
           </p>
 
-          {!sessionReady ? (
+          {error && !sessionReady ? (
+            // リンク期限切れなどのエラー
+            <div className="text-center py-6">
+              <div className="text-4xl mb-3">⏰</div>
+              <p className="text-sm font-bold text-red-600 mb-2">リンクが無効です</p>
+              <p className="text-xs text-stone-500 mb-4">{error}</p>
+              <p className="text-xs text-stone-400">管理者に招待メールの再送信を依頼してください</p>
+            </div>
+          ) : !sessionReady ? (
             <div className="text-center py-6">
               <div className="animate-spin h-8 w-8 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-3" />
               <p className="text-sm text-stone-500">認証情報を確認中...</p>
