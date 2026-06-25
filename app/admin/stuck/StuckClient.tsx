@@ -624,6 +624,288 @@ export default function StuckClient({ items, allItems, allCheckins30, members = 
           )}
         </div>
       )}
+
+      {/* ── 個人分析カード（メンバー選択時のみ） ── */}
+      {selectedMemberId !== 'all' && selectedMember && (
+        <MemberInsightCards
+          selectedMember={selectedMember}
+          filteredAllItems={filteredAllItems}
+          filteredItems={filteredItems}
+          allCheckinsForGen={allCheckinsForGen}
+          members={members}
+          generationList={generationList}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── 管理者向け個人分析カード ────────────────────────────────
+const CAT_RADAR_KEYS = [
+  'スタート講座', 'アフィリエイト講座', '投稿作成',
+  '導線作成', '案件選定', '無料プレゼント作成', 'その他',
+] as const
+
+function AdminRadarChart({
+  myData, sameGenData, prevGenData,
+}: {
+  myData: Record<string, number>
+  sameGenData?: Record<string, number>
+  prevGenData?: Record<string, number>
+}) {
+  const vw = 320, vh = 320, cx = 160, cy = 160, r = 100, n = CAT_RADAR_KEYS.length
+  const maxVal = Math.max(
+    ...CAT_RADAR_KEYS.map(c => Math.max(myData[c] ?? 0, sameGenData?.[c] ?? 0, prevGenData?.[c] ?? 0)),
+    1
+  )
+  const angle = (i: number) => (Math.PI * 2 * i) / n - Math.PI / 2
+  const pt = (i: number, ratio: number) => ({
+    x: cx + r * ratio * Math.cos(angle(i)),
+    y: cy + r * ratio * Math.sin(angle(i)),
+  })
+  const lpt = (i: number) => ({ lx: cx + (r + 42) * Math.cos(angle(i)), ly: cy + (r + 42) * Math.sin(angle(i)) })
+  const grids = [0.25, 0.5, 0.75, 1.0]
+  const myPts = CAT_RADAR_KEYS.map((c, i) => pt(i, (myData[c] ?? 0) / maxVal))
+  const sgPts = sameGenData ? CAT_RADAR_KEYS.map((c, i) => pt(i, (sameGenData[c] ?? 0) / maxVal)) : null
+  const pgPts = prevGenData ? CAT_RADAR_KEYS.map((c, i) => pt(i, (prevGenData[c] ?? 0) / maxVal)) : null
+
+  return (
+    <svg viewBox={`0 0 ${vw} ${vh}`} className="w-full max-w-sm mx-auto">
+      {grids.map((ratio, gi) => (
+        <polygon key={gi}
+          points={CAT_RADAR_KEYS.map((_, i) => `${pt(i, ratio).x},${pt(i, ratio).y}`).join(' ')}
+          fill="none" stroke="#e7e5e4" strokeWidth="1" />
+      ))}
+      {CAT_RADAR_KEYS.map((_, i) => (
+        <line key={i} x1={cx} y1={cy} x2={pt(i, 1).x} y2={pt(i, 1).y} stroke="#e7e5e4" strokeWidth="1" />
+      ))}
+      {pgPts && (
+        <polygon
+          points={pgPts.map(p => `${p.x},${p.y}`).join(' ')}
+          fill="rgba(167,139,250,0.12)" stroke="#a78bfa" strokeWidth="1.5" strokeDasharray="3,3" />
+      )}
+      {sgPts && (
+        <polygon
+          points={sgPts.map(p => `${p.x},${p.y}`).join(' ')}
+          fill="rgba(96,165,250,0.15)" stroke="#60a5fa" strokeWidth="1.5" strokeDasharray="4,2" />
+      )}
+      <polygon
+        points={myPts.map(p => `${p.x},${p.y}`).join(' ')}
+        fill="rgba(217,119,6,0.25)" stroke="#d97706" strokeWidth="2" />
+      {myPts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="4" fill="#d97706" />)}
+      {CAT_RADAR_KEYS.map((cat, i) => {
+        const { lx, ly } = lpt(i)
+        const anchor = lx < cx - 8 ? 'end' : lx > cx + 8 ? 'start' : 'middle'
+        const val = myData[cat] ?? 0
+        const label1 = cat.length > 6 ? cat.slice(0, Math.ceil(cat.length / 2)) : cat
+        const label2 = cat.length > 6 ? cat.slice(Math.ceil(cat.length / 2)) : null
+        return (
+          <g key={i}>
+            <text x={lx} y={ly - (label2 ? 8 : 2)} textAnchor={anchor} fontSize="10" fill="#57534e" fontWeight="600">{label1}</text>
+            {label2 && <text x={lx} y={ly + 5} textAnchor={anchor} fontSize="10" fill="#57534e" fontWeight="600">{label2}</text>}
+            <text x={lx} y={ly + (label2 ? 19 : 12)} textAnchor={anchor} fontSize="10" fill="#d97706" fontWeight="700">{val}回</text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+function MemberInsightCards({
+  selectedMember, filteredAllItems, filteredItems, allCheckinsForGen, members, generationList,
+}: {
+  selectedMember: Member
+  filteredAllItems: Item[]
+  filteredItems: Item[]
+  allCheckinsForGen: { date: string; category: string; mood: string; user_id: string }[]
+  members: Member[]
+  generationList: string[]
+}) {
+  const memberGen = selectedMember.generation
+
+  const myCatCount = useMemo(() =>
+    allCheckinsForGen
+      .filter(c => c.user_id === selectedMember.id && c.category !== '今日はできなかった')
+      .reduce((acc, c) => { acc[c.category] = (acc[c.category] ?? 0) + 1; return acc }, {} as Record<string, number>)
+  , [allCheckinsForGen, selectedMember.id])
+
+  const sameGenAvg = useMemo(() => {
+    const sameMembers = members.filter(m => m.generation === memberGen && m.id !== selectedMember.id)
+    if (sameMembers.length === 0) return undefined
+    const sameIds = new Set(sameMembers.map(m => m.id))
+    const totals = allCheckinsForGen
+      .filter(c => sameIds.has(c.user_id) && c.category !== '今日はできなかった')
+      .reduce((acc, c) => { acc[c.category] = (acc[c.category] ?? 0) + 1; return acc }, {} as Record<string, number>)
+    return Object.fromEntries(Object.entries(totals).map(([k, v]) => [k, Math.round(v / sameMembers.length)]))
+  }, [allCheckinsForGen, members, memberGen, selectedMember.id])
+
+  const prevGenAvg = useMemo(() => {
+    const genIdx = generationList.indexOf(memberGen ?? '')
+    if (genIdx <= 0) return undefined
+    const prevGen = generationList[genIdx - 1]
+    const prevMembers = members.filter(m => m.generation === prevGen)
+    if (prevMembers.length === 0) return undefined
+    const prevIds = new Set(prevMembers.map(m => m.id))
+    const totals = allCheckinsForGen
+      .filter(c => prevIds.has(c.user_id) && c.category !== '今日はできなかった')
+      .reduce((acc, c) => { acc[c.category] = (acc[c.category] ?? 0) + 1; return acc }, {} as Record<string, number>)
+    return Object.fromEntries(Object.entries(totals).map(([k, v]) => [k, Math.round(v / prevMembers.length)]))
+  }, [allCheckinsForGen, members, memberGen, generationList])
+
+  const stuckCatCount = useMemo(() =>
+    filteredAllItems.reduce((acc, c) => {
+      if (c.category !== '今日はできなかった') acc[c.category] = (acc[c.category] ?? 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+  , [filteredAllItems])
+
+  const totalCheckins = Object.values(myCatCount).reduce((a, b) => a + b, 0)
+  const recent7Moods = allCheckinsForGen
+    .filter(c => c.user_id === selectedMember.id)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 7)
+    .map(c => c.mood)
+  const warnCount = recent7Moods.filter(m => m === '励ましがほしい' || m === '個別相談が必要かも').length
+
+  const praisePoints = useMemo(() => {
+    const pts: string[] = []
+    if (totalCheckins >= 30) pts.push(`🔥 全期間で${totalCheckins}回もチェックインしています！継続力が素晴らしいです`)
+    else if (totalCheckins >= 10) pts.push(`💪 ${totalCheckins}回のチェックイン実績。ここまで続けられています`)
+    const topCat = Object.entries(myCatCount).sort((a, b) => b[1] - a[1])[0]
+    if (topCat) pts.push(`🏆 「${topCat[0]}」に最も力を入れて取り組んでいます（${topCat[1]}回）`)
+    if (sameGenAvg) {
+      const topCatKey = topCat?.[0]
+      if (topCatKey && (myCatCount[topCatKey] ?? 0) > (sameGenAvg[topCatKey] ?? 0))
+        pts.push(`📈 「${topCatKey}」の取り組みが同期生の平均より多いです`)
+    }
+    if (filteredAllItems.length === 0) pts.push('✨ この期間はつまずきなし！すごくスムーズに進んでいます')
+    if (pts.length === 0) pts.push('📝 チェックインを続けていること自体が大きな進歩です')
+    return pts
+  }, [totalCheckins, myCatCount, filteredAllItems, sameGenAvg])
+
+  const improvePoints = useMemo(() => {
+    const pts: string[] = []
+    const topStuck = Object.entries(stuckCatCount).sort((a, b) => b[1] - a[1])[0]
+    if (topStuck) pts.push(`🤔 「${topStuck[0]}」で${topStuck[1]}件のつまずき。小グループ・個別フォローを検討しましょう`)
+    if (warnCount >= 2) pts.push(`💛 最近${warnCount}日が「励まし希望」状態。フォローアップや小メッセージでサポートを`)
+    const untouchedCats = CAT_RADAR_KEYS.filter(c => c !== 'その他' && (myCatCount[c] ?? 0) === 0)
+    if (untouchedCats.length > 0 && totalCheckins > 5)
+      pts.push(`📚 「${untouchedCats[0]}」がまだ未着手です。次のステップに記載あり`)
+    if (pts.length === 0) pts.push('✨ 現時点で特に気になる点はありません')
+    return pts
+  }, [stuckCatCount, warnCount, myCatCount, totalCheckins])
+
+  const topStuckCat = Object.entries(stuckCatCount).sort((a, b) => b[1] - a[1])[0]?.[0]
+  const revenuePoints = useMemo(() => {
+    const pts: string[] = []
+    if (topStuckCat) pts.push(`🔑 「${topStuckCat}」のつまずきを解消すると収益に最も近づきます`)
+    if (sameGenAvg) {
+      const myTotal = Object.values(myCatCount).reduce((a, b) => a + b, 0)
+      const genTotal = Object.values(sameGenAvg).reduce((a, b) => a + b, 0)
+      if (myTotal >= genTotal) pts.push('📊 同期生平均以上の取り組みです！その勢いのまま続けて')
+      else pts.push('📊 同期生平均と比較すると取り組み量に差があります。日常の小さな行動が収益に繋がります')
+    }
+    if (prevGenAvg) pts.push('📣 前期生も同じステップを踏まえています。前期生の担当スタッフに直接相談するのもおすすめ')
+    pts.push('✅ 一度で大きな成果を出そうとせず、小さな成功体験を積み重ねることが大切です')
+    return pts
+  }, [topStuckCat, sameGenAvg, prevGenAvg, myCatCount])
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="h-px flex-1 bg-stone-200" />
+        <span className="text-xs font-bold text-stone-400 px-2">📊 {selectedMember.name}の分析</span>
+        <div className="h-px flex-1 bg-stone-200" />
+      </div>
+
+      <Card>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-sm font-bold text-stone-700">🕸️ 講座別 取り組みレーダー</h2>
+          <div className="flex gap-2 text-[10px] text-stone-400">
+            {sameGenAvg && <span>点線青＝同期生平均</span>}
+            {prevGenAvg && <span>点線紫＝前期生平均</span>}
+          </div>
+        </div>
+        <AdminRadarChart myData={myCatCount} sameGenData={sameGenAvg} prevGenData={prevGenAvg} />
+        <div className="flex flex-wrap items-center gap-3 justify-center mt-1">
+          <div className="flex items-center gap-1.5">
+            <div className="w-5 h-1.5 rounded-full bg-amber-500" />
+            <span className="text-[10px] text-stone-500">{selectedMember.name}</span>
+          </div>
+          {sameGenAvg && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-0 border-t-2 border-dashed border-blue-400" />
+              <span className="text-[10px] text-stone-500">同期生平均</span>
+            </div>
+          )}
+          {prevGenAvg && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-5 h-0 border-t-2 border-dashed border-purple-400" />
+              <span className="text-[10px] text-stone-500">前期生平均</span>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-sm font-bold text-emerald-700 mb-3">🌟 できていること・続けられていること</h2>
+        <div className="space-y-2">
+          {praisePoints.map((p, i) => (
+            <div key={i} className="flex items-start gap-2.5 bg-emerald-50 rounded-xl px-3 py-2.5">
+              <span className="text-base leading-none mt-0.5">{p.split(' ')[0]}</span>
+              <p className="text-xs text-emerald-800 leading-relaxed">{p.split(' ').slice(1).join(' ')}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-sm font-bold text-amber-700 mb-3">🔍 見直してみるといいこと</h2>
+        <div className="space-y-2">
+          {improvePoints.map((p, i) => (
+            <div key={i} className="flex items-start gap-2.5 bg-amber-50 rounded-xl px-3 py-2.5">
+              <span className="text-base leading-none mt-0.5">{p.split(' ')[0]}</span>
+              <p className="text-xs text-amber-900 leading-relaxed">{p.split(' ').slice(1).join(' ')}</p>
+            </div>
+          ))}
+        </div>
+        {filteredItems.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-stone-100">
+            <p className="text-xs font-bold text-stone-600 mb-2">最近のつまずき（過去30日）</p>
+            <div className="space-y-1.5">
+              {filteredItems.slice(0, 2).map(item => (
+                <div key={item.id} className="bg-red-50 rounded-xl px-3 py-2">
+                  <div className="flex gap-2 mb-0.5">
+                    <span className="text-[10px] text-stone-400">{item.date}</span>
+                    <span className="text-[10px] text-stone-500">{item.category}</span>
+                  </div>
+                  <p className="text-xs text-stone-700">{item.stuck_text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <h2 className="text-sm font-bold text-purple-700 mb-3">💰 収益化・やる気維持へのアドバイス</h2>
+        <div className="space-y-2">
+          {revenuePoints.map((p, i) => (
+            <div key={i} className="flex items-start gap-2.5 bg-purple-50 rounded-xl px-3 py-2.5">
+              <span className="text-base leading-none mt-0.5">{p.split(' ')[0]}</span>
+              <p className="text-xs text-purple-900 leading-relaxed">{p.split(' ').slice(1).join(' ')}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 pt-3 border-t border-stone-100">
+          <p className="text-xs font-bold text-stone-600 mb-2">💡 やる気を維持するサポート</p>
+          <div className="space-y-1.5 text-xs text-stone-600">
+            <p>✅ 小さな進歩を「すごいですね」と積極的に認めましょう</p>
+            <p>✅ つまずきは成長のチャンス。「どこで止まったか」を一緒に見つけましょう</p>
+            <p>✅ 連続発信を良いペースで続けているので、お客様に認知される日が必ず来ます</p>
+          </div>
+        </div>
+      </Card>
     </div>
   )
 }

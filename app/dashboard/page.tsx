@@ -65,6 +65,29 @@ export default async function DashboardPage() {
     .neq('stuck_text', '')
     .order('date', { ascending: false })
 
+  // 分析用：自分の全チェックイン（カテゴリ・気分込み）
+  const { data: allMyCheckins } = await supabase
+    .from('checkins')
+    .select('id, date, category, mood, stuck_text')
+    .eq('user_id', user.id)
+    .order('date', { ascending: false })
+
+  // 分析用：同期生の全チェックイン（カテゴリ集計・平均比較用）
+  const myGeneration = profile.generation
+  const { data: generationCheckins } = myGeneration ? await supabase
+    .from('checkins')
+    .select('date, category, mood, user_id')
+    .neq('user_id', user.id)
+    .in('user_id',
+      (await supabase
+        .from('profiles')
+        .select('id')
+        .eq('generation', myGeneration)
+        .eq('role', 'member')
+        .eq('status', 'active')
+      ).data?.map((p: { id: string }) => p.id) ?? []
+    ) : { data: [] }
+
   return (
     <AppShell profile={profile}>
       <DashboardClient
@@ -74,6 +97,8 @@ export default async function DashboardPage() {
         userBadges={userBadges ?? []}
         achievements={achievements ?? []}
         myStuckItems={myStuckItems ?? []}
+        allMyCheckins={allMyCheckins ?? []}
+        generationCheckins={generationCheckins ?? []}
       />
     </AppShell>
   )

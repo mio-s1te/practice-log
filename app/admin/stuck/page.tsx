@@ -14,13 +14,16 @@ export default async function StuckPage() {
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (!profile || !['admin', 'staff'].includes(profile.role)) redirect('/dashboard')
 
-  // メンバー一覧（フィルター用）
+  // メンバー一覧（フィルター用・generation付き）
   const { data: members } = await supabase
     .from('profiles')
     .select('id, name, generation')
     .eq('role', 'member')
     .eq('status', 'active')
     .order('generation')
+
+  // 期生一覧（同期生・前期生比較用）
+  const generations = [...new Set((members ?? []).map(m => m.generation).filter(Boolean) as string[])].sort()
 
   // 過去30日のつまずきデータ
   const since = format(subDays(new Date(), 30), 'yyyy-MM-dd')
@@ -46,6 +49,12 @@ export default async function StuckPage() {
     .select('date, category, user_id')
     .gte('date', since)
 
+  // 期生別・全チェックイン（平均比較用）
+  const { data: allCheckinsForGen } = await supabase
+    .from('checkins')
+    .select('date, category, mood, user_id')
+    .in('user_id', (members ?? []).map(m => m.id))
+
   return (
     <AppShell profile={profile}>
       <StuckClient
@@ -53,6 +62,8 @@ export default async function StuckPage() {
         allItems={allItems ?? []}
         allCheckins30={allCheckins30 ?? []}
         members={members ?? []}
+        allCheckinsForGen={allCheckinsForGen ?? []}
+        generationList={generations}
       />
     </AppShell>
   )
