@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+const PORTFOLIO_URL = 'https://mio-portfolio.pages.dev/';
+
 export function MainHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -21,6 +23,7 @@ export function MainHeader() {
     { label: 'Concept', to: '/concept' },
     { label: 'Courses', to: '/courses' },
     { label: 'Profile', to: '/profile' },
+    { label: 'Portfolio', to: PORTFOLIO_URL, external: true },
     { label: 'Contact', to: '/contact' },
   ];
 
@@ -50,15 +53,27 @@ export function MainHeader() {
           {/* PC Nav */}
           <nav className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`text-sm font-medium tracking-wide transition-colors duration-200 hover:text-amber-600 ${
-                  isActive(link.to) ? 'text-amber-600 border-b border-amber-500' : 'text-gray-600'
-                }`}
-              >
-                {link.label}
-              </Link>
+              link.external ? (
+                <a
+                  key={link.to}
+                  href={link.to}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium tracking-wide transition-colors duration-200 hover:text-amber-600 text-gray-600"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  className={`text-sm font-medium tracking-wide transition-colors duration-200 hover:text-amber-600 ${
+                    isActive(link.to) ? 'text-amber-600 border-b border-amber-500' : 'text-gray-600'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              )
             ))}
           </nav>
 
@@ -89,15 +104,27 @@ export function MainHeader() {
       <div className={`md:hidden transition-all duration-300 overflow-hidden ${menuOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="bg-white border-t border-gray-100 px-5 py-5 flex flex-col gap-4">
           {navLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`text-base font-medium py-1 transition-colors hover:text-amber-600 ${
-                isActive(link.to) ? 'text-amber-600' : 'text-gray-700'
-              }`}
-            >
-              {link.label}
-            </Link>
+            link.external ? (
+              <a
+                key={link.to}
+                href={link.to}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-base font-medium py-1 transition-colors hover:text-amber-600 text-gray-700"
+              >
+                {link.label}
+              </a>
+            ) : (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`text-base font-medium py-1 transition-colors hover:text-amber-600 ${
+                  isActive(link.to) ? 'text-amber-600' : 'text-gray-700'
+                }`}
+              >
+                {link.label}
+              </Link>
+            )
           ))}
           <Link
             to="/contact"
