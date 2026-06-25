@@ -18,32 +18,35 @@ export default function SetPasswordPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    // URLハッシュにaccess_tokenが含まれる場合（Implicit Flow）を処理
-    // login/page.tsx から /set-password#access_token=xxx として飛んでくる
     const hash = window.location.hash
+
     if (hash && hash.includes('access_token')) {
+      // URLにハッシュトークンがある場合 → 招待 or パスワードリセット
       const params = new URLSearchParams(hash.replace('#', ''))
       const accessToken = params.get('access_token')
       const refreshToken = params.get('refresh_token')
-      if (accessToken && refreshToken) {
-        supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-          .then(({ error }) => {
-            if (!error) setSessionReady(true)
-          })
-      }
-    }
 
-    // onAuthStateChangeでセッションが確立されるのを待つ
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY' || event === 'INITIAL_SESSION') {
-        if (session) setSessionReady(true)
+      if (accessToken && refreshToken) {
+        // 既存セッションを一旦クリアしてから新しいセッションを確立
+        supabase.auth.signOut().then(() => {
+          supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+            .then(({ error }) => {
+              if (!error) setSessionReady(true)
+            })
+        })
       }
-    })
-    // 既存セッション確認
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setSessionReady(true)
-    })
-    return () => subscription.unsubscribe()
+    } else {
+      // ハッシュなし → パスワード変更などで既にセッションがある場合
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY' || event === 'INITIAL_SESSION') {
+          if (session) setSessionReady(true)
+        }
+      })
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) setSessionReady(true)
+      })
+      return () => subscription.unsubscribe()
+    }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
