@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export async function POST(req: NextRequest) {
-  const { email, name, role } = await req.json()
+  const { email, name, role, generation } = await req.json()
   if (!email || !name) {
     return NextResponse.json({ error: 'email と name は必須です' }, { status: 400 })
   }
@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
       id: data.user.id,
       email,
       name,
-      role: role ?? 'staff',
+      role: role ?? 'member',
+      ...(generation !== undefined && generation !== '' ? { generation } : {}),
     })
   }
 
