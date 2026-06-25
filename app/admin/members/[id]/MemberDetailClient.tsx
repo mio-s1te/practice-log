@@ -73,6 +73,12 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
   const [pwLoading, setPwLoading] = useState(false)
   const [pwMsg, setPwMsg] = useState('')
 
+  // メールアドレス変更
+  const [showEmailForm, setShowEmailForm] = useState(false)
+  const [newEmail, setNewEmail] = useState(member.email)
+  const [emailLoading, setEmailLoading] = useState(false)
+  const [emailMsg, setEmailMsg] = useState('')
+
   // 招待再送信
   const [reinviteLoading, setReinviteLoading] = useState(false)
   const [reinviteMsg, setReinviteMsg] = useState('')
@@ -102,6 +108,36 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
     } finally {
       setPwLoading(false)
       setTimeout(() => setPwMsg(''), 4000)
+    }
+  }
+
+  const handleUpdateEmail = async () => {
+    if (!newEmail || !newEmail.includes('@')) {
+      setEmailMsg('❌ 正しいメールアドレスを入力してください')
+      return
+    }
+    if (newEmail === member.email) {
+      setEmailMsg('❌ 現在と同じメールアドレスです')
+      return
+    }
+    if (!confirm(`メールアドレスを\n${member.email}\n→ ${newEmail}\nに変更しますか？`)) return
+    setEmailLoading(true)
+    setEmailMsg('')
+    try {
+      const res = await fetch('/api/admin/update-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: member.id, email: newEmail }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '変更失敗')
+      setEmailMsg('✅ メールアドレスを変更しました')
+      setShowEmailForm(false)
+    } catch (e: any) {
+      setEmailMsg(`❌ ${e.message}`)
+    } finally {
+      setEmailLoading(false)
+      setTimeout(() => setEmailMsg(''), 5000)
     }
   }
 
@@ -230,10 +266,13 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
                   {reinviteLoading ? '送信中...' : '📧 招待を再送信'}
                 </Button>
               )}
-              <Button size="sm" variant="secondary" onClick={() => { setShowPwForm(!showPwForm); setEditing(false) }}>
+              <Button size="sm" variant="secondary" onClick={() => { setShowEmailForm(!showEmailForm); setShowPwForm(false); setEditing(false) }}>
+                ✉️ メアド変更
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => { setShowPwForm(!showPwForm); setShowEmailForm(false); setEditing(false) }}>
                 🔑 PW設定
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => { setEditing(!editing); setShowPwForm(false) }}>
+              <Button size="sm" variant="secondary" onClick={() => { setEditing(!editing); setShowPwForm(false); setShowEmailForm(false) }}>
                 {editing ? 'キャンセル' : '編集'}
               </Button>
             </div>
@@ -344,6 +383,33 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
             {reinviteLoading ? '送信中...' : '再送信'}
           </Button>
         </div>
+      )}
+
+      {/* メールアドレス変更メッセージ */}
+      {emailMsg && (
+        <div className={`text-sm px-4 py-3 rounded-xl ${emailMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {emailMsg}
+        </div>
+      )}
+
+      {/* メールアドレス変更フォーム */}
+      {showEmailForm && isAdmin && (
+        <Card className="border-blue-200 bg-blue-50">
+          <p className="text-sm font-bold text-stone-700 mb-1">✉️ メールアドレスを変更する</p>
+          <p className="text-xs text-stone-500 mb-3">確認メールなしで即時変更されます</p>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              placeholder="新しいメールアドレス"
+              className="flex-1 px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:border-blue-400 bg-white"
+            />
+            <Button size="sm" onClick={handleUpdateEmail} disabled={emailLoading}>
+              {emailLoading ? '変更中...' : '変更する'}
+            </Button>
+          </div>
+        </Card>
       )}
 
       {/* パスワード設定フォーム */}
