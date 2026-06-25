@@ -6,6 +6,10 @@
   NEXT_TELEMETRY_DISABLED = "1"
   NODE_VERSION = "20"
 
+# Netlify の Environment variables に以下を設定してください：
+# NEXT_PUBLIC_SUPABASE_URL     = https://xxxx.supabase.co
+# NEXT_PUBLIC_SUPABASE_ANON_KEY = eyJ...
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
