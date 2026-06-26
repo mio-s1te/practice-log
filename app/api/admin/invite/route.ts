@@ -30,8 +30,11 @@ export async function POST(req: NextRequest) {
   )
 
   // ユーザーを招待（メール送信）
+  // redirectTo を明示しないと Supabase のデフォルト URL に飛んでしまうため必須
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mioprocess.netlify.app'
   const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    data: { name, role: role ?? 'staff' }
+    data: { name, role: role ?? 'staff' },
+    redirectTo: `${appUrl}/auth/callback?type=invite`,
   })
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })

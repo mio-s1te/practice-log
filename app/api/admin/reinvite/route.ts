@@ -38,8 +38,10 @@ export async function POST(req: NextRequest) {
   }
 
   // 再招待
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mioprocess.netlify.app'
   const { data, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    data: { name, role: role ?? 'member' }
+    data: { name, role: role ?? 'member' },
+    redirectTo: `${appUrl}/auth/callback?type=invite`,
   })
   if (inviteError) {
     return NextResponse.json({ error: '招待メールの送信に失敗しました: ' + inviteError.message }, { status: 500 })
