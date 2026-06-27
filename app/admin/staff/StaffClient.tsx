@@ -28,6 +28,7 @@ export default function StaffClient({ initialStaff, isAdmin }: StaffClientProps)
   const [inviting, setInviting] = useState(false)
   const [msg, setMsg] = useState('')
   const [reinvitingId, setReinvitingId] = useState<string | null>(null)
+  const [resetingId, setResetingId] = useState<string | null>(null)
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -88,6 +89,26 @@ export default function StaffClient({ initialStaff, isAdmin }: StaffClientProps)
       setMsg(`❌ ${e.message}`)
     } finally {
       setReinvitingId(null)
+    }
+  }
+
+  const handleResetPassword = async (staff: StaffMember) => {
+    if (!confirm(`${staff.name}（${staff.email}）にパスワードリセットメールを送りますか？`)) return
+    setResetingId(staff.id)
+    setMsg('')
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: staff.email }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '送信失敗')
+      setMsg(`✅ ${staff.email} にパスワードリセットメールを送信しました`)
+    } catch (e: any) {
+      setMsg(`❌ ${e.message}`)
+    } finally {
+      setResetingId(null)
     }
   }
 
@@ -207,6 +228,13 @@ export default function StaffClient({ initialStaff, isAdmin }: StaffClientProps)
                           className="text-xs px-2 py-1 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 disabled:opacity-50 transition-colors"
                         >
                           {reinvitingId === staff.id ? '送信中...' : '📧 招待を再送信'}
+                        </button>
+                        <button
+                          onClick={() => handleResetPassword(staff)}
+                          disabled={resetingId === staff.id}
+                          className="text-xs px-2 py-1 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition-colors"
+                        >
+                          {resetingId === staff.id ? '送信中...' : '🔑 パスワードリセット'}
                         </button>
                       </div>
                     )}
