@@ -47,6 +47,10 @@ export function AdminDashboardClient({
   const [backfillLoading, setBackfillLoading] = useState(false)
   const [backfillResult, setBackfillResult] = useState<string | null>(null)
 
+  // 診断
+  const [debugLoading, setDebugLoading] = useState(false)
+  const [debugResult, setDebugResult] = useState<any>(null)
+
   const handleBackfillTimeline = async () => {
     if (!confirm('過去30日分のチェックインからタイムラインイベントを作成します。\n（すでに存在するものはスキップされます）\nよろしいですか？')) return
     setBackfillLoading(true)
@@ -58,11 +62,25 @@ export function AdminDashboardClient({
         body: JSON.stringify({ days: 30 }),
       })
       const json = await res.json()
-      setBackfillResult(json.message ?? (res.ok ? '完了' : 'エラー'))
+      setBackfillResult(json.error ? `❌ ${json.error}` : (json.message ?? '完了'))
     } catch (e) {
-      setBackfillResult('通信エラーが発生しました')
+      setBackfillResult('❌ 通信エラーが発生しました')
     } finally {
       setBackfillLoading(false)
+    }
+  }
+
+  const handleDebug = async () => {
+    setDebugLoading(true)
+    setDebugResult(null)
+    try {
+      const res = await fetch('/api/admin/debug-timeline')
+      const json = await res.json()
+      setDebugResult(json)
+    } catch (e) {
+      setDebugResult({ error: '通信エラー' })
+    } finally {
+      setDebugLoading(false)
     }
   }
 
@@ -429,14 +447,14 @@ export function AdminDashboardClient({
             <Wrench className="h-4 w-4 text-stone-400" />
             <h2 className="text-sm font-bold text-stone-700">メンテナンス</h2>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
+            {/* タイムライン補填 */}
             <div>
-              <p className="text-xs text-stone-600 mb-2">
+              <p className="text-xs text-stone-600 mb-1">
                 🌿 <span className="font-medium">タイムライン補填</span>
               </p>
-              <p className="text-[11px] text-stone-400 mb-3">
-                過去30日分のチェックインデータからタイムラインイベントを遡及作成します。
-                タイムラインに日報が表示されない場合に実行してください（重複は自動スキップ）。
+              <p className="text-[11px] text-stone-400 mb-2">
+                過去30日分のチェックインからタイムラインイベントを遡及作成します（重複はスキップ）。
               </p>
               <Button
                 size="sm"
@@ -449,8 +467,75 @@ export function AdminDashboardClient({
               </Button>
               {backfillResult && (
                 <p className="text-xs text-stone-600 mt-2 bg-stone-50 rounded-lg px-3 py-2">
-                  ✅ {backfillResult}
+                  {backfillResult}
                 </p>
+              )}
+            </div>
+
+            {/* 診断 */}
+            <div className="border-t border-stone-100 pt-4">
+              <p className="text-xs text-stone-600 mb-1">
+                🔍 <span className="font-medium">タイムライン診断</span>
+              </p>
+              <p className="text-[11px] text-stone-400 mb-2">
+                環境変数・テーブルデータの状態を確認します。
+              </p>
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={debugLoading}
+                onClick={handleDebug}
+              >
+                診断を実行する
+              </Button>
+              {debugResult && (
+                <div className="mt-3 space-y-2 text-[11px]">
+                  {/* 環境変数チェック */}
+                  <div className={`rounded-lg px-3 py-2 ${debugResult.envCheck?.hasServiceRoleKey ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                    {debugResult.envCheck?.hasServiceRoleKey
+                      ? '✅ SUPABASE_SERVICE_ROLE_KEY: 設定済み'
+                      : '❌ SUPABASE_SERVICE_ROLE_KEY: 未設定！（Netlify環境変数に追加が必要）'}
+                  </div>
+                  {/* timeline_events */}
+                  <div className="bg-stone-50 rounded-lg px-3 py-2 text-stone-700">
+                    <p className="font-medium mb-1">timeline_eventsテーブル</p>
+                    {debugResult.timelineEvents?.error
+                      ? <p className="text-red-600">エラー: {debugResult.timelineEvents.error}</p>
+                      : <p>全体: {debugResult.timelineEvents?.count}件</p>
+                    }
+                    {debugResult.myGenerationEvents && (
+                      <p>{debugResult.myGenerationEvents.generation} 過去7日: {debugResult.myGenerationEvents.last7days}件
+                        {debugResult.myGenerationEvents.last7days > 0 && (
+                          <span> ({Object.entries(debugResult.myGenerationEvents.breakdown).map(([k, v]) => `${k}:${v}`).join(', ')})</span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  {/* profiles */}
+                  <div className="bg-stone-50 rounded-lg px-3 py-2 text-stone-700">
+                    <p className="font-medium mb-1">generation設定済みメンバー</p>
+                    {debugResult.profiles?.error
+                      ? <p className="text-red-600">エラー: {debugResult.profiles.error}</p>
+                      : <p>{debugResult.profiles?.count}名
+                        {debugResult.profiles?.data?.length > 0 && (
+                          <span>: {debugResult.profiles.data.map((p: any) => `${p.name}(${p.generation})`).join(', ')}</span>
+                        )}
+                      </p>
+                    }
+                  </div>
+                  {/* achievements */}
+                  <div className="bg-stone-50 rounded-lg px-3 py-2 text-stone-700">
+                    <p className="font-medium mb-1">achievementsテーブル</p>
+                    {debugResult.achievements?.error
+                      ? <p className="text-red-600">エラー: {debugResult.achievements.error}</p>
+                      : <p>全体: {debugResult.achievements?.count}件
+                          {debugResult.achievements?.publicBreakdown && (
+                            <span> ({Object.entries(debugResult.achievements.publicBreakdown).map(([k, v]) => `${k}:${v}`).join(', ')})</span>
+                          )}
+                        </p>
+                    }
+                  </div>
+                </div>
               )}
             </div>
           </div>

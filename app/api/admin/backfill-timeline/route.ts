@@ -27,9 +27,14 @@ export async function POST(req: NextRequest) {
 
   const { generation, days = 30 } = await req.json()
 
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) {
+    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY が未設定です。Netlifyの環境変数を確認してください。' }, { status: 500 })
+  }
+
   const adminClient = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    serviceKey,
     { cookies: { getAll: () => [], setAll: () => {} } }
   )
 

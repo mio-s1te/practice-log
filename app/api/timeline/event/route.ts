@@ -31,9 +31,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: 'no generation' })
   }
 
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) {
+    console.error('[timeline/event] SUPABASE_SERVICE_ROLE_KEY が未設定')
+    return NextResponse.json({ error: 'サーバー設定エラー' }, { status: 500 })
+  }
+
   const adminClient = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    serviceKey,
     { cookies: { getAll: () => [], setAll: () => {} } }
   )
 
