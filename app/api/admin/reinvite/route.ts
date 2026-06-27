@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 })
   }
 
-  // 自分自身への再送は禁止（管理者が自分を消してしまうのを防ぐ）
+  // 自分自身への再送は禁止
   if (userId === user.id) {
     return NextResponse.json({ error: '自分自身への再送はできません' }, { status: 400 })
   }
@@ -37,18 +37,41 @@ export async function POST(req: NextRequest) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mioprocess.netlify.app'
 
-  // パスワードリセットメールを送信
-  // ※ユーザーを削除しないのでデータは全部残る
-  const { error } = await adminClient.auth.admin.generateLink({
-    type: 'invite',
-    email,
-    options: {
-      redirectTo: `${appUrl}/auth/callback`,
-    },
-  })
+  // Step1: question_statuses を先に削除（外部キー制約対策）
+  await adminClient
+    .from('question_statuses')
+    .delete()
+    .eq('staff_id', userId)
 
-  if (error) {
-    return NextResponse.json({ error: '招待メールの送信に失敗しました: ' + error.message }, { status: 500 })
+  // Step2: profiles を削除
+  await adminClient
+    .from('profiles')
+    .delete()
+    .eq('id', userId)
+
+  // Step3: auth.users を削除
+  const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId)
+  if (deleteError) {
+    return NextResponse.json({ error: 'ユーザー削除に失敗しました: ' + deleteError.message }, { status: 500 })
+  }
+
+  // Step4: 新しく招待メールを送る
+  const { data, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+    data: { name, role: role ?? 'staff' },
+    redirectTo: `${appUrl}/auth/callback`,
+  })
+  if (inviteError) {
+    return NextResponse.json({ error: '招待メールの送信に失敗しました: ' + inviteError.message }, { status: 500 })
+  }
+
+  // Step5: profiles を再作成
+  if (data.user) {
+    await adminClient.from('profiles').upsert({
+      id: data.user.id,
+      email,
+      name,
+      role: role ?? 'staff',
+    })
   }
 
   return NextResponse.json({ success: true })
