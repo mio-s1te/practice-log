@@ -18,41 +18,41 @@ export default function SetPasswordPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    const hash = window.location.hash
-
-    if (hash && hash.includes('access_token')) {
-      const params = new URLSearchParams(hash.replace('#', ''))
-      const accessToken = params.get('access_token')
-      const refreshToken = params.get('refresh_token')
-
-      if (accessToken && refreshToken) {
-        // signOut()は使わない（リダイレクトが走る可能性がある）
-        // 直接setSessionで上書きする
-        supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        }).then(({ error }) => {
-          if (!error) {
-            setSessionReady(true)
-          } else {
-            setError('招待リンクの認証に失敗しました。リンクが期限切れの可能性があります。')
-            setSessionReady(false)
-          }
-        })
+    // /auth/callback からリダイレクトされてくる場合は
+    // すでにセッションが確立済みなので getSession() で即座に取得できる
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setSessionReady(true)
+        return
       }
-    } else {
-      // ハッシュなし → 既にセッションがある場合（パスワード変更など）
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY' || event === 'INITIAL_SESSION') {
-          if (session) setSessionReady(true)
+
+      // セッションがない場合はハッシュトークン形式（古い形式）を試みる
+      const hash = window.location.hash
+      if (hash && hash.includes('access_token')) {
+        const params = new URLSearchParams(hash.replace('#', ''))
+        const accessToken = params.get('access_token')
+        const refreshToken = params.get('refresh_token')
+
+        if (accessToken && refreshToken) {
+          supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          }).then(({ error: sessionError }) => {
+            if (!sessionError) {
+              setSessionReady(true)
+            } else {
+              setError('招待リンクの認証に失敗しました。リンクが期限切れの可能性があります。')
+            }
+          })
+        } else {
+          setError('リンクが無効です。管理者に再送を依頼してください。')
         }
-      })
-      supabase.auth.getSession().then(({ data }) => {
-        if (data.session) setSessionReady(true)
-      })
-      return () => subscription.unsubscribe()
-    }
-  }, [])
+      } else {
+        // セッションもハッシュもない → リンクが無効か期限切れ
+        setError('リンクが無効です。管理者に再送を依頼してください。')
+      }
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -68,10 +68,10 @@ export default function SetPasswordPage() {
     }
 
     setLoading(true)
-    const { error } = await supabase.auth.updateUser({ password })
+    const { error: updateError } = await supabase.auth.updateUser({ password })
 
-    if (error) {
-      setError('パスワードの設定に失敗しました: ' + error.message)
+    if (updateError) {
+      setError('パスワードの設定に失敗しました: ' + updateError.message)
       setLoading(false)
       return
     }
@@ -122,8 +122,7 @@ export default function SetPasswordPage() {
             はじめてのログイン用パスワードを設定してください。8文字以上で入力してください。
           </p>
 
-          {error && !sessionReady ? (
-            // リンク期限切れなどのエラー
+          {error ? (
             <div className="text-center py-6">
               <div className="text-4xl mb-3">⏰</div>
               <p className="text-sm font-bold text-red-600 mb-2">リンクが無効です</p>
@@ -191,12 +190,6 @@ export default function SetPasswordPage() {
                       }}
                     />
                   ))}
-                </div>
-              )}
-
-              {error && (
-                <div className="bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl px-4 py-3">
-                  {error}
                 </div>
               )}
 
