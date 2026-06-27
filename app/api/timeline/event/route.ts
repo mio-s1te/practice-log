@@ -41,16 +41,21 @@ export async function POST(req: NextRequest) {
   const emoji = await getOrAssignEmoji(adminClient, user.id, profile.generation)
 
   // タイムラインイベント作成
-  const { data: event } = await adminClient
+  const { data: event, error: eventError } = await adminClient
     .from('timeline_events')
     .insert({
       user_id: user.id,
       generation: profile.generation,
       event_type: eventType,
-      checkin_id: checkinId,
+      checkin_id: checkinId ?? null,
     })
     .select()
     .single()
+
+  if (eventError) {
+    console.error('[timeline/event] insert error:', eventError)
+    return NextResponse.json({ error: 'timeline insert failed', detail: eventError.message }, { status: 500 })
+  }
 
   // チェックイン内容を取得（Discord投稿に使う）
   const { data: checkin } = await adminClient
@@ -157,5 +162,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, eventId: event?.id, emoji })
+  return NextResponse.json({ ok: true, eventId: event.id, emoji })
 }

@@ -1,11 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { format, subDays } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { Users, AlertCircle, MessageSquare, Heart, Star, ChevronRight, TrendingUp } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { Users, AlertCircle, MessageSquare, Heart, Star, ChevronRight, TrendingUp, Wrench } from 'lucide-react'
 import type { Profile } from '@/types/database'
 import { MOOD_COLORS, MOOD_EMOJI } from '@/types/database'
 import { formatDate } from '@/lib/utils'
@@ -40,6 +42,29 @@ export function AdminDashboardClient({
   const reportRate = activeMembers.length > 0
     ? Math.round((todayCheckins.length / activeMembers.length) * 100)
     : 0
+
+  // タイムラインバックフィル
+  const [backfillLoading, setBackfillLoading] = useState(false)
+  const [backfillResult, setBackfillResult] = useState<string | null>(null)
+
+  const handleBackfillTimeline = async () => {
+    if (!confirm('過去30日分のチェックインからタイムラインイベントを作成します。\n（すでに存在するものはスキップされます）\nよろしいですか？')) return
+    setBackfillLoading(true)
+    setBackfillResult(null)
+    try {
+      const res = await fetch('/api/admin/backfill-timeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 30 }),
+      })
+      const json = await res.json()
+      setBackfillResult(json.message ?? (res.ok ? '完了' : 'エラー'))
+    } catch (e) {
+      setBackfillResult('通信エラーが発生しました')
+    } finally {
+      setBackfillLoading(false)
+    }
+  }
 
   const questionCount = openQuestions.filter((q) =>
     !q.question_statuses || q.question_statuses?.status === '未対応'
@@ -396,6 +421,41 @@ export function AdminDashboardClient({
           </Link>
         ))}
       </div>
+
+      {/* メンテナンス（管理者のみ） */}
+      {isAdmin && (
+        <Card>
+          <div className="flex items-center gap-2 mb-3">
+            <Wrench className="h-4 w-4 text-stone-400" />
+            <h2 className="text-sm font-bold text-stone-700">メンテナンス</h2>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-stone-600 mb-2">
+                🌿 <span className="font-medium">タイムライン補填</span>
+              </p>
+              <p className="text-[11px] text-stone-400 mb-3">
+                過去30日分のチェックインデータからタイムラインイベントを遡及作成します。
+                タイムラインに日報が表示されない場合に実行してください（重複は自動スキップ）。
+              </p>
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={backfillLoading}
+                onClick={handleBackfillTimeline}
+              >
+                <Wrench className="h-3.5 w-3.5" />
+                タイムラインを補填する
+              </Button>
+              {backfillResult && (
+                <p className="text-xs text-stone-600 mt-2 bg-stone-50 rounded-lg px-3 py-2">
+                  ✅ {backfillResult}
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }

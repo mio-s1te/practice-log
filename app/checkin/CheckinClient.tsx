@@ -103,15 +103,20 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
 
     setSavedCheckinId(checkinId)
 
-    // 新規チェックインの時のみタイムラインイベントを作成
+    // タイムラインイベントを作成（新規チェックインのみ）
+    // ※ generationが設定されているメンバーのみ対象
     if (!isEdit && checkinId && profile.generation) {
       const hasEncourage = moods.includes('励ましがほしい')
       const eventType = hasEncourage ? 'encourage' : hasQuestion ? 'question' : 'checkin'
-      await fetch('/api/timeline/event', {
+      const res = await fetch('/api/timeline/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ checkinId, eventType, moodList: moods }),
-      }).catch(() => {})
+      }).catch(() => null)
+      // エラーが出てもチェックイン自体は成功とする
+      if (res && !res.ok) {
+        console.warn('[checkin] timeline event creation failed, status:', res.status)
+      }
     }
 
     setDone(true)
