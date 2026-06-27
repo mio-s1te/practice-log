@@ -83,6 +83,10 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
   const [reinviteLoading, setReinviteLoading] = useState(false)
   const [reinviteMsg, setReinviteMsg] = useState('')
 
+  // パスワードリセットメール
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetMsg, setResetMsg] = useState('')
+
   // LINE手動送信
   const [showLineForm, setShowLineForm] = useState(false)
   const [lineMsg, setLineMsgText] = useState('')
@@ -171,6 +175,27 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
 
   const streak = calcStreak(checkins)
   const { reported, total, rate } = calcMonthlyRate(checkins)
+
+  const handleResetPasswordEmail = async () => {
+    if (!confirm(`${member.name}（${member.email}）にパスワードリセットメールを送りますか？`)) return
+    setResetLoading(true)
+    setResetMsg('')
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: member.email }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '送信失敗')
+      setResetMsg(`✅ ${member.email} にパスワードリセットメールを送信しました`)
+    } catch (e: any) {
+      setResetMsg(`❌ ${e.message}`)
+    } finally {
+      setResetLoading(false)
+      setTimeout(() => setResetMsg(''), 5000)
+    }
+  }
 
   const handleReinvite = async () => {
     if (!confirm(`${member.name}（${member.email}）に招待メールを再送信しますか？\n\n※現在のアカウントは一旦削除され、新しい招待メールが送られます。`)) return
@@ -304,6 +329,15 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
                 >
                   {reinviteLoading ? '送信中...' : '📧 招待を再送信'}
                 </Button>
+              <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleResetPasswordEmail}
+                  disabled={resetLoading}
+                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                >
+                  {resetLoading ? '送信中...' : '🔑 パスワードリセット'}
+                </Button>
               <Button size="sm" variant="secondary" onClick={() => { setShowEmailForm(!showEmailForm); setShowPwForm(false); setEditing(false) }}>
                 ✉️ メアド変更
               </Button>
@@ -397,6 +431,13 @@ export function MemberDetailClient({ member, currentProfile, checkins, userBadge
           </div>
         )}
       </Card>
+
+      {/* パスワードリセットメッセージ */}
+      {resetMsg && (
+        <div className={`text-sm px-4 py-3 rounded-xl ${resetMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          {resetMsg}
+        </div>
+      )}
 
       {/* 招待再送信メッセージ */}
       {reinviteMsg && (
