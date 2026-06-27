@@ -19,8 +19,22 @@ export default function LoginPage() {
 
   useEffect(() => {
     const hash = window.location.hash
+    const searchParams = new URLSearchParams(window.location.search)
+    const code = searchParams.get('code')
+    const typeFromQuery = searchParams.get('type')
 
-    // 招待リンク・パスワードリセットリンクのハッシュトークンを検出
+    // ① クエリパラメータにtokenまたはcodeがある場合（PKCE形式）
+    const token = searchParams.get('token')
+    const typeFromQuery = searchParams.get('type')
+
+    if ((code || token) && (typeFromQuery === 'recovery' || typeFromQuery === 'invite')) {
+      setRedirecting(true)
+      const param = code ? `code=${code}` : `token=${token}`
+      router.replace(`/auth/callback?${param}&type=${typeFromQuery}`)
+      return
+    }
+
+    // ② ハッシュ形式（access_tokenが#に含まれる）
     if (hash && hash.includes('access_token')) {
       const params = new URLSearchParams(hash.replace('#', ''))
       const type = params.get('type')
@@ -31,7 +45,7 @@ export default function LoginPage() {
       }
     }
 
-    // ハッシュなし → 既存セッションがあればダッシュボードへ
+    // ③ ハッシュもコードもない → 既存セッションがあればダッシュボードへ
     supabase.auth.getSession().then(async ({ data }) => {
       if (data.session) {
         const { data: profile } = await supabase
