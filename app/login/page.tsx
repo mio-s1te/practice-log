@@ -154,7 +154,7 @@ export default function LoginPage() {
                 if (!email) { setError('メールアドレスを入力してください'); return }
                 setLoading(true)
                 const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                  redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+                  redirectTo: `${window.location.origin}/login`,
                 })
                 setLoading(false)
                 if (error) { setError('送信に失敗しました'); return }
