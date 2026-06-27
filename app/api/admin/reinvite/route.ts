@@ -24,41 +24,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 })
   }
 
+  // 自分自身への再送は禁止（管理者が自分を消してしまうのを防ぐ）
+  if (userId === user.id) {
+    return NextResponse.json({ error: '自分自身への再送はできません' }, { status: 400 })
+  }
+
   const adminClient = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { cookies: { getAll: () => [], setAll: () => {} } }
   )
 
-  // 既存ユーザーを一旦削除してから再招待
-  // （Supabaseは招待済みユーザーへの再招待ができないため）
-  const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId)
-  if (deleteError) {
-    return NextResponse.json({ error: '既存ユーザーの削除に失敗しました: ' + deleteError.message }, { status: 500 })
-  }
-
-  // 再招待
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://mioprocess.netlify.app'
-  const { data, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    data: { name, role: role ?? 'member' },
-    redirectTo: `${appUrl}/auth/callback`,
-  })
-  if (inviteError) {
-    return NextResponse.json({ error: '招待メールの送信に失敗しました: ' + inviteError.message }, { status: 500 })
-  }
 
-  // profilesテーブルのIDを新しいユーザーIDに更新
-  if (data.user) {
-    await adminClient.from('profiles').upsert({
-      id: data.user.id,
-      email,
-      name,
-      role: role ?? 'member',
-    })
-    // 古いIDのプロフィールを削除（残っていれば）
-    if (data.user.id !== userId) {
-      await adminClient.from('profiles').delete().eq('id', userId)
-    }
+  // パスワードリセットメールを送信
+  // ※ユーザーを削除しないのでデータは全部残る
+  const { error } = await adminClient.auth.admin.generateLink({
+    type: 'invite',
+    email,
+    options: {
+      redirectTo: `${appUrl}/auth/callback`,
+    },
+  })
+
+  if (error) {
+    return NextResponse.json({ error: '招待メールの送信に失敗しました: ' + error.message }, { status: 500 })
   }
 
   return NextResponse.json({ success: true })
