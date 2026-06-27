@@ -21,9 +21,6 @@ export default function LoginPage() {
     const hash = window.location.hash
     const searchParams = new URLSearchParams(window.location.search)
     const code = searchParams.get('code')
-    const typeFromQuery = searchParams.get('type')
-
-    // ① クエリパラメータにtokenまたはcodeがある場合（PKCE形式）
     const token = searchParams.get('token')
     const typeFromQuery = searchParams.get('type')
 
@@ -168,7 +165,7 @@ export default function LoginPage() {
                 if (!email) { setError('メールアドレスを入力してください'); return }
                 setLoading(true)
                 const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                  redirectTo: `${window.location.origin}/login`,
+                  redirectTo: `${window.location.origin}/auth/callback`,
                 })
                 setLoading(false)
                 if (error) { setError('送信に失敗しました'); return }
