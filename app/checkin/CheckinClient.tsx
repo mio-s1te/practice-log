@@ -107,11 +107,13 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
     // ※ generationが設定されているメンバーのみ対象
     if (!isEdit && checkinId && profile.generation) {
       const hasEncourage = moods.includes('励ましがほしい')
+      // eventType は代表値（checkin / question / encourage）として渡す
+      // ただし API 側で checkin は常に登録 + question/encourage を追加登録する
       const eventType = hasEncourage ? 'encourage' : hasQuestion ? 'question' : 'checkin'
       const res = await fetch('/api/timeline/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checkinId, eventType, moodList: moods }),
+        body: JSON.stringify({ checkinId, eventType, moodList: moods, hasQuestion: hasQuestion ?? false }),
       }).catch(() => null)
       // エラーが出てもチェックイン自体は成功とする
       if (res && !res.ok) {

@@ -6,9 +6,10 @@ import { getOrAssignEmoji } from '@/lib/emoji'
 // POST /api/timeline/event
 // チェックイン後に呼び出してタイムラインイベントを作成＋Discord通知
 export async function POST(req: NextRequest) {
-  const { checkinId, eventType, moodList } = await req.json()
+  const { checkinId, eventType, moodList, hasQuestion } = await req.json()
   // eventType: 'checkin' | 'question' | 'encourage'
   // moodList: string[] （複数選択された気分）
+  // hasQuestion: boolean （質問入力があった場合 true）
 
   const cookieStore = await cookies()
   const supabase = createServerClient(
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '未認証' }, { status: 401 })
 
-  // プロフィール取得（名前・discord_name・generation・discord_share も必要）
+  // プロフィール取得
   const { data: profile } = await supabase
     .from('profiles')
     .select('name, discord_name, generation, role')
@@ -46,85 +47,124 @@ export async function POST(req: NextRequest) {
   // 絵文字割り当て
   const emoji = await getOrAssignEmoji(adminClient, user.id, profile.generation)
 
-  // タイムラインイベント作成
-  const { data: event, error: eventError } = await adminClient
+  const isEncourage = Array.isArray(moodList)
+    ? moodList.includes('励ましがほしい')
+    : eventType === 'encourage'
+
+  // ─── タイムラインイベント登録 ───────────────────────────────
+  // ① 常に「checkin」イベントを登録（日報を提出しました）
+  const { data: checkinEvent, error: checkinEventError } = await adminClient
     .from('timeline_events')
     .insert({
       user_id: user.id,
       generation: profile.generation,
-      event_type: eventType,
+      event_type: 'checkin',
       checkin_id: checkinId ?? null,
     })
     .select()
     .single()
 
-  if (eventError) {
-    console.error('[timeline/event] insert error:', eventError)
-    return NextResponse.json({ error: 'timeline insert failed', detail: eventError.message }, { status: 500 })
+  if (checkinEventError) {
+    console.error('[timeline/event] checkin insert error:', checkinEventError)
+    return NextResponse.json({ error: 'timeline insert failed', detail: checkinEventError.message }, { status: 500 })
   }
 
-  // チェックイン内容を取得（Discord投稿に使う）
+  // ② 「質問あり」の場合は question イベントも追加登録
+  const isQuestion = hasQuestion === true || eventType === 'question'
+
+  if (isQuestion) {
+    const { error: qError } = await adminClient
+      .from('timeline_events')
+      .insert({
+        user_id: user.id,
+        generation: profile.generation,
+        event_type: 'question',
+        checkin_id: checkinId ?? null,
+      })
+
+    if (qError) {
+      console.error('[timeline/event] question insert error:', qError)
+      // question登録失敗はcheckin自体は成功として続行
+    }
+  }
+
+  // ③ 「励ましがほしい」の場合は encourage イベントも追加登録
+  let encourageEventId: string | null = null
+  if (isEncourage) {
+    const { data: encEvent, error: encError } = await adminClient
+      .from('timeline_events')
+      .insert({
+        user_id: user.id,
+        generation: profile.generation,
+        event_type: 'encourage',
+        checkin_id: checkinId ?? null,
+      })
+      .select()
+      .single()
+
+    if (encError) {
+      console.error('[timeline/event] encourage insert error:', encError)
+      // encourage登録失敗はcheckin自体は成功として続行
+    } else {
+      encourageEventId = encEvent?.id ?? null
+    }
+  }
+
+  // ─── チェックイン内容取得（Discord投稿用） ──────────────────
   const { data: checkin } = await adminClient
     .from('checkins')
     .select('done_text, stuck_text, next_text, has_question, question_text, discord_share')
     .eq('id', checkinId)
     .single()
 
-  // 期生別 Webhook URL を取得
-  const { data: genSettings } = await adminClient
+  // ─── 期生別 Webhook URL 取得 ─────────────────────────────────
+  // generation文字列はtrim()して比較（スペース混入対策）
+  const { data: allGenSettings } = await adminClient
     .from('generation_settings')
-    .select('discord_webhook_url')
-    .eq('generation', profile.generation)
-    .single()
+    .select('generation, discord_webhook_url')
 
+  const myGen = profile.generation.trim()
+  const genSettings = (allGenSettings ?? []).find(
+    (g: any) => g.generation?.trim() === myGen && g.discord_webhook_url
+  )
   const generationWebhookUrl = genSettings?.discord_webhook_url ?? null
 
-  // ① 期生ルームへの日報投稿（新規チェックインのみ）
-  // discord_share が '共有NG' でなければ投稿
+  // ─── ① 期生ルームへの日報投稿 ───────────────────────────────
   if (generationWebhookUrl && checkin && checkin.discord_share !== '共有NG') {
     const isAnonymous = checkin.discord_share === '匿名ならOK'
 
-    // 表示名
     const displayName = isAnonymous
       ? `${emoji}（匿名）`
       : profile.discord_name
         ? `${emoji} @${profile.discord_name}`
         : `${emoji} ${profile.name}`
 
-    // 気分ラベル
     const moodLabels = Array.isArray(moodList) && moodList.length > 0
       ? moodList.join(' / ')
       : null
 
-    // メッセージ組み立て
     const lines: string[] = [
       `📋 **${profile.generation}** の日報が届きました`,
       `👤 ${displayName}`,
     ]
 
-    if (moodLabels) {
-      lines.push(`気分：${moodLabels}`)
-    }
-
-    lines.push('') // 空行
+    if (moodLabels) lines.push(`気分：${moodLabels}`)
+    lines.push('')
 
     if (checkin.done_text) {
       lines.push(`✅ **今日やったこと**`)
       lines.push(`> ${checkin.done_text.replace(/\n/g, '\n> ')}`)
     }
-
     if (checkin.stuck_text) {
       lines.push(``)
       lines.push(`🤔 **つまずき・もやもや**`)
       lines.push(`> ${checkin.stuck_text.replace(/\n/g, '\n> ')}`)
     }
-
     if (checkin.next_text) {
       lines.push(``)
       lines.push(`📌 **明日やること**`)
       lines.push(`> ${checkin.next_text.replace(/\n/g, '\n> ')}`)
     }
-
     if (checkin.has_question && checkin.question_text) {
       lines.push(``)
       lines.push(`❓ **質問**`)
@@ -139,34 +179,31 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: lines.join('\n') }),
-    }).catch(() => {}) // Discord失敗してもチェックインは成功扱い
+    }).catch(() => {})
   }
 
-  // ② 励まし通知（全体 or 期生ルームへ）
-  const isEncourage = Array.isArray(moodList)
-    ? moodList.includes('励ましがほしい')
-    : eventType === 'encourage'
-
+  // ─── ② 励まし通知（Discord） ────────────────────────────────
   if (isEncourage) {
-    // 期生ルームのwebhookがあればそちらに送る、なければ全体webhookへ
     const encourageWebhookUrl = generationWebhookUrl ?? process.env.DISCORD_WEBHOOK_URL
-
     if (encourageWebhookUrl) {
       const message = [
         `💛 ${emoji} **${profile.generation}** のメンバーが励ましを求めています`,
         `スタンプ送ってあげてください → ${process.env.NEXT_PUBLIC_APP_URL ?? 'https://mioprocess.netlify.app'}/dashboard`,
       ].join('\n')
 
-      // 期生ルームとは別の投稿が必要な場合のみ（日報投稿と別）
-      if (!generationWebhookUrl || generationWebhookUrl !== (process.env.DISCORD_WEBHOOK_URL ?? '')) {
-        await fetch(encourageWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: message }),
-        }).catch(() => {})
-      }
+      // 日報投稿と同じwebhookの場合は別途送る（日報とは別メッセージ）
+      await fetch(encourageWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: message }),
+      }).catch(() => {})
     }
   }
 
-  return NextResponse.json({ ok: true, eventId: event.id, emoji })
+  return NextResponse.json({
+    ok: true,
+    checkinEventId: checkinEvent.id,
+    encourageEventId,
+    emoji,
+  })
 }

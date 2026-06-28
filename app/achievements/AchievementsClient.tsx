@@ -36,6 +36,12 @@ const PUBLIC_OPTIONS = [
   { value: 'NG', label: '掲載NG' },
 ]
 
+const REACTION_EMOJIS = ['❤️', '🎉', '👏', '✨', '🔥'] as const
+type ReactionEmoji = typeof REACTION_EMOJIS[number]
+
+// リアクション状態: { achievementId → { emoji → { count, reacted } } }
+type ReactionState = Record<string, Record<string, { count: number; reacted: boolean }>>
+
 export function AchievementsClient({
   achievements: initialAchievements,
   generationAchievements,
@@ -52,13 +58,47 @@ export function AchievementsClient({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // リアクション状態
+  const [reactions, setReactions] = useState<ReactionState>({})
+  const [reactingKey, setReactingKey] = useState<string | null>(null)
+
+  const handleReaction = async (achievementId: string, emoji: ReactionEmoji) => {
+    const key = `${achievementId}-${emoji}`
+    if (reactingKey === key) return
+    setReactingKey(key)
+
+    // 楽観的更新
+    setReactions(prev => {
+      const cur = prev[achievementId]?.[emoji] ?? { count: 0, reacted: false }
+      return {
+        ...prev,
+        [achievementId]: {
+          ...(prev[achievementId] ?? {}),
+          [emoji]: {
+            count: cur.reacted ? cur.count - 1 : cur.count + 1,
+            reacted: !cur.reacted,
+          },
+        },
+      }
+    })
+
+    await fetch('/api/achievements/react', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ achievementId, emoji }),
+    }).catch(() => {})
+
+    setReactingKey(null)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!text.trim()) return
     setLoading(true)
     setError('')
 
-    const { data, error } = await supabase
+    // ① Supabase に成果報告を INSERT
+    const { data, error: insertError } = await supabase
       .from('achievements')
       .insert({
         user_id: userId,
@@ -69,11 +109,27 @@ export function AchievementsClient({
       .select()
       .single()
 
-    if (error) {
+    if (insertError) {
       setError('送信に失敗しました')
       setLoading(false)
       return
     }
+
+    // ② タイムライン登録 + Discord 投稿（失敗してもUIは更新）
+    fetch('/api/achievements/post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        achievementId: data.id,
+        achievementText: text.trim(),
+        publicOk,
+        screenshotUrl: screenshotUrl.trim() || null,
+      }),
+    }).then(res => {
+      if (!res.ok) res.text().then(t => console.error('[achievements/post] error:', t))
+    }).catch(err => {
+      console.error('[achievements/post] fetch error:', err)
+    })
 
     setAchievements([data, ...achievements])
     setText('')
@@ -225,6 +281,47 @@ export function AchievementsClient({
                           📎 スクショを見る
                         </a>
                       )}
+
+                      {/* 自分の成果へのリアクションバー */}
+                      <div className="mt-2.5">
+                        {/* リアクション件数表示 */}
+                        {Object.entries(reactions[a.id] ?? {}).some(([, v]) => v.count > 0) && (
+                          <div className="flex gap-1 flex-wrap mb-1.5">
+                            {REACTION_EMOJIS.filter(e => (reactions[a.id]?.[e]?.count ?? 0) > 0).map(e => (
+                              <span
+                                key={e}
+                                className={`text-xs px-2 py-0.5 rounded-full border ${
+                                  reactions[a.id]?.[e]?.reacted
+                                    ? 'bg-amber-100 border-amber-300 font-bold'
+                                    : 'bg-stone-50 border-stone-200'
+                                }`}
+                              >
+                                {e} {reactions[a.id]?.[e]?.count}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* リアクションボタン */}
+                        <div className="flex gap-1 flex-wrap">
+                          {REACTION_EMOJIS.map(e => {
+                            const reacted = reactions[a.id]?.[e]?.reacted ?? false
+                            return (
+                              <button
+                                key={e}
+                                disabled={reactingKey === `${a.id}-${e}`}
+                                onClick={() => handleReaction(a.id, e)}
+                                className={`text-sm px-2 py-1 rounded-xl border transition-all active:scale-95 ${
+                                  reacted
+                                    ? 'bg-amber-100 border-amber-300 scale-110'
+                                    : 'bg-white border-stone-200 hover:border-amber-300 hover:bg-amber-50'
+                                }`}
+                              >
+                                {e}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </Card>
@@ -271,6 +368,47 @@ export function AchievementsClient({
                           📎 スクショを見る
                         </a>
                       )}
+
+                      {/* 同期の成果へのリアクションバー */}
+                      <div className="mt-2.5">
+                        {/* リアクション件数表示 */}
+                        {Object.entries(reactions[a.id] ?? {}).some(([, v]) => v.count > 0) && (
+                          <div className="flex gap-1 flex-wrap mb-1.5">
+                            {REACTION_EMOJIS.filter(e => (reactions[a.id]?.[e]?.count ?? 0) > 0).map(e => (
+                              <span
+                                key={e}
+                                className={`text-xs px-2 py-0.5 rounded-full border ${
+                                  reactions[a.id]?.[e]?.reacted
+                                    ? 'bg-amber-100 border-amber-300 font-bold'
+                                    : 'bg-stone-50 border-stone-200'
+                                }`}
+                              >
+                                {e} {reactions[a.id]?.[e]?.count}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* リアクションボタン */}
+                        <div className="flex gap-1 flex-wrap">
+                          {REACTION_EMOJIS.map(e => {
+                            const reacted = reactions[a.id]?.[e]?.reacted ?? false
+                            return (
+                              <button
+                                key={e}
+                                disabled={reactingKey === `${a.id}-${e}`}
+                                onClick={() => handleReaction(a.id, e)}
+                                className={`text-sm px-2 py-1 rounded-xl border transition-all active:scale-95 ${
+                                  reacted
+                                    ? 'bg-amber-100 border-amber-300 scale-110'
+                                    : 'bg-white border-stone-200 hover:border-amber-300 hover:bg-amber-50'
+                                }`}
+                              >
+                                {e}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </Card>

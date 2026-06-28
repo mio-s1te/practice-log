@@ -43,7 +43,7 @@ export async function GET() {
   const { data: events, error: eventsError } = await adminClient
     .from('timeline_events')
     .select(`
-      id, event_type, created_at, user_id, checkin_id,
+      id, event_type, created_at, user_id, checkin_id, achievement_id,
       encourage_stamps(id, stamp, user_id)
     `)
     .eq('generation', profile.generation)
@@ -56,6 +56,37 @@ export async function GET() {
   }
 
   console.log(`[timeline] generation=${profile.generation}, events=${events?.length ?? 0}`)
+
+  // achievement_id を収集して achievement 詳細を一括取得
+  const achievementIds = (events ?? [])
+    .filter((e: any) => e.achievement_id)
+    .map((e: any) => e.achievement_id as string)
+
+  const achievementsMap: Record<string, { achievement_text: string; public_ok: string }> = {}
+
+  if (achievementIds.length > 0) {
+    const { data: achRows, error: achError } = await adminClient
+      .from('achievements')
+      .select('id, achievement_text, public_ok')
+      .in('id', achievementIds)
+
+    if (achError) {
+      console.error('[timeline] achievements fetch error:', achError.message)
+    }
+
+    ;(achRows ?? []).forEach((a: any) => {
+      achievementsMap[a.id] = {
+        achievement_text: a.achievement_text,
+        public_ok: a.public_ok,
+      }
+    })
+  }
+
+  // events に achievement 詳細を付与
+  const enrichedEvents = (events ?? []).map((ev: any) => ({
+    ...ev,
+    achievement: ev.achievement_id ? (achievementsMap[ev.achievement_id] ?? null) : null,
+  }))
 
   // 絵文字マップを取得（この世代の全メンバー）
   const { data: emojiRows, error: emojiError } = await adminClient
@@ -71,7 +102,7 @@ export async function GET() {
   ;(emojiRows ?? []).forEach((r: any) => { emojiMap[r.user_id] = r.emoji })
 
   return NextResponse.json({
-    events: events ?? [],
+    events: enrichedEvents,
     emojiMap,
     myUserId: user.id,
   })
