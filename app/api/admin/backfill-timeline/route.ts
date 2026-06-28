@@ -25,7 +25,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 
-  const { generation, days = 30 } = await req.json()
+  const body = await req.json()
+  const { generation, days = 30 } = body
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceKey) {
@@ -39,34 +40,51 @@ export async function POST(req: NextRequest) {
   )
 
   // 対象generationのメンバー取得
-  const profilesQuery = adminClient.from('profiles').select('id, generation, name')
+  // ※ クエリビルダーのチェーンは必ず一連のチェーンで書く（後付け不可）
+  let membersQuery = adminClient
+    .from('profiles')
+    .select('id, generation, name')
+    .not('generation', 'is', null)
+
   if (generation) {
-    profilesQuery.eq('generation', generation)
-  } else {
-    profilesQuery.not('generation', 'is', null)
+    membersQuery = membersQuery.eq('generation', generation) as any
   }
-  const { data: members } = await profilesQuery
+
+  const { data: members, error: membersError } = await membersQuery
+
+  if (membersError) {
+    return NextResponse.json({ error: `メンバー取得エラー: ${membersError.message}` }, { status: 500 })
+  }
 
   if (!members || members.length === 0) {
-    return NextResponse.json({ ok: true, created: 0, message: '対象メンバーなし' })
+    return NextResponse.json({ ok: true, created: 0, message: '対象メンバーなし（generationが設定されたメンバーがいません）', debug: { membersError } })
   }
 
   const since = new Date()
   since.setDate(since.getDate() - Number(days))
+  const sinceDate = since.toISOString().split('T')[0]
 
   let createdCount = 0
   const errors: string[] = []
+  const debugLog: any[] = []
 
   for (const member of members) {
     if (!member.generation) continue
 
     // このメンバーの過去のチェックイン取得
-    const { data: checkins } = await adminClient
+    const { data: checkins, error: checkinsError } = await adminClient
       .from('checkins')
       .select('id, date, has_question')
       .eq('user_id', member.id)
-      .gte('date', since.toISOString().split('T')[0])
+      .gte('date', sinceDate)
       .order('date', { ascending: true })
+
+    debugLog.push({
+      member: member.name,
+      generation: member.generation,
+      checkins: checkins?.length ?? 0,
+      checkinsError: checkinsError?.message ?? null,
+    })
 
     if (!checkins || checkins.length === 0) continue
 
@@ -85,7 +103,7 @@ export async function POST(req: NextRequest) {
       if (existingCheckinIds.has(checkin.id)) continue
 
       const eventType = checkin.has_question ? 'question' : 'checkin'
-      const { error } = await adminClient
+      const { error: insertError } = await adminClient
         .from('timeline_events')
         .insert({
           user_id: member.id,
@@ -94,8 +112,8 @@ export async function POST(req: NextRequest) {
           checkin_id: checkin.id,
         })
 
-      if (error) {
-        errors.push(`${member.name}（${checkin.date}）: ${error.message}`)
+      if (insertError) {
+        errors.push(`${member.name}（${checkin.date}）: ${insertError.message}`)
       } else {
         createdCount++
       }
@@ -107,5 +125,10 @@ export async function POST(req: NextRequest) {
     created: createdCount,
     errors: errors.length > 0 ? errors : undefined,
     message: `${createdCount}件のタイムラインイベントを作成しました`,
+    debug: {
+      membersCount: members.length,
+      sinceDate,
+      perMember: debugLog,
+    },
   })
 }

@@ -46,6 +46,7 @@ export function AdminDashboardClient({
   // タイムラインバックフィル
   const [backfillLoading, setBackfillLoading] = useState(false)
   const [backfillResult, setBackfillResult] = useState<string | null>(null)
+  const [backfillDetail, setBackfillDetail] = useState<any>(null)
 
   // 診断
   const [debugLoading, setDebugLoading] = useState(false)
@@ -55,6 +56,7 @@ export function AdminDashboardClient({
     if (!confirm('過去30日分のチェックインからタイムラインイベントを作成します。\n（すでに存在するものはスキップされます）\nよろしいですか？')) return
     setBackfillLoading(true)
     setBackfillResult(null)
+    setBackfillDetail(null)
     try {
       const res = await fetch('/api/admin/backfill-timeline', {
         method: 'POST',
@@ -63,6 +65,8 @@ export function AdminDashboardClient({
       })
       const json = await res.json()
       setBackfillResult(json.error ? `❌ ${json.error}` : (json.message ?? '完了'))
+      if (json.debug) setBackfillDetail(json.debug)
+      if (json.errors?.length) setBackfillDetail((prev: any) => ({ ...prev, errors: json.errors }))
     } catch (e) {
       setBackfillResult('❌ 通信エラーが発生しました')
     } finally {
@@ -466,9 +470,25 @@ export function AdminDashboardClient({
                 タイムラインを補填する
               </Button>
               {backfillResult && (
-                <p className="text-xs text-stone-600 mt-2 bg-stone-50 rounded-lg px-3 py-2">
-                  {backfillResult}
-                </p>
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-stone-600 bg-stone-50 rounded-lg px-3 py-2">
+                    {backfillResult}
+                  </p>
+                  {backfillDetail && (
+                    <div className="text-[11px] bg-stone-50 rounded-lg px-3 py-2 text-stone-500 space-y-0.5">
+                      <p>対象: {backfillDetail.membersCount}名 / 基準日: {backfillDetail.sinceDate}</p>
+                      {backfillDetail.perMember?.map((m: any, i: number) => (
+                        <p key={i}>
+                          {m.member}（{m.generation}）: チェックイン{m.checkins}件
+                          {m.checkinsError && <span className="text-red-500"> エラー:{m.checkinsError}</span>}
+                        </p>
+                      ))}
+                      {backfillDetail.errors?.map((e: string, i: number) => (
+                        <p key={i} className="text-red-500">{e}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
