@@ -26,22 +26,20 @@ export async function GET() {
   }
 
   const result: Record<string, any> = {
-    currentUser: { id: user.id, generation: profile.generation },
+    currentUser: { id: user.id.slice(0, 8), generation: profile.generation },
     envCheck: {
       hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
       serviceRoleKeyPrefix: process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 20) + '...',
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     },
   }
 
-  // adminClient でのアクセス確認
   const adminClient = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { cookies: { getAll: () => [], setAll: () => {} } }
   )
 
-  // --- profiles テーブル確認 ---
+  // --- profiles テーブル ---
   const { data: allProfiles, error: profilesError } = await adminClient
     .from('profiles')
     .select('id, name, generation, role')
@@ -58,7 +56,75 @@ export async function GET() {
     })) ?? [],
   }
 
-  // --- timeline_events テーブル確認 ---
+  // --- achievements テーブル（全件・詳細） ---
+  const { data: achievements, error: achError } = await adminClient
+    .from('achievements')
+    .select('id, user_id, public_ok, date, achievement_text')
+    .order('date', { ascending: false })
+    .limit(50)
+
+  // profiles の name マップ
+  const nameMap: Record<string, string> = {}
+  allProfiles?.forEach((p: any) => { nameMap[p.id] = p.name })
+
+  result.achievements = {
+    count: achievements?.length ?? 0,
+    error: achError?.message ?? null,
+    publicBreakdown: achievements?.reduce((acc: any, a: any) => {
+      acc[a.public_ok] = (acc[a.public_ok] ?? 0) + 1
+      return acc
+    }, {}) ?? {},
+    // 全件の詳細（誰が何を投稿したか・public_okは何か）
+    detail: achievements?.map((a: any) => ({
+      name: nameMap[a.user_id] ?? a.user_id.slice(0, 8),
+      public_ok: a.public_ok,
+      date: a.date,
+      text: a.achievement_text?.slice(0, 20),
+    })) ?? [],
+  }
+
+  // --- 同期生フィルタ後のachievements ---
+  if (profile.generation) {
+    const genMembers = allProfiles?.filter((p: any) => p.generation === profile.generation && p.id !== user.id) ?? []
+    const genIds = genMembers.map((p: any) => p.id)
+
+    result.generationAchievementsCheck = {
+      generation: profile.generation,
+      genMemberCount: genMembers.length,
+      genMemberNames: genMembers.map((p: any) => p.name),
+    }
+
+    if (genIds.length > 0) {
+      // NGを含む全件
+      const { data: allGenAch, error: allGenAchErr } = await adminClient
+        .from('achievements')
+        .select('id, user_id, public_ok, date')
+        .in('user_id', genIds)
+
+      // NGを除いた件数
+      const { data: visibleGenAch, error: visibleErr } = await adminClient
+        .from('achievements')
+        .select('id, user_id, public_ok, date, achievement_text')
+        .in('user_id', genIds)
+        .neq('public_ok', 'NG')
+
+      result.generationAchievementsCheck = {
+        ...result.generationAchievementsCheck,
+        totalIncludingNG: allGenAch?.length ?? 0,
+        totalExcludingNG: visibleGenAch?.length ?? 0,
+        allGenAchErr: allGenAchErr?.message ?? null,
+        visibleErr: visibleErr?.message ?? null,
+        detail: allGenAch?.map((a: any) => ({
+          name: nameMap[a.user_id] ?? a.user_id.slice(0, 8),
+          public_ok: a.public_ok,
+          date: a.date,
+          visible: a.public_ok !== 'NG',
+        })) ?? [],
+      }
+    }
+  }
+
+  // --- timeline_events テーブル ---
   const { data: timelineEvents, error: timelineError } = await adminClient
     .from('timeline_events')
     .select('id, user_id, generation, event_type, created_at')
@@ -69,20 +135,17 @@ export async function GET() {
     count: timelineEvents?.length ?? 0,
     error: timelineError?.message ?? null,
     data: timelineEvents?.map((e: any) => ({
-      id: e.id.slice(0, 8),
-      user_id: e.user_id?.slice(0, 8),
+      name: nameMap[e.user_id] ?? e.user_id?.slice(0, 8),
       generation: e.generation,
       event_type: e.event_type,
       created_at: e.created_at,
     })) ?? [],
   }
 
-  // --- 現在のgenerationのイベント数 ---
   if (profile.generation) {
     const since = new Date()
     since.setDate(since.getDate() - 7)
-
-    const { data: myGenEvents, error: myGenError } = await adminClient
+    const { data: myGenEvents } = await adminClient
       .from('timeline_events')
       .select('id, user_id, event_type, created_at')
       .eq('generation', profile.generation)
@@ -91,43 +154,13 @@ export async function GET() {
     result.myGenerationEvents = {
       generation: profile.generation,
       last7days: myGenEvents?.length ?? 0,
-      error: myGenError?.message ?? null,
       breakdown: myGenEvents?.reduce((acc: any, e: any) => {
-        acc[e.event_type] = (acc[e.event_type] ?? 0) + 1
+        const name = nameMap[e.user_id] ?? e.user_id?.slice(0, 8)
+        if (!acc[name]) acc[name] = {}
+        acc[name][e.event_type] = (acc[name][e.event_type] ?? 0) + 1
         return acc
       }, {}) ?? {},
     }
-  }
-
-  // --- achievements テーブル確認 ---
-  const { data: achievements, error: achError } = await adminClient
-    .from('achievements')
-    .select('id, user_id, public_ok, date')
-    .order('date', { ascending: false })
-    .limit(20)
-
-  result.achievements = {
-    count: achievements?.length ?? 0,
-    error: achError?.message ?? null,
-    publicBreakdown: achievements?.reduce((acc: any, a: any) => {
-      acc[a.public_ok] = (acc[a.public_ok] ?? 0) + 1
-      return acc
-    }, {}) ?? {},
-  }
-
-  // --- emoji_assignments 確認 ---
-  const { data: emojis, error: emojiError } = await adminClient
-    .from('emoji_assignments')
-    .select('user_id, generation, emoji')
-
-  result.emojiAssignments = {
-    count: emojis?.length ?? 0,
-    error: emojiError?.message ?? null,
-    byGeneration: emojis?.reduce((acc: any, e: any) => {
-      if (!acc[e.generation]) acc[e.generation] = 0
-      acc[e.generation]++
-      return acc
-    }, {}) ?? {},
   }
 
   return NextResponse.json(result, { status: 200 })

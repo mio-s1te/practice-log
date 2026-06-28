@@ -545,16 +545,55 @@ export function AdminDashboardClient({
                   </div>
                   {/* achievements */}
                   <div className="bg-stone-50 rounded-lg px-3 py-2 text-stone-700">
-                    <p className="font-medium mb-1">achievementsテーブル</p>
+                    <p className="font-medium mb-1">achievementsテーブル（全体）</p>
                     {debugResult.achievements?.error
                       ? <p className="text-red-600">エラー: {debugResult.achievements.error}</p>
-                      : <p>全体: {debugResult.achievements?.count}件
-                          {debugResult.achievements?.publicBreakdown && (
-                            <span> ({Object.entries(debugResult.achievements.publicBreakdown).map(([k, v]) => `${k}:${v}`).join(', ')})</span>
+                      : <>
+                          <p>全体: {debugResult.achievements?.count}件
+                            {debugResult.achievements?.publicBreakdown && (
+                              <span> ({Object.entries(debugResult.achievements.publicBreakdown).map(([k, v]) => `${k}:${v}`).join(', ')})</span>
+                            )}
+                          </p>
+                          {/* 全件詳細 */}
+                          {debugResult.achievements?.detail?.length > 0 && (
+                            <div className="mt-1 space-y-0.5 text-stone-500">
+                              {debugResult.achievements.detail.map((a: any, i: number) => (
+                                <p key={i}>{a.name} / {a.public_ok} / {a.date} / {a.text}</p>
+                              ))}
+                            </div>
                           )}
-                        </p>
+                        </>
                     }
                   </div>
+                  {/* 同期生フィルタ後のachievements */}
+                  {debugResult.generationAchievementsCheck && (
+                    <div className="bg-stone-50 rounded-lg px-3 py-2 text-stone-700">
+                      <p className="font-medium mb-1">同期生の成果（{debugResult.generationAchievementsCheck.generation}）</p>
+                      <p>同期生: {debugResult.generationAchievementsCheck.genMemberCount}名
+                        {debugResult.generationAchievementsCheck.genMemberNames?.length > 0 && (
+                          <span> ({debugResult.generationAchievementsCheck.genMemberNames.join(', ')})</span>
+                        )}
+                      </p>
+                      {debugResult.generationAchievementsCheck.allGenAchErr
+                        ? <p className="text-red-600">エラー: {debugResult.generationAchievementsCheck.allGenAchErr}</p>
+                        : <>
+                            <p>NG含む全件: {debugResult.generationAchievementsCheck.totalIncludingNG}件</p>
+                            <p className={debugResult.generationAchievementsCheck.totalExcludingNG > 0 ? 'text-green-700 font-medium' : 'text-red-600'}>
+                              表示対象（NG除外）: {debugResult.generationAchievementsCheck.totalExcludingNG}件
+                            </p>
+                            {debugResult.generationAchievementsCheck.detail?.length > 0 && (
+                              <div className="mt-1 space-y-0.5 text-stone-500">
+                                {debugResult.generationAchievementsCheck.detail.map((a: any, i: number) => (
+                                  <p key={i} className={a.visible ? '' : 'text-red-400 line-through'}>
+                                    {a.name} / {a.public_ok} / {a.date} {a.visible ? '✅' : '❌非表示'}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                      }
+                    </div>
+                  )}
                 </div>
               )}
             </div>
