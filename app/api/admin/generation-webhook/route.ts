@@ -6,14 +6,32 @@ import { cookies } from 'next/headers'
  * POST /api/admin/generation-webhook
  * 期生別 Discord Webhook URL を保存する（管理者のみ）
  *
- * Body: { generation: string, webhookUrl: string }
+ * Body: {
+ *   generation: string
+ *   webhookUrl: string
+ *   urlType?: 'discord_webhook_url' | 'encourage_webhook_url' | 'achievement_webhook_url'
+ *             省略時は 'discord_webhook_url'（後方互換）
+ * }
  */
+
+const ALLOWED_URL_TYPES = [
+  'discord_webhook_url',
+  'encourage_webhook_url',
+  'achievement_webhook_url',
+] as const
+type UrlType = typeof ALLOWED_URL_TYPES[number]
+
 export async function POST(req: NextRequest) {
-  const { generation, webhookUrl } = await req.json()
+  const { generation, webhookUrl, urlType: rawUrlType } = await req.json()
 
   if (!generation) {
     return NextResponse.json({ error: '期生名が必要です' }, { status: 400 })
   }
+
+  // urlType のバリデーション（省略時は後方互換で discord_webhook_url）
+  const urlType: UrlType = ALLOWED_URL_TYPES.includes(rawUrlType as UrlType)
+    ? (rawUrlType as UrlType)
+    : 'discord_webhook_url'
 
   // URL形式チェック（空文字は削除扱いで許可）
   if (webhookUrl && !webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
@@ -57,7 +75,7 @@ export async function POST(req: NextRequest) {
     .upsert(
       {
         generation,
-        discord_webhook_url: webhookUrl || null,  // 空文字はNULLに
+        [urlType]: webhookUrl || null,  // 空文字はNULLに
       },
       { onConflict: 'generation' }
     )
@@ -67,5 +85,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '保存に失敗しました' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, urlType })
 }

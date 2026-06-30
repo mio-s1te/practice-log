@@ -40,10 +40,10 @@ export default async function GenerationsPage() {
 
   const generations = [...new Set((members ?? []).map((m) => m.generation ?? '未設定'))].filter(g => g !== '未設定')
 
-  // Webhook URL 設定を取得（generation_settings テーブル）
+  // Webhook URL 設定を取得（generation_settings テーブル・用途別3カラム）
   const { data: webhookSettings } = await adminClient
     .from('generation_settings')
-    .select('generation, discord_webhook_url')
+    .select('generation, discord_webhook_url, encourage_webhook_url, achievement_webhook_url')
 
   return (
     <AppShell profile={profile}>

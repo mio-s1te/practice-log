@@ -74,13 +74,16 @@ export async function POST(req: NextRequest) {
     // 期生別 Webhook URL を取得
     const { data: allGenSettings } = await adminClient
       .from('generation_settings')
-      .select('generation, discord_webhook_url')
+      .select('generation, discord_webhook_url, achievement_webhook_url')
 
     const myGen = profile.generation.trim()
     const genSettings = (allGenSettings ?? []).find(
-      (g: any) => g.generation?.trim() === myGen && g.discord_webhook_url
+      (g: any) => g.generation?.trim() === myGen
     )
-    const webhookUrl = genSettings?.discord_webhook_url ?? process.env.DISCORD_WEBHOOK_URL
+    // 成果報告用: achievement_webhook_url → なければ discord_webhook_url にフォールバック
+    const webhookUrl = genSettings?.achievement_webhook_url
+      ?? genSettings?.discord_webhook_url
+      ?? process.env.DISCORD_WEBHOOK_URL
 
     if (webhookUrl) {
       const isAnonymous = publicOk === '匿名ならOK'

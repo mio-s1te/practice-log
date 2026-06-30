@@ -121,13 +121,17 @@ export async function POST(req: NextRequest) {
   // generation文字列はtrim()して比較（スペース混入対策）
   const { data: allGenSettings } = await adminClient
     .from('generation_settings')
-    .select('generation, discord_webhook_url')
+    .select('generation, discord_webhook_url, encourage_webhook_url, achievement_webhook_url')
 
   const myGen = profile.generation.trim()
+  // 自分の期生設定を取得（webhook URLの有無は問わず取得）
   const genSettings = (allGenSettings ?? []).find(
-    (g: any) => g.generation?.trim() === myGen && g.discord_webhook_url
+    (g: any) => g.generation?.trim() === myGen
   )
+  // 日報用: discord_webhook_url
   const generationWebhookUrl = genSettings?.discord_webhook_url ?? null
+  // 励まし用: encourage_webhook_url → なければ discord_webhook_url にフォールバック
+  const encourageWebhookUrl = genSettings?.encourage_webhook_url ?? generationWebhookUrl ?? process.env.DISCORD_WEBHOOK_URL ?? null
 
   // ─── ① 期生ルームへの日報投稿 ───────────────────────────────
   if (generationWebhookUrl && checkin && checkin.discord_share !== '共有NG') {
@@ -184,7 +188,6 @@ export async function POST(req: NextRequest) {
 
   // ─── ② 励まし通知（Discord） ────────────────────────────────
   if (isEncourage) {
-    const encourageWebhookUrl = generationWebhookUrl ?? process.env.DISCORD_WEBHOOK_URL
     if (encourageWebhookUrl) {
       const message = [
         `💛 ${emoji} **${profile.generation}** のメンバーが励ましを求めています`,
