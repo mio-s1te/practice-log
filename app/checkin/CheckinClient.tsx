@@ -79,7 +79,7 @@ export function CheckinClient({ profile, todayCheckin }: Props) {
       question_text: hasQuestion ? questionText : '',
       question_public_ok: hasQuestion ? (questionPublicOk ?? false) : false,
       next_text: nextText,
-      mood: moodValue as MoodType,
+      mood: moodValue,  // MoodType（1つ）または JSON配列文字列（複数選択時）
       discord_share: discordShare,
     }
 

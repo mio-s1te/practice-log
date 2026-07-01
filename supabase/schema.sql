@@ -76,11 +76,9 @@ CREATE TABLE IF NOT EXISTS public.checkins (
   has_question  boolean NOT NULL DEFAULT false,
   question_text text DEFAULT '',
   next_text     text DEFAULT '',
-  mood          text NOT NULL DEFAULT '順調'
-                  CHECK (mood IN (
-                    '順調', '少し止まった', '質問したい',
-                    '励ましがほしい', '個別相談が必要かも'
-                  )),
+  mood          text NOT NULL DEFAULT '順調',
+  -- ※ CHECK制約なし: 単一値 または JSON配列文字列（複数選択時）を格納
+  -- 例: '順調' または '["順調","励ましがほしい"]'
   discord_share text NOT NULL DEFAULT '共有OK'
                   CHECK (discord_share IN ('共有OK', '匿名ならOK', '共有NG')),
   created_at    timestamptz NOT NULL DEFAULT now(),

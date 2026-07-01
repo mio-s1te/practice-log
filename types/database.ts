@@ -64,7 +64,7 @@ export type Database = {
           has_question: boolean
           question_text: string | null
           next_text: string | null
-          mood: MoodType
+          mood: MoodType | string  // 複数選択時は JSON配列文字列 例: '["順調","励ましがほしい"]'
           discord_share: DiscordShareType
           created_at: string
           updated_at: string
@@ -80,7 +80,7 @@ export type Database = {
           has_question?: boolean
           question_text?: string | null
           next_text?: string | null
-          mood?: MoodType
+          mood?: MoodType | string  // 複数選択時は JSON配列文字列
           discord_share?: DiscordShareType
           created_at?: string
           updated_at?: string
@@ -93,7 +93,7 @@ export type Database = {
           has_question?: boolean
           question_text?: string | null
           next_text?: string | null
-          mood?: MoodType
+          mood?: MoodType | string  // 複数選択時は JSON配列文字列
           discord_share?: DiscordShareType
           updated_at?: string
         }
